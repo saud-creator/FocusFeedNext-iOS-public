@@ -10,7 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Extract source snapshot
-        run: unzip -q FocusFeedNext-source.zip -d source
+        run: |
+          unzip -q FocusFeedNext-source.zip -d source
+          cp build-ios-unsigned.sh source/tools/build-ios-unsigned.sh
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
