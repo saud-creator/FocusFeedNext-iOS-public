@@ -1,0 +1,42 @@
+name: Build unsigned iPhone IPA
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unsigned-ipa:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract source snapshot
+        run: unzip -q FocusFeedNext-source.zip -d source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install dependencies
+        working-directory: source
+        run: |
+          npm ci
+          if ! command -v pod >/dev/null 2>&1; then
+            brew install cocoapods
+          fi
+      - name: Build unsigned device IPA
+        working-directory: source
+        run: bash tools/build-ios-unsigned.sh 1
+      - name: Save unsigned IPA and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: FocusFeedNext-unsigned-iPhone
+          path: |
+            source/dist-ios/FocusFeedNext-unsigned.ipa
+            source/dist-ios/FocusFeedNext-unsigned.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - name: Save build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-iPhone-build-log
+          path: source/dist-ios/build.log
+          if-no-files-found: ignore
