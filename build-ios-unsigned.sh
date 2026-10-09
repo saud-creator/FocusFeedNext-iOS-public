@@ -53,7 +53,7 @@ mkdir -p "$staging/Payload"
 ditto "$app" "$staging/Payload/$(basename "$app")"
 packaged_app="$staging/Payload/$(basename "$app")"
 executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$packaged_app/Info.plist")
-lipo -verify_arch arm64 "$packaged_app/$executable"
+lipo "$packaged_app/$executable" -verify_arch arm64
 /usr/libexec/PlistBuddy -c 'Print :CFBundleSupportedPlatforms' "$packaged_app/Info.plist" | grep -q iPhoneOS
 if find "$packaged_app" \( -name _CodeSignature -o -name embedded.mobileprovision \) -print -quit | grep -q .; then
   echo 'Unexpected signature or provisioning profile in unsigned app.' >&2
