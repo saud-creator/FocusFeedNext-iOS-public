@@ -41,7 +41,9 @@ if [[ -z "$app" ]]; then
   echo "No device application archive was produced (CLI exit $build_status)." >&2
   exit 1
 fi
-if [[ "$build_status" != 0 ]] && ! grep -q '\*\* ARCHIVE SUCCEEDED \*\*' "$output/build.log"; then
+if [[ "$build_status" != 0 ]] && ! grep -q '\*\* ARCHIVE SUCCEEDED \*\*' "$output/build.log" && \
+   ! { grep -q 'exportArchive No Team Found in Archive' "$output/build.log" && \
+       grep -q 'failed to export iOS app' "$output/build.log"; }; then
   echo 'Archive did not succeed; refusing to package an incomplete application.' >&2
   exit 1
 fi
