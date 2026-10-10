@@ -17,6 +17,8 @@ if find src-tauri/gen/apple/build -name '*.xcarchive' -print -quit 2>/dev/null |
 fi
 unset APPLE_DEVELOPMENT_TEAM APPLE_API_ISSUER APPLE_API_KEY APPLE_API_KEY_PATH
 rustup target add aarch64-apple-ios
+# Generate the bundled, isolated WebKit request engine before Swift packaging.
+node tools/build-ios-native.mjs
 npm run tauri -- ios init --ci
 # This CLI version does not forward its trailing arguments to xcodebuild.
 # Set signing off in every generated Xcode build configuration instead.
