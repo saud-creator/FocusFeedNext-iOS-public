@@ -1,3 +1,4 @@
+# Browser-upload fallback: repository root contains FocusFeedNext-source.zip.
 name: Build unsigned iPhone IPA
 on:
   workflow_dispatch:
@@ -16,6 +17,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
+      - name: Select iOS 26 SDK when installed
+        run: |
+          selected=$(find /Applications -maxdepth 1 -name 'Xcode_26*.app' | sort -V | tail -n 1)
+          if [[ -n "$selected" ]]; then
+            sudo xcode-select -s "$selected/Contents/Developer"
+          fi
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
       - name: Install dependencies
         working-directory: source
         run: |
@@ -25,7 +34,7 @@ jobs:
           fi
       - name: Build unsigned device IPA
         working-directory: source
-        run: bash tools/build-ios-unsigned.sh 1
+        run: bash tools/build-ios-unsigned.sh 2
       - name: Save unsigned IPA and checksum
         uses: actions/upload-artifact@v4
         with:
