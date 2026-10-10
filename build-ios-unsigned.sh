@@ -7,6 +7,7 @@ if [[ "$(uname -s)" != Darwin ]]; then
   exit 1
 fi
 xcrun --sdk iphoneos --show-sdk-path >/dev/null
+bash tools/test-ios-native.sh
 build_number="${1:-1}"
 [[ "$build_number" =~ ^[0-9]+$ ]] || { echo 'Build number must be numeric.' >&2; exit 1; }
 output="$PWD/dist-ios"
@@ -54,6 +55,7 @@ trap 'rm -rf "$staging"' EXIT
 mkdir -p "$staging/Payload"
 ditto "$app" "$staging/Payload/$(basename "$app")"
 packaged_app="$staging/Payload/$(basename "$app")"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion 700.$build_number" "$packaged_app/Info.plist"
 executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$packaged_app/Info.plist")
 lipo "$packaged_app/$executable" -verify_arch arm64
 /usr/libexec/PlistBuddy -c 'Print :CFBundleSupportedPlatforms' "$packaged_app/Info.plist" | grep -q iPhoneOS
