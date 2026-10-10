@@ -7,11 +7,13 @@ if [[ "$(uname -s)" != Darwin ]]; then
   exit 1
 fi
 xcrun --sdk iphoneos --show-sdk-path >/dev/null
+node tools/build-ios-native.mjs
 bash tools/test-ios-native.sh
 build_number="${1:-1}"
 [[ "$build_number" =~ ^[0-9]+$ ]] || { echo 'Build number must be numeric.' >&2; exit 1; }
 output="$PWD/dist-ios"
 mkdir -p "$output"
+cat "$output/native-tests/results.txt" > "$output/build.log"
 if find src-tauri/gen/apple/build -name '*.xcarchive' -print -quit 2>/dev/null | grep -q .; then
   echo 'Existing Xcode archive found. Use a fresh checkout to avoid packaging an old build.' >&2
   exit 1
@@ -36,7 +38,7 @@ npm run tauri -- icon src-tauri/icons/icon-ios-1024.png --ios-color '#0a0b10'
 # Xcode archive stage and package the resulting device .app ourselves instead.
 set +e
 npm run tauri -- ios build --ci --target aarch64 --build-number "$build_number" \
-  2>&1 | tee "$output/build.log"
+  2>&1 | tee -a "$output/build.log"
 build_status=${PIPESTATUS[0]}
 set -e
 app="$(find src-tauri/gen/apple/build -path '*.xcarchive/Products/Applications/*.app' -type d -print -quit)"
@@ -55,7 +57,7 @@ trap 'rm -rf "$staging"' EXIT
 mkdir -p "$staging/Payload"
 ditto "$app" "$staging/Payload/$(basename "$app")"
 packaged_app="$staging/Payload/$(basename "$app")"
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion 700.$build_number" "$packaged_app/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion 800.$build_number" "$packaged_app/Info.plist"
 executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$packaged_app/Info.plist")
 lipo "$packaged_app/$executable" -verify_arch arm64
 /usr/libexec/PlistBuddy -c 'Print :CFBundleSupportedPlatforms' "$packaged_app/Info.plist" | grep -q iPhoneOS
