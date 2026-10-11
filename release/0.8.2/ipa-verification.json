@@ -1,0 +1,19 @@
+{
+  "version": "0.8.2",
+  "build": "802.1",
+  "bundleIdentifier": "com.focusfeed.next",
+  "platforms": [
+    "iPhoneOS"
+  ],
+  "minimumOS": "16.0",
+  "sdk": "iphoneos26.2",
+  "architecture": "arm64",
+  "proMotionOptIn": true,
+  "zipEntries": 13,
+  "nativeImagesChecked": 1,
+  "archiveCRC": "passed",
+  "codeSignatures": 0,
+  "provisioningProfiles": 0,
+  "bytes": 4273698,
+  "sha256": "8938d29fc9000f32954a2d5275e8230761fb9a8b69cc2ac783faed7c21b9127f"
+}
