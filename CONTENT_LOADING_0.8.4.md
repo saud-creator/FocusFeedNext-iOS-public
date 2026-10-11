@@ -4,6 +4,7 @@ Signing in could successfully verify the account through URLSession while the
 Following feed, bookmarks and account lists still depended on WebKit fetch.
 Version 0.8.4 connects the isolated reader engine to native URLSession HTTP for
 homepage metadata, public client bundles and authenticated API requests.
+Native REST identity verification retains its independent WebKit fallback.
 
 - Native requests use the current private cookie store and CSRF cookie. Response
   cookie changes are installed before the next request. Credentials never go to

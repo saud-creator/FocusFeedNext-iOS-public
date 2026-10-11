@@ -9,7 +9,7 @@ let sequence = 0;
 
 export async function providerFetch(url: string, init: RequestInit = {}, requestId?: string): Promise<Response> {
   const bridge = (globalThis as typeof globalThis & { webkit?: { messageHandlers?: { ffnHttp?: Bridge } } }).webkit?.messageHandlers?.ffnHttp;
-  if (!bridge) return fetch(url, init);
+  if (!bridge || requestId == null) return fetch(url, init);
   init.signal?.throwIfAborted();
   const jobId = String(++sequence);
   const supplied = new Headers(init.headers);

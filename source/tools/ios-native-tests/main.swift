@@ -230,15 +230,13 @@ func engineRequest(_ operation:String,_ variables:[String:Any],_ id:String)->[St
     }
     waitUntil({done},"production \(operation)");return output
 }
-let identity=engineRequest("Me",[:],"1")
-check(identity["status"] as? Int == 200,"real transaction engine and transferred cookies validate identity")
 let profile=engineRequest("UserByScreenName",["screen_name":"fixture"],"2")
 check(profile["status"] as? Int == 200,"profile request carries operation-specific features")
 let timeline = engineRequest("HomeLatestTimeline",["count":30],"4")
 check(timeline["status"] as? Int == 200 && String(describing:timeline["body"]!).contains("Fixture live post"),"native feed loads posts with current query ID, required feature and rotated CSRF")
 check(engineRequest("Bookmarks",["count":30],"5")["status"] as? Int == 200,"bookmarks load through authenticated native HTTP")
 check(engineRequest("Following",["userId":"42","count":30],"6")["status"] as? Int == 200,"following accounts use the GET query method")
-check(httpRequests >= 8,"content engine performs real URLSession HTTP requests without browser fetch")
+check(httpRequests >= 7,"content engine performs real URLSession HTTP requests without browser fetch")
 check(ProviderHTTPTransport.cookieHeader(contentCookies,url:URL(string:"https://abs.twimg.com/responsive-web/client-web/main.fixture.js")!) == nil,"provider credentials never reach the public metadata CDN")
 check(!ProviderHTTPTransport.permits(URL(string:"https://example.com/home")!,method:"GET",operation:"HomeLatestTimeline"),"native bridge rejects foreign hosts")
 check(!ProviderHTTPTransport.permits(URL(string:"https://x.com/i/api/graphql/query/Following")!,method:"POST",operation:"Following"),"native bridge rejects incorrect read methods")

@@ -16,6 +16,16 @@ function fixture(handler: (url:string,init?:RequestInit)=>Response = () => Respo
   });
 }
 describe('production native reader engine', () => {
+  it('keeps WebKit REST identity as an independent fallback when native identity did not complete', async()=>{
+    const browserFetch=vi.fn(async()=>Response.json({users:[{user_id:'42',screen_name:'fixture'}]}));
+    const native=vi.fn();
+    vi.stubGlobal('fetch',browserFetch);
+    vi.stubGlobal('webkit',{messageHandlers:{ffnHttp:{postMessage:native}}});
+    const reader=await import('../../src-tauri/plugins/ios-reader/transaction/reader');
+    expect(await reader.requestSafe('Me',{},'fixture',context())).toMatchObject({status:200});
+    expect(browserFetch).toHaveBeenCalledTimes(1);
+    expect(native).not.toHaveBeenCalled();
+  });
   it('loads current timeline IDs and newly required flags before requesting content', async () => {
     const fetch = vi.fn(async(url:string, init?:RequestInit) => {
       if (url === 'https://x.com/home') return new Response(home.replace('</head>', '<link href="https://abs.twimg.com/responsive-web/client-web/vendor.a.js"><script src="https://abs.twimg.com/responsive-web/client-web/main.new.js"></script><script>var flags={"new_feed_flag":{"value":true}}</script></head>'));

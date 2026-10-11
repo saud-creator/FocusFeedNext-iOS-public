@@ -239,7 +239,9 @@ async function perform(operation: string, variables: Record<string, unknown>, cs
     sent();
     const providerStart = performance.now();
     let response: Response;
-    try { response = await boundedFetch(url, { method, headers, body, signal },context.id); }
+    // Swift already tries native REST identity first. Keep its independent
+    // WebKit identity fallback; content and metadata use native HTTP.
+    try { response = await boundedFetch(url, { method, headers, body, signal },operation === 'Me' ? undefined : context.id); }
     catch (error) {
       timing.providerMs += performance.now() - providerStart;
       if (signal.aborted) throw error;
