@@ -1,6 +1,6 @@
 {
-  "status": "failure",
-  "runUrl": "https://github.com/saud-creator/FocusFeedNext-iOS/actions/runs/38154145975",
-  "sourceCommit": "6838e47927ba9555220cd5005b2bc905659048fe",
-  "sourceSha256": "f1a8fa603252235f8bc08cb3b0e68d64bb5fb541a28677a3b82bcee25bbf0539"
+  "status": "success",
+  "runUrl": "https://github.com/saud-creator/FocusFeedNext-iOS/actions/runs/38154332232",
+  "sourceCommit": "84043dd3bccf1cc1d3c1185a8e59d39f1e1368cd",
+  "sourceSha256": "b8a914817139055021076f8076cf87f8c1d74fc13fcfcbc8508c1ca7d0972f2e"
 }
