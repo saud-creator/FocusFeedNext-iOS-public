@@ -1,0 +1,1488 @@
+curl: (7) Failed to connect to 127.0.0.1 port 8769 after 0 ms: Couldn't connect to server
+curl: (28) Failed to connect to 127.0.0.1 port 8769 after 7808 ms: Couldn't connect to server
+curl: (28) Failed to connect to 127.0.0.1 port 8769 after 7864 ms: Couldn't connect to server
+curl: (28) Failed to connect to 127.0.0.1 port 8769 after 7909 ms: Couldn't connect to server
+curl: (28) Failed to connect to 127.0.0.1 port 8769 after 7933 ms: Couldn't connect to server
+Native session and WebKit checks passed: 69 assertions; fixture traffic only.
+info: downloading component rust-std
+
+> focusfeednext@0.8.4 tauri
+> tauri ios init --ci
+
+        Warn No code signing certificates found. You must add one and set the certificate development team ID on the `bundle > iOS > developmentTeam` config value or the `APPLE_DEVELOPMENT_TEAM` environment variable. To list the available certificates, run `tauri info`.
+        Info Installing iOS Rust targets...
+        Info Installing target aarch64-apple-ios-sim
+info: downloading component rust-std
+        Info Installing target x86_64-apple-ios
+info: downloading component rust-std
+        Info package `xcodegen` not found
+        Info Installing `xcodegen` with brew...
+[34m==>[0m [1mWould reinstall 1 formula:[0m
+xcodegen
+[34m==>[0m [1mDownloading https://ghcr.io/v2/homebrew/core/xcodegen/manifests/2.46.0-1[0m
+[32m==>[0m [1mFetching downloads for: [32mxcodegen[39m[0m
+✔︎ Bottle xcodegen (2.46.0)
+[32m==>[0m [1mReinstalling [32mxcodegen[39m [0m
+[34m==>[0m [1mPouring xcodegen--2.46.0.arm64_sequoia.bottle.1.tar.gz[0m
+🍺  /opt/homebrew/Cellar/xcodegen/2.46.0: 38 files, 7.5MB
+        Info package `libimobiledevice` not found
+        Info Installing `libimobiledevice` with brew...
+[34m==>[0m [1mWould reinstall 1 formula:[0m
+libimobiledevice
+[34m==>[0m [1mDownloading https://ghcr.io/v2/homebrew/core/libimobiledevice/manifests/1.4.0[0m
+[34m==>[0m [1mWould install 4 dependencies for libimobiledevice:[0m
+libplist
+libimobiledevice-glue
+libtatsu
+libusbmuxd
+[32m==>[0m [1mFetching downloads for: [32mlibimobiledevice[39m[0m
+✔︎ Bottle Manifest libplist (2.7.0)
+✔︎ Bottle Manifest libimobiledevice-glue (1.3.2)
+✔︎ Bottle Manifest libtatsu (1.0.5)
+✔︎ Bottle Manifest libusbmuxd (2.1.1)
+✔︎ Bottle libimobiledevice-glue (1.3.2)
+✔︎ Bottle libplist (2.7.0)
+✔︎ Bottle libtatsu (1.0.5)
+✔︎ Bottle libusbmuxd (2.1.1)
+✔︎ Bottle libimobiledevice (1.4.0)
+[32m==>[0m [1mReinstalling [32mlibimobiledevice[39m [0m
+[32m==>[0m [1mInstalling dependencies for libimobiledevice:[0m [32mlibplist[39m, [32mlibimobiledevice-glue[39m, [32mlibtatsu[39m and [32mlibusbmuxd[39m[0m
+[32m==>[0m [1mInstalling libimobiledevice dependency: [32mlibplist[39m[0m
+[34m==>[0m [1mPouring libplist--2.7.0.arm64_sequoia.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libplist/2.7.0: 32 files, 604.1KB
+[32m==>[0m [1mInstalling libimobiledevice dependency: [32mlibimobiledevice-glue[39m[0m
+[34m==>[0m [1mPouring libimobiledevice-glue--1.3.2.arm64_sequoia.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libimobiledevice-glue/1.3.2: 21 files, 233.4KB
+[32m==>[0m [1mInstalling libimobiledevice dependency: [32mlibtatsu[39m[0m
+[34m==>[0m [1mPouring libtatsu--1.0.5.arm64_sequoia.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libtatsu/1.0.5: 12 files, 160.0KB
+[32m==>[0m [1mInstalling libimobiledevice dependency: [32mlibusbmuxd[39m[0m
+[34m==>[0m [1mPouring libusbmuxd--2.1.1.arm64_sequoia.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libusbmuxd/2.1.1: 17 files, 244.7KB
+[32m==>[0m [1mInstalling [32mlibimobiledevice[39m[0m
+[34m==>[0m [1mPouring libimobiledevice--1.4.0.arm64_sequoia.bottle.tar.gz[0m
+🍺  /opt/homebrew/Cellar/libimobiledevice/1.4.0: 82 files, 2.2MB
+/opt/homebrew/lib/ruby/gems/3.3.0/bin/pod
+Apple dependencies are up to date
+        Info "/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri" relative to "/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple" is "../../"
+Generating Xcode project...
+⚙️  Generating plists...
+⚙️  Generating project...
+⚙️  Writing project...
+Created project at /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
+victory: Project generated successfully!
+    Make cool apps! 🌻 🐕 🎉
+
+> focusfeednext@0.8.4 tauri
+> tauri icon src-tauri/icons/icon-ios-1024.png --ios-color #0a0b10
+
+        Appx Creating StoreLogo.png
+        Appx Creating Square30x30Logo.png
+        Appx Creating Square44x44Logo.png
+        Appx Creating Square71x71Logo.png
+        Appx Creating Square89x89Logo.png
+        Appx Creating Square107x107Logo.png
+        Appx Creating Square142x142Logo.png
+        Appx Creating Square150x150Logo.png
+        Appx Creating Square284x284Logo.png
+        Appx Creating Square310x310Logo.png
+        ICNS Creating icon.icns
+         ICO Creating icon.ico
+         PNG Creating 32x32.png
+         PNG Creating 64x64.png
+         PNG Creating 128x128.png
+         PNG Creating 128x128@2x.png
+         PNG Creating icon.png
+         iOS Creating AppIcon-20x20@2x-1.png
+         iOS Creating AppIcon-20x20@1x.png
+         iOS Creating AppIcon-20x20@2x.png
+         iOS Creating AppIcon-20x20@3x.png
+         iOS Creating AppIcon-29x29@2x-1.png
+         iOS Creating AppIcon-29x29@1x.png
+         iOS Creating AppIcon-29x29@2x.png
+         iOS Creating AppIcon-29x29@3x.png
+         iOS Creating AppIcon-40x40@2x-1.png
+         iOS Creating AppIcon-40x40@1x.png
+         iOS Creating AppIcon-40x40@2x.png
+         iOS Creating AppIcon-40x40@3x.png
+         iOS Creating AppIcon-60x60@2x.png
+         iOS Creating AppIcon-60x60@3x.png
+         iOS Creating AppIcon-76x76@1x.png
+         iOS Creating AppIcon-76x76@2x.png
+         iOS Creating AppIcon-83.5x83.5@2x.png
+         iOS Creating AppIcon-512@2x.png
+     Android Creating mipmap-hdpi/ic_launcher_foreground.png
+     Android Creating mipmap-mdpi/ic_launcher_foreground.png
+     Android Creating mipmap-xhdpi/ic_launcher_foreground.png
+     Android Creating mipmap-xxhdpi/ic_launcher_foreground.png
+     Android Creating mipmap-xxxhdpi/ic_launcher_foreground.png
+     Android Creating mipmap-hdpi/ic_launcher_round.png
+     Android Creating mipmap-hdpi/ic_launcher.png
+     Android Creating mipmap-mdpi/ic_launcher_round.png
+     Android Creating mipmap-mdpi/ic_launcher.png
+     Android Creating mipmap-xhdpi/ic_launcher_round.png
+     Android Creating mipmap-xhdpi/ic_launcher.png
+     Android Creating mipmap-xxhdpi/ic_launcher_round.png
+     Android Creating mipmap-xxhdpi/ic_launcher.png
+     Android Creating mipmap-xxxhdpi/ic_launcher_round.png
+     Android Creating mipmap-xxxhdpi/ic_launcher.png
+
+> focusfeednext@0.8.4 tauri
+> tauri ios build --ci --target aarch64 --build-number 1
+
+        Warn No code signing certificates found. You must add one and set the certificate development team ID on the `bundle > iOS > developmentTeam` config value or the `APPLE_DEVELOPMENT_TEAM` environment variable. To list the available certificates, run `tauri info`.
+        Info Looking up installed tauri packages to check mismatched versions...
+     Running beforeBuildCommand `npm run build`
+
+> focusfeednext@0.8.4 build
+> node tools/build-ios-native.mjs && tsc -b && vite build
+
+[36mvite v8.1.5 [32mbuilding client environment for production...[36m[39m
+[2Ktransforming...✓ 1980 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                             1.67 kB │ gzip:  0.60 kB
+dist/assets/index-B5fdluJJ.css             55.26 kB │ gzip: 10.57 kB
+dist/assets/search-C28QUagg.js              0.16 kB │ gzip:  0.16 kB
+dist/assets/users-CGYvNywQ.js               0.30 kB │ gzip:  0.22 kB
+dist/assets/trash-2-CyTa9q3j.js             0.32 kB │ gzip:  0.21 kB
+dist/assets/key-round-BTuauSqA.js           0.34 kB │ gzip:  0.26 kB
+dist/assets/FocusFeed-BkHZ45lz.js           0.48 kB │ gzip:  0.32 kB
+dist/assets/Originals-RPMXmnc1.js           0.48 kB │ gzip:  0.31 kB
+dist/assets/rolldown-runtime-Bh1tDfsg.js    0.56 kB │ gzip:  0.36 kB
+dist/assets/Avatar-BH1peKlJ.js              1.02 kB │ gzip:  0.60 kB
+dist/assets/event-BVXVyLpI.js               1.03 kB │ gzip:  0.54 kB
+dist/assets/card-xMSp681b.js                1.73 kB │ gzip:  0.81 kB
+dist/assets/LocalSearch-D8CFnaRh.js         2.93 kB │ gzip:  1.35 kB
+dist/assets/AccountIdentity-ClY-c-Tj.js     3.17 kB │ gzip:  1.23 kB
+dist/assets/Bookmarks-BNn5ugzm.js           5.14 kB │ gzip:  1.94 kB
+dist/assets/useMutation-C4KtKHqQ.js         5.58 kB │ gzip:  1.79 kB
+dist/assets/IosConnection-B6SFQeWX.js       8.53 kB │ gzip:  2.84 kB
+dist/assets/Diagnostics-CMhzVONN.js         8.88 kB │ gzip:  3.03 kB
+dist/assets/Profile-DJANgXOm.js             9.48 kB │ gzip:  3.59 kB
+dist/assets/FollowingManager-CUT5RW1a.js    9.55 kB │ gzip:  3.71 kB
+dist/assets/Groups-DfikSTew.js             11.57 kB │ gzip:  3.63 kB
+dist/assets/useFeed-CrwG6fbp.js            12.17 kB │ gzip:  4.69 kB
+dist/assets/Settings-BOoI5XHz.js           41.99 kB │ gzip: 11.17 kB
+dist/assets/FeedList-BnS9p7yd.js          106.34 kB │ gzip: 32.75 kB
+dist/assets/index-Dr2DQLOa.js             213.93 kB │ gzip: 67.58 kB
+dist/assets/PageHeader-BBxHDKTT.js        297.53 kB │ gzip: 91.69 kB
+
+[32m✓ built in 225ms[39m
+Command line invocation:
+    /Applications/Xcode_26.3.app/Contents/Developer/usr/bin/xcodebuild -allowProvisioningUpdates -scheme focus-feed-next_iOS -workspace /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj/project.xcworkspace/ -sdk iphoneos -configuration release build
+
+Build settings from command line:
+    SDKROOT = iphoneos26.2
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS, id:dvtdevice-DVTiPhonePlaceholder-iphoneos:placeholder, name:Any iOS Device }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:8eccf5332f2294dd3d2344646987668dd58ea3b4, name:My Mac }
+{ platform:iOS Simulator, id:dvtdevice-DVTiOSDeviceSimulatorPlaceholder-iphonesimulator:placeholder, name:Any iOS Simulator Device }
+{ platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:EFC27B51-A1AC-4C44-A0CE-43F84B5F0B68, OS:2.3, name:Apple Vision Pro }
+{ platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:136F9422-A9E1-4C19-88AF-45BB818E37BB, OS:2.4, name:Apple Vision Pro }
+{ platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:0C5BF083-23A9-419B-9CBD-8E2AA7E26265, OS:2.5, name:Apple Vision Pro }
+{ platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:EB17C5F7-7C10-47FF-9344-F550DB0D244F, OS:26.1, name:Apple Vision Pro }
+{ platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:62E72748-B3EC-4F87-AAD9-DE47D54B7B63, OS:26.2, name:Apple Vision Pro }
+{ platform:iOS Simulator, arch:arm64, id:B7718686-AA2A-4157-8E04-7FA4AE6F7BD0, OS:18.5, name:iPad (10th generation) }
+{ platform:iOS Simulator, arch:arm64, id:FF8C8404-A040-4C69-BE4F-258FA2571EA2, OS:18.6, name:iPad (10th generation) }
+{ platform:iOS Simulator, arch:arm64, id:5A7C2682-DC41-42B4-A065-6477314C6107, OS:26.0.1, name:iPad (10th generation) }
+{ platform:iOS Simulator, arch:arm64, id:388BAFD3-DA76-4ACF-AB96-CB8111ABF99E, OS:26.1, name:iPad (10th generation) }
+{ platform:iOS Simulator, arch:arm64, id:AC7BF8FD-BAB0-4374-A4F7-52ABA082B92E, OS:26.2, name:iPad (10th generation) }
+{ platform:iOS Simulator, arch:arm64, id:7222C0FB-7BCD-457A-AD32-76C948D2602F, OS:18.5, name:iPad (A16) }
+{ platform:iOS Simulator, arch:arm64, id:458323E3-9E85-4764-B868-F02CE9C4ADF0, OS:18.6, name:iPad (A16) }
+{ platform:iOS Simulator, arch:arm64, id:3869DFDE-0197-4B91-915D-90B3D279FE15, OS:26.0.1, name:iPad (A16) }
+{ platform:iOS Simulator, arch:arm64, id:BAD1706E-E13F-444D-B19F-C7A451E7774A, OS:26.1, name:iPad (A16) }
+{ platform:iOS Simulator, arch:arm64, id:E1D34F4A-69A6-4E07-8C9F-D5E775E2A416, OS:26.2, name:iPad (A16) }
+{ platform:iOS Simulator, arch:arm64, id:FB985C96-A632-42FC-A064-57F80EA1A0AF, OS:18.5, name:iPad Air 11-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:6CE4BAD1-E547-4D95-B130-FBCDCE49282B, OS:18.6, name:iPad Air 11-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:5DCA7372-1294-4245-AADE-E9938CC9119F, OS:26.0.1, name:iPad Air 11-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:B5D41CE2-3444-4312-8351-5A2B58E90C26, OS:26.1, name:iPad Air 11-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:28EB6DDD-01F7-42F7-B1FF-56CC398818EB, OS:26.2, name:iPad Air 11-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:238ABD15-A231-49EB-9A8E-2A18835D05E4, OS:18.5, name:iPad Air 11-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:A1F6F219-8660-4BC0-B7E9-17BEE98456F5, OS:18.6, name:iPad Air 11-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:244E1618-3993-4A44-B213-FA496A601843, OS:26.0.1, name:iPad Air 11-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:5DE60B78-C540-4CAE-BF3B-D31601C7ABBB, OS:26.1, name:iPad Air 11-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:EF008AE9-B743-4A49-A8AD-A27FD9CCAE52, OS:26.2, name:iPad Air 11-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:DEC44A2A-1119-4A2D-89C9-0A7E48485C1E, OS:18.5, name:iPad Air 13-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:6AF871A0-5FC9-4DA0-92D3-D60A3F3986E0, OS:18.6, name:iPad Air 13-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:DC7ED953-B711-4AC8-A414-A7008BA50DAD, OS:26.0.1, name:iPad Air 13-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:D3B307C6-3981-42AF-9708-E15A72BECF2D, OS:26.1, name:iPad Air 13-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:6235A74F-E996-4A4A-B5B9-91A8A87F50EE, OS:26.2, name:iPad Air 13-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:9747906A-4708-4563-B8B9-1FE571CEA8C5, OS:18.5, name:iPad Air 13-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:24D6FA4F-CB44-41E0-B6E8-91374A95E4CA, OS:18.6, name:iPad Air 13-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:1262447B-91B2-4C0C-90E8-36537D183683, OS:26.0.1, name:iPad Air 13-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:40C16C1A-5BA0-41C6-99A5-355F9CBACD9F, OS:26.1, name:iPad Air 13-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:8C025F3C-2545-40A5-AC87-FF534DB84D42, OS:26.2, name:iPad Air 13-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:2EDB2671-090C-4988-822E-421879ECE84C, OS:18.5, name:iPad Pro 11-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:41C766F4-A950-4049-81B8-1B578B5804D8, OS:18.6, name:iPad Pro 11-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:CE25E477-AAC4-469F-9343-301D5ABCD9BC, OS:26.0.1, name:iPad Pro 11-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:38A0995A-759F-417D-ACED-70D43D6DBB82, OS:26.1, name:iPad Pro 11-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:FABE5896-BAF4-4220-8AFE-C1E31625D4DC, OS:26.2, name:iPad Pro 11-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:07E2DE8A-D138-4013-A250-9EDE31AAB9DE, OS:26.0.1, name:iPad Pro 11-inch (M5) }
+{ platform:iOS Simulator, arch:arm64, id:165A6108-1D5C-4AFB-94C8-64E25DA3E7B5, OS:26.1, name:iPad Pro 11-inch (M5) }
+{ platform:iOS Simulator, arch:arm64, id:93F8D73D-86A4-455D-8E33-EFA55B5760E4, OS:26.2, name:iPad Pro 11-inch (M5) }
+{ platform:iOS Simulator, arch:arm64, id:AFBB202F-0F39-4DD8-8C47-DAB97D7D9DF2, OS:18.5, name:iPad Pro 13-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:DD335931-190E-4075-B666-91C698C0CDEC, OS:18.6, name:iPad Pro 13-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:1A4FA0DD-F5CE-49FF-A6E2-1CAC22BE4C80, OS:26.0.1, name:iPad Pro 13-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:380AF256-AA90-49F1-BC8E-618736C734CB, OS:26.1, name:iPad Pro 13-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:5A602664-A209-462C-9B02-6E51FACDFED6, OS:26.2, name:iPad Pro 13-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:7EBB23D5-64E2-4DDB-B24F-86C16A07ED26, OS:26.0.1, name:iPad Pro 13-inch (M5) }
+{ platform:iOS Simulator, arch:arm64, id:B673CC61-F30B-479A-9672-FA680127EE1F, OS:26.1, name:iPad Pro 13-inch (M5) }
+{ platform:iOS Simulator, arch:arm64, id:0DE52589-6E0B-47D4-B4A7-7E4E3D9C1049, OS:26.2, name:iPad Pro 13-inch (M5) }
+{ platform:iOS Simulator, arch:arm64, id:773C1AA1-17A9-4EC1-8BE5-D4BB00DF3AC1, OS:18.5, name:iPad mini (A17 Pro) }
+{ platform:iOS Simulator, arch:arm64, id:417FB14E-FFC0-4FB1-B6D6-BA85C2FFC3D5, OS:18.6, name:iPad mini (A17 Pro) }
+{ platform:iOS Simulator, arch:arm64, id:B12E6DD0-E867-4D26-BFBA-2BD9C3D55DBD, OS:26.0.1, name:iPad mini (A17 Pro) }
+{ platform:iOS Simulator, arch:arm64, id:CFF66741-12D5-44BF-BABB-29622D014BE2, OS:26.1, name:iPad mini (A17 Pro) }
+{ platform:iOS Simulator, arch:arm64, id:9D9BF050-F6F5-4D32-84C0-4B7AC57F63EF, OS:26.2, name:iPad mini (A17 Pro) }
+{ platform:iOS Simulator, arch:arm64, id:F0E646EF-4792-4F36-B48B-EC89B3A6B73B, OS:18.5, name:iPhone 16 }
+{ platform:iOS Simulator, arch:arm64, id:02010C24-263D-445A-8934-74FE019F15CA, OS:18.6, name:iPhone 16 }
+{ platform:iOS Simulator, arch:arm64, id:2D9C6CF6-FA7D-4D87-84C4-D5FA503F22B9, OS:26.0.1, name:iPhone 16 }
+{ platform:iOS Simulator, arch:arm64, id:6D9FD9BD-F027-4EE5-83A6-BC98ED2603B0, OS:26.1, name:iPhone 16 }
+{ platform:iOS Simulator, arch:arm64, id:2911FD29-A09E-4A81-BEA7-99A616FB7FC8, OS:26.2, name:iPhone 16 }
+{ platform:iOS Simulator, arch:arm64, id:183F93DA-9B72-40B1-AD0E-287526E4E9D5, OS:18.5, name:iPhone 16 Plus }
+{ platform:iOS Simulator, arch:arm64, id:102FCD1A-4F6B-4B15-ABA9-774BC75ADB11, OS:18.6, name:iPhone 16 Plus }
+{ platform:iOS Simulator, arch:arm64, id:2EE15100-41A2-4790-893A-050FC5FE5AA8, OS:26.0.1, name:iPhone 16 Plus }
+{ platform:iOS Simulator, arch:arm64, id:C1337AE6-D82D-4C09-B0BA-4437460B306E, OS:26.1, name:iPhone 16 Plus }
+{ platform:iOS Simulator, arch:arm64, id:CFF67BF1-533D-480D-9A76-F1EADAD339C7, OS:26.2, name:iPhone 16 Plus }
+{ platform:iOS Simulator, arch:arm64, id:DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9, OS:18.5, name:iPhone 16 Pro }
+{ platform:iOS Simulator, arch:arm64, id:7FF9581C-A82C-472C-B005-492B077D1038, OS:18.6, name:iPhone 16 Pro }
+{ platform:iOS Simulator, arch:arm64, id:3C00406B-9DB5-4106-B5FD-132C84BF188A, OS:26.0.1, name:iPhone 16 Pro }
+{ platform:iOS Simulator, arch:arm64, id:3F7F71D8-9EE4-4B63-84A8-6EBD0C5017BE, OS:26.1, name:iPhone 16 Pro }
+{ platform:iOS Simulator, arch:arm64, id:291E4B86-C951-41A7-8327-84BF0304D0A9, OS:26.2, name:iPhone 16 Pro }
+{ platform:iOS Simulator, arch:arm64, id:F1218AE5-3D29-4CE5-9D0F-6F21CEAA502C, OS:18.5, name:iPhone 16 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:BAE7F30B-6707-4BF4-8375-FE75C94DD2FA, OS:18.6, name:iPhone 16 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:E1605B84-CF5A-4193-878D-3623BD8B90AE, OS:26.0.1, name:iPhone 16 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:920BDAA4-BD69-4998-9337-3B06B2C584F4, OS:26.1, name:iPhone 16 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:9F3D563E-AF8A-4089-B32E-3ADADEB067F0, OS:26.2, name:iPhone 16 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:51F5467F-16A9-4296-9C05-A74F91234967, OS:18.5, name:iPhone 16e }
+{ platform:iOS Simulator, arch:arm64, id:8CBC396B-9510-42FF-AC70-614F5BD0FC86, OS:18.6, name:iPhone 16e }
+{ platform:iOS Simulator, arch:arm64, id:4118C2C1-7E78-41EB-B816-3C75C7076F1E, OS:26.0.1, name:iPhone 16e }
+{ platform:iOS Simulator, arch:arm64, id:A1D6E20D-5C3F-46E8-88C8-9A88DB2C1D0E, OS:26.1, name:iPhone 16e }
+{ platform:iOS Simulator, arch:arm64, id:1ECD563C-BBBB-42E5-9A9F-648809113BF6, OS:26.2, name:iPhone 16e }
+{ platform:iOS Simulator, arch:arm64, id:003F24D4-BA1A-4D48-A26E-C14D511E7472, OS:26.0.1, name:iPhone 17 }
+{ platform:iOS Simulator, arch:arm64, id:3D025AD9-C9BB-46A3-BCB4-B84F592C53A0, OS:26.1, name:iPhone 17 }
+{ platform:iOS Simulator, arch:arm64, id:22970779-4A47-463E-8B6D-CC012359B320, OS:26.2, name:iPhone 17 }
+{ platform:iOS Simulator, arch:arm64, id:517BAAA1-7BAB-4B50-8B25-04EF0238019B, OS:26.0.1, name:iPhone 17 Pro }
+{ platform:iOS Simulator, arch:arm64, id:DBAE96AF-90B5-4387-B859-66348EF015C7, OS:26.1, name:iPhone 17 Pro }
+{ platform:iOS Simulator, arch:arm64, id:E952A9B0-CC78-435C-BF08-06AD47FE1076, OS:26.2, name:iPhone 17 Pro }
+{ platform:iOS Simulator, arch:arm64, id:CA359E70-5E9C-400C-A7E1-34013F7B088A, OS:26.0.1, name:iPhone 17 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:1BF1F2D9-05B4-4B31-BE19-1031B4A0EA80, OS:26.1, name:iPhone 17 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:4C675116-265D-488F-BFFA-836A4545674C, OS:26.2, name:iPhone 17 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:AB0FB058-2DF8-4824-A382-91FE8566B342, OS:26.0.1, name:iPhone Air }
+{ platform:iOS Simulator, arch:arm64, id:55DF797C-6847-4575-ABFA-4E2A08520774, OS:26.1, name:iPhone Air }
+{ platform:iOS Simulator, arch:arm64, id:1CE1A334-F45C-4216-823B-EE5E6389838F, OS:26.2, name:iPhone Air }
+{ platform:iOS Simulator, arch:arm64, id:22A3039C-6A45-47F4-82D4-80C58CA94379, OS:18.5, name:iPhone SE (3rd generation) }
+{ platform:iOS Simulator, arch:arm64, id:8938AAA2-76B5-4D49-A228-383499B04C02, OS:18.6, name:iPhone SE (3rd generation) }
+{ platform:iOS Simulator, arch:arm64, id:F3967A6C-63E1-4323-9EA7-6C26D42F77A3, OS:26.0.1, name:iPhone SE (3rd generation) }
+{ platform:iOS Simulator, arch:arm64, id:3EF44343-CDF7-4757-BAE2-47B813D8FF60, OS:26.1, name:iPhone SE (3rd generation) }
+{ platform:iOS Simulator, arch:arm64, id:48B2DA2E-AF18-4E36-BB25-B25969A4EBCF, OS:26.2, name:iPhone SE (3rd generation) }
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (1 target)
+    Target 'focus-feed-next_iOS' in project 'focus-feed-next' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode_26.3.app/Contents/Developer/usr/bin/ibtool --version --output-format xml1
+
+ExecuteExternalTool /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -x objective-c++ -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode_26.3.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Assets.xcassets
+
+ExecuteExternalTool /Applications/Xcode_26.3.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+
+ExecuteExternalTool /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+Build description signature: 65eab396d8ae039a1f994a16d5b1f013
+Build description path: /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/XCBuildData/65eab396d8ae039a1f994a16d5b1f013.xcbuilddata
+CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
+    builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products
+
+CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
+    builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex
+
+ClangStatCache /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.2-23C57-dc75598d0054f22ec865fa860f139d722dd23b4ebda140f7210d155ff1243552.sdkstatcache
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
+    /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -o /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.2-23C57-dc75598d0054f22ec865fa860f139d722dd23b4ebda140f7210d155ff1243552.sdkstatcache
+        Info connection; remote_addr=127.0.0.1:49342 conn_id=0
+
+CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
+    builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules
+
+CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
+    builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos
+
+CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/ExplicitPrecompiledModules
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
+    builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/ExplicitPrecompiledModules
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next-cf9129c7f7a12cfb2814ac2741ff25a3-VFS-iphoneos/all-product-headers.yaml
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next-cf9129c7f7a12cfb2814ac2741ff25a3-VFS-iphoneos/all-product-headers.yaml
+
+CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/EagerLinkingTBDs/release-iphoneos
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
+    builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/EagerLinkingTBDs/release-iphoneos
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Script-CACB89CD57612EE7CB36B615.sh (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Script-CACB89CD57612EE7CB36B615.sh
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next.hmap (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/Focus\ Feed\ Next.LinkFileList (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/Focus\ Feed\ Next.LinkFileList
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/af3fcb34312c57c0f52879cdce924b91-common-args.resp (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/af3fcb34312c57c0f52879cdce924b91-common-args.resp
+-target arm64-apple-ios16.0 '-std=gnu++14' '-stdlib=libc++' -fobjc-arc -fobjc-weak -fmodules -fno-cxx-modules -gmodules '-fmodules-cache-path=/Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex' -fpascal-strings -Os -fno-common '-DNS_BLOCK_ASSERTIONS=1' '-DOBJC_OLD_DISPATCH_PROTOTYPES=0' -isysroot /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -g '-fvisibility=hidden' -fvisibility-inlines-hidden -iquote '/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus Feed Next-generated-files.hmap' '-I/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus Feed Next-own-target-headers.hmap' '-I/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus Feed Next-all-target-headers.hmap' -iquote '/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus Feed Next-project-headers.hmap' -I/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/include -I/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources-normal/arm64 -I/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources/arm64 -I/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources -F/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos -F.
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next.DependencyStaticMetadataFileList (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next.DependencyStaticMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next.DependencyMetadataFileList (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next.DependencyMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next-project-headers.hmap (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next-project-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next-own-target-headers.hmap (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next-own-target-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next-generated-files.hmap (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next-generated-files.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next-all-target-headers.hmap (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next-all-target-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next-all-non-framework-target-headers.hmap (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next-all-non-framework-target-headers.hmap
+
+MkDir /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    /bin/mkdir -p /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app
+
+PhaseScriptExecution Build\ Rust\ Code /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Script-CACB89CD57612EE7CB36B615.sh (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    export ACTION\=build
+    export AD_HOC_CODE_SIGNING_ALLOWED\=NO
+    export AGGREGATE_TRACKED_DOMAINS\=YES
+    export ALLOW_BUILD_REQUEST_OVERRIDES\=NO
+    export ALLOW_TARGET_PLATFORM_SPECIALIZATION\=NO
+    export ALTERNATE_GROUP\=staff
+    export ALTERNATE_MODE\=u+w,go-w,a+rX
+    export ALTERNATE_OWNER\=runner
+    export ALTERNATIVE_DISTRIBUTION_WEB\=NO
+    export ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES\=YES
+    export ALWAYS_SEARCH_USER_PATHS\=NO
+    export ALWAYS_USE_SEPARATE_HEADERMAPS\=NO
+    export ANDROID_DEPLOYMENT_TARGET\=21.0
+    export APPLICATION_EXTENSION_API_ONLY\=NO
+    export APPLY_RULES_IN_COPY_FILES\=NO
+    export APPLY_RULES_IN_COPY_HEADERS\=NO
+    export APP_SHORTCUTS_ENABLE_FLEXIBLE_MATCHING\=YES
+    export ARCHS\=arm64
+    export ARCHS_STANDARD\=arm64
+    export ARCHS_STANDARD_32_64_BIT\=armv7\ arm64
+    export ARCHS_STANDARD_32_BIT\=armv7
+    export ARCHS_STANDARD_64_BIT\=arm64
+    export ARCHS_STANDARD_INCLUDING_64_BIT\=arm64
+    export ARCHS_UNIVERSAL_IPHONE_OS\=armv7\ arm64
+    export ASSETCATALOG_COMPILER_APPICON_NAME\=AppIcon
+    export AUTOMATICALLY_MERGE_DEPENDENCIES\=NO
+    export AUTOMATION_APPLE_EVENTS\=NO
+    export AVAILABLE_PLATFORMS\=android\ appletvos\ appletvsimulator\ driverkit\ iphoneos\ iphonesimulator\ macosx\ qnx\ watchos\ watchsimulator\ webassembly\ xros\ xrsimulator
+    export BUILD_ACTIVE_RESOURCES_ONLY\=NO
+    export BUILD_COMPONENTS\=headers\ build
+    export BUILD_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products
+    export BUILD_LIBRARY_FOR_DISTRIBUTION\=NO
+    export BUILD_ROOT\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products
+    export BUILD_STYLE\=
+    export BUILD_VARIANTS\=normal
+    export BUILT_PRODUCTS_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos
+    export BUNDLE_CONTENTS_FOLDER_PATH_deep\=Contents/
+    export BUNDLE_EXECUTABLE_FOLDER_NAME_deep\=MacOS
+    export BUNDLE_EXTENSIONS_FOLDER_PATH\=Extensions
+    export BUNDLE_FORMAT\=shallow
+    export BUNDLE_FRAMEWORKS_FOLDER_PATH\=Frameworks
+    export BUNDLE_PLUGINS_FOLDER_PATH\=PlugIns
+    export BUNDLE_PRIVATE_HEADERS_FOLDER_PATH\=PrivateHeaders
+    export BUNDLE_PUBLIC_HEADERS_FOLDER_PATH\=Headers
+    export CACHE_ROOT\=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/C/com.apple.DeveloperTools/26.3-17C529/Xcode
+    export CCHROOT\=/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/C/com.apple.DeveloperTools/26.3-17C529/Xcode
+    export CHMOD\=/bin/chmod
+    export CHOWN\=/usr/sbin/chown
+    export CLANG_ANALYZER_NONNULL\=YES
+    export CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION\=YES_AGGRESSIVE
+    export CLANG_CACHE_FINE_GRAINED_OUTPUTS\=YES
+    export CLANG_CXX_LANGUAGE_STANDARD\=gnu++14
+    export CLANG_CXX_LIBRARY\=libc++
+    export CLANG_ENABLE_EXPLICIT_MODULES\=YES
+    export CLANG_ENABLE_MODULES\=YES
+    export CLANG_ENABLE_OBJC_ARC\=YES
+    export CLANG_ENABLE_OBJC_WEAK\=YES
+    export CLANG_MODULES_BUILD_SESSION_FILE\=/Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation
+    export CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING\=YES
+    export CLANG_WARN_BOOL_CONVERSION\=YES
+    export CLANG_WARN_COMMA\=YES
+    export CLANG_WARN_CONSTANT_CONVERSION\=YES
+    export CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS\=YES
+    export CLANG_WARN_DIRECT_OBJC_ISA_USAGE\=YES_ERROR
+    export CLANG_WARN_DOCUMENTATION_COMMENTS\=YES
+    export CLANG_WARN_EMPTY_BODY\=YES
+    export CLANG_WARN_ENUM_CONVERSION\=YES
+    export CLANG_WARN_INFINITE_RECURSION\=YES
+    export CLANG_WARN_INT_CONVERSION\=YES
+    export CLANG_WARN_NON_LITERAL_NULL_CONVERSION\=YES
+    export CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF\=YES
+    export CLANG_WARN_OBJC_LITERAL_CONVERSION\=YES
+    export CLANG_WARN_OBJC_ROOT_CLASS\=YES_ERROR
+    export CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER\=YES
+    export CLANG_WARN_RANGE_LOOP_ANALYSIS\=YES
+    export CLANG_WARN_STRICT_PROTOTYPES\=YES
+    export CLANG_WARN_SUSPICIOUS_MOVE\=YES
+    export CLANG_WARN_UNGUARDED_AVAILABILITY\=YES_AGGRESSIVE
+    export CLANG_WARN_UNREACHABLE_CODE\=YES
+    export CLANG_WARN__DUPLICATE_METHOD_MATCH\=YES
+    export CLASS_FILE_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/JavaClasses
+    export CLEAN_PRECOMPS\=YES
+    export CLONE_HEADERS\=NO
+    export CODESIGNING_FOLDER_PATH\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app
+    export CODE_SIGNING_ALLOWED\=NO
+    export CODE_SIGNING_REQUIRED\=NO
+    export CODE_SIGN_CONTEXT_CLASS\=XCiPhoneOSCodeSignContext
+    export CODE_SIGN_ENTITLEMENTS\=focus-feed-next_iOS/focus-feed-next_iOS.entitlements
+    export CODE_SIGN_IDENTITY\=iPhone\ Developer
+    export CODE_SIGN_INJECT_BASE_ENTITLEMENTS\=YES
+    export COLOR_DIAGNOSTICS\=NO
+    export COMBINE_HIDPI_IMAGES\=NO
+    export COMPILATION_CACHE_CAS_PATH\=/Users/runner/Library/Developer/Xcode/DerivedData/CompilationCache.noindex
+    export COMPILATION_CACHE_KEEP_CAS_DIRECTORY\=YES
+    export COMPILER_INDEX_STORE_ENABLE\=Default
+    export COMPOSITE_SDK_DIRS\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/CompositeSDKs
+    export COMPRESS_PNG_FILES\=YES
+    export CONFIGURATION\=release
+    export CONFIGURATION_BUILD_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos
+    export CONFIGURATION_TEMP_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos
+    export CONTENTS_FOLDER_PATH\=Focus\ Feed\ Next.app
+    export CONTENTS_FOLDER_PATH_SHALLOW_BUNDLE_NO\=Focus\ Feed\ Next.app/Contents
+    export CONTENTS_FOLDER_PATH_SHALLOW_BUNDLE_YES\=Focus\ Feed\ Next.app
+    export COPYING_PRESERVES_HFS_DATA\=NO
+    export COPY_HEADERS_RUN_UNIFDEF\=NO
+    export COPY_PHASE_STRIP\=NO
+    export CORRESPONDING_SIMULATOR_PLATFORM_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneSimulator.platform
+    export CORRESPONDING_SIMULATOR_PLATFORM_NAME\=iphonesimulator
+    export CORRESPONDING_SIMULATOR_SDK_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk
+    export CORRESPONDING_SIMULATOR_SDK_NAME\=iphonesimulator26.2
+    export CP\=/bin/cp
+    export CREATE_INFOPLIST_SECTION_IN_BINARY\=NO
+    export CURRENT_ARCH\=undefined_arch
+    export CURRENT_VARIANT\=normal
+    export DEAD_CODE_STRIPPING\=YES
+    export DEBUGGING_SYMBOLS\=YES
+    export DEBUG_INFORMATION_FORMAT\=dwarf-with-dsym
+    export DEBUG_INFORMATION_VERSION\=compiler-default
+    export DEFAULT_COMPILER\=com.apple.compilers.llvm.clang.1_0
+    export DEFAULT_DEXT_INSTALL_PATH\=/System/Library/DriverExtensions
+    export DEFAULT_KEXT_INSTALL_PATH\=/System/Library/Extensions
+    export DEFINES_MODULE\=NO
+    export DEPLOYMENT_LOCATION\=NO
+    export DEPLOYMENT_POSTPROCESSING\=NO
+    export DEPLOYMENT_TARGET_SETTING_NAME\=IPHONEOS_DEPLOYMENT_TARGET
+    export DEPLOYMENT_TARGET_SUGGESTED_VALUES\=12.0\ 12.1\ 12.2\ 12.3\ 12.4\ 13.0\ 13.1\ 13.2\ 13.3\ 13.4\ 13.5\ 13.6\ 14.0\ 14.1\ 14.2\ 14.3\ 14.4\ 14.5\ 14.6\ 14.7\ 15.0\ 15.1\ 15.2\ 15.3\ 15.4\ 15.5\ 15.6\ 16.0\ 16.1\ 16.2\ 16.3\ 16.4\ 16.5\ 16.6\ 17.0\ 17.1\ 17.2\ 17.3\ 17.4\ 17.5\ 17.6\ 18.0\ 18.1\ 18.2\ 18.3\ 18.4\ 18.5\ 18.6\ 26.0\ 26.1\ 26.2
+    export DERIVED_FILES_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources
+    export DERIVED_FILE_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources
+    export DERIVED_SOURCES_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources
+    export DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER\=NO
+    export DEVELOPER_APPLICATIONS_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Applications
+    export DEVELOPER_BIN_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/usr/bin
+    export DEVELOPER_DIR\=/Applications/Xcode_26.3.app/Contents/Developer
+    export DEVELOPER_FRAMEWORKS_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Library/Frameworks
+    export DEVELOPER_FRAMEWORKS_DIR_QUOTED\=/Applications/Xcode_26.3.app/Contents/Developer/Library/Frameworks
+    export DEVELOPER_LIBRARY_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Library
+    export DEVELOPER_SDK_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
+    export DEVELOPER_TOOLS_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Tools
+    export DEVELOPER_USR_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/usr
+    export DEVELOPMENT_LANGUAGE\=en
+    export DIAGNOSE_MISSING_TARGET_DEPENDENCIES\=YES
+    export DIFF\=/usr/bin/diff
+    export DOCUMENTATION_FOLDER_PATH\=Focus\ Feed\ Next.app/en.lproj/Documentation
+    export DONT_GENERATE_INFOPLIST_FILE\=NO
+    export DSTROOT\=/tmp/focus-feed-next.dst
+    export DT_TOOLCHAIN_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain
+    export DWARF_DSYM_FILE_NAME\=Focus\ Feed\ Next.app.dSYM
+    export DWARF_DSYM_FILE_SHOULD_ACCOMPANY_PRODUCT\=NO
+    export DWARF_DSYM_FOLDER_PATH\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos
+    export DYNAMIC_LIBRARY_EXTENSION\=dylib
+    export EAGER_COMPILATION_ALLOW_SCRIPTS\=NO
+    export EAGER_LINKING\=NO
+    export EFFECTIVE_PLATFORM_NAME\=-iphoneos
+    export EMBEDDED_CONTENT_CONTAINS_SWIFT\=NO
+    export EMBEDDED_PROFILE_NAME\=embedded.mobileprovision
+    export EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE\=NO
+    export ENABLE_APP_SANDBOX\=NO
+    export ENABLE_BITCODE\=NO
+    export ENABLE_CODE_COVERAGE\=YES
+    export ENABLE_CPLUSPLUS_BOUNDS_SAFE_BUFFERS\=NO
+    export ENABLE_C_BOUNDS_SAFETY\=NO
+    export ENABLE_DEBUG_DYLIB\=NO
+    export ENABLE_DEFAULT_HEADER_SEARCH_PATHS\=YES
+    export ENABLE_DEFAULT_SEARCH_PATHS\=YES
+    export ENABLE_ENHANCED_SECURITY\=NO
+    export ENABLE_HARDENED_RUNTIME\=NO
+    export ENABLE_HEADER_DEPENDENCIES\=YES
+    export ENABLE_INCOMING_NETWORK_CONNECTIONS\=NO
+    export ENABLE_NS_ASSERTIONS\=NO
+    export ENABLE_ON_DEMAND_RESOURCES\=YES
+    export ENABLE_OUTGOING_NETWORK_CONNECTIONS\=NO
+    export ENABLE_POINTER_AUTHENTICATION\=NO
+    export ENABLE_PREVIEWS\=NO
+    export ENABLE_RESOURCE_ACCESS_AUDIO_INPUT\=NO
+    export ENABLE_RESOURCE_ACCESS_BLUETOOTH\=NO
+    export ENABLE_RESOURCE_ACCESS_CALENDARS\=NO
+    export ENABLE_RESOURCE_ACCESS_CAMERA\=NO
+    export ENABLE_RESOURCE_ACCESS_CONTACTS\=NO
+    export ENABLE_RESOURCE_ACCESS_LOCATION\=NO
+    export ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY\=NO
+    export ENABLE_RESOURCE_ACCESS_PRINTING\=NO
+    export ENABLE_RESOURCE_ACCESS_USB\=NO
+    export ENABLE_SDK_IMPORTS\=NO
+    export ENABLE_SECURITY_COMPILER_WARNINGS\=NO
+    export ENABLE_STRICT_OBJC_MSGSEND\=YES
+    export ENABLE_TESTABILITY\=NO
+    export ENABLE_TESTING_SEARCH_PATHS\=NO
+    export ENABLE_USER_SCRIPT_SANDBOXING\=NO
+    export ENABLE_XOJIT_PREVIEWS\=NO
+    export ENFORCE_VALID_ARCHS\=YES
+    export ENTITLEMENTS_ALLOWED\=YES
+    export ENTITLEMENTS_DESTINATION\=Signature
+    export ENTITLEMENTS_REQUIRED\=NO
+    export EXCLUDED_ARCHS\=x86_64
+    export EXCLUDED_INSTALLSRC_SUBDIRECTORY_PATTERNS\=.DS_Store\ .svn\ .git\ .hg\ CVS
+    export EXCLUDED_RECURSIVE_SEARCH_PATH_SUBDIRECTORIES\=\*.nib\ \*.lproj\ \*.framework\ \*.gch\ \*.xcode\*\ \*.xcassets\ \*.icon\ \(\*\)\ .DS_Store\ CVS\ .svn\ .git\ .hg\ \*.pbproj\ \*.pbxproj
+    export EXECUTABLES_FOLDER_PATH\=Focus\ Feed\ Next.app/Executables
+    export EXECUTABLE_FOLDER_PATH\=Focus\ Feed\ Next.app
+    export EXECUTABLE_FOLDER_PATH_SHALLOW_BUNDLE_NO\=Focus\ Feed\ Next.app/MacOS
+    export EXECUTABLE_FOLDER_PATH_SHALLOW_BUNDLE_YES\=Focus\ Feed\ Next.app
+    export EXECUTABLE_NAME\=Focus\ Feed\ Next
+    export EXECUTABLE_PATH\=Focus\ Feed\ Next.app/Focus\ Feed\ Next
+    export EXTENSIONS_FOLDER_PATH\=Focus\ Feed\ Next.app/Extensions
+    export FILE_LIST\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects/LinkFileList
+    export FIXED_FILES_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/FixedFiles
+    export FRAMEWORKS_FOLDER_PATH\=Focus\ Feed\ Next.app/Frameworks
+    export FRAMEWORK_FLAG_PREFIX\=-framework
+    export FRAMEWORK_SEARCH_PATHS\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos\ \ \".\"
+    export FRAMEWORK_VERSION\=A
+    export FULL_PRODUCT_NAME\=Focus\ Feed\ Next.app
+    export FUSE_BUILD_PHASES\=YES
+    export FUSE_BUILD_SCRIPT_PHASES\=NO
+    export GCC3_VERSION\=3.3
+    export GCC_C_LANGUAGE_STANDARD\=gnu11
+    export GCC_DYNAMIC_NO_PIC\=NO
+    export GCC_INLINES_ARE_PRIVATE_EXTERN\=YES
+    export GCC_NO_COMMON_BLOCKS\=YES
+    export GCC_PFE_FILE_C_DIALECTS\=c\ objective-c\ c++\ objective-c++
+    export GCC_SYMBOLS_PRIVATE_EXTERN\=YES
+    export GCC_THUMB_SUPPORT\=YES
+    export GCC_TREAT_WARNINGS_AS_ERRORS\=NO
+    export GCC_VERSION\=com.apple.compilers.llvm.clang.1_0
+    export GCC_VERSION_IDENTIFIER\=com_apple_compilers_llvm_clang_1_0
+    export GCC_WARN_64_TO_32_BIT_CONVERSION\=YES
+    export GCC_WARN_ABOUT_RETURN_TYPE\=YES_ERROR
+    export GCC_WARN_UNDECLARED_SELECTOR\=YES
+    export GCC_WARN_UNINITIALIZED_AUTOS\=YES_AGGRESSIVE
+    export GCC_WARN_UNUSED_FUNCTION\=YES
+    export GCC_WARN_UNUSED_VARIABLE\=YES
+    export GENERATED_MODULEMAP_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/GeneratedModuleMaps-iphoneos
+    export GENERATE_INFOPLIST_FILE\=NO
+    export GENERATE_INTERMEDIATE_TEXT_BASED_STUBS\=YES
+    export GENERATE_PKGINFO_FILE\=YES
+    export GENERATE_PRELINK_OBJECT_FILE\=NO
+    export GENERATE_PROFILING_CODE\=NO
+    export GENERATE_TEXT_BASED_STUBS\=NO
+    export GID\=20
+    export GROUP\=staff
+    export HEADERMAP_INCLUDES_FLAT_ENTRIES_FOR_TARGET_BEING_BUILT\=YES
+    export HEADERMAP_INCLUDES_FRAMEWORK_ENTRIES_FOR_ALL_PRODUCT_TYPES\=YES
+    export HEADERMAP_INCLUDES_FRAMEWORK_ENTRIES_FOR_TARGETS_NOT_BEING_BUILT\=YES
+    export HEADERMAP_INCLUDES_NONPUBLIC_NONPRIVATE_HEADERS\=YES
+    export HEADERMAP_INCLUDES_PROJECT_HEADERS\=YES
+    export HEADERMAP_USES_FRAMEWORK_PREFIX_ENTRIES\=YES
+    export HEADERMAP_USES_VFS\=NO
+    export HEADER_SEARCH_PATHS\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/include\ 
+    export HOME\=/Users/runner
+    export HOST_ARCH\=arm64
+    export HOST_PLATFORM\=macosx
+    export ICONV\=/usr/bin/iconv
+    export IMPLICIT_DEPENDENCY_DOMAIN\=default
+    export INFOPLIST_ENABLE_CFBUNDLEICONS_MERGE\=YES
+    export INFOPLIST_EXPAND_BUILD_SETTINGS\=YES
+    export INFOPLIST_FILE\=focus-feed-next_iOS/Info.plist
+    export INFOPLIST_OUTPUT_FORMAT\=binary
+    export INFOPLIST_PATH\=Focus\ Feed\ Next.app/Info.plist
+    export INFOPLIST_PREPROCESS\=NO
+    export INFOSTRINGS_PATH\=Focus\ Feed\ Next.app/en.lproj/InfoPlist.strings
+    export INLINE_PRIVATE_FRAMEWORKS\=NO
+    export INSTALLAPI_IGNORE_SKIP_INSTALL\=YES
+    export INSTALLHDRS_COPY_PHASE\=NO
+    export INSTALLHDRS_SCRIPT_PHASE\=NO
+    export INSTALL_DIR\=/tmp/focus-feed-next.dst/Applications
+    export INSTALL_GROUP\=staff
+    export INSTALL_MODE_FLAG\=u+w,go-w,a+rX
+    export INSTALL_OWNER\=runner
+    export INSTALL_PATH\=/Applications
+    export INSTALL_ROOT\=/tmp/focus-feed-next.dst
+    export IPHONEOS_DEPLOYMENT_TARGET\=16.0
+    export IS_UNOPTIMIZED_BUILD\=NO
+    export JAVAC_DEFAULT_FLAGS\=-J-Xms64m\ -J-XX:NewSize\=4M\ -J-Dfile.encoding\=UTF8
+    export JAVA_APP_STUB\=/System/Library/Frameworks/JavaVM.framework/Resources/MacOS/JavaApplicationStub
+    export JAVA_ARCHIVE_CLASSES\=YES
+    export JAVA_ARCHIVE_TYPE\=JAR
+    export JAVA_COMPILER\=/usr/bin/javac
+    export JAVA_FOLDER_PATH\=Focus\ Feed\ Next.app/Java
+    export JAVA_FRAMEWORK_RESOURCES_DIRS\=Resources
+    export JAVA_JAR_FLAGS\=cv
+    export JAVA_SOURCE_SUBDIR\=.
+    export JAVA_USE_DEPENDENCIES\=YES
+    export JAVA_ZIP_FLAGS\=-urg
+    export JIKES_DEFAULT_FLAGS\=+E\ +OLDCSO
+    export KASAN_CFLAGS_CLASSIC\=-DKASAN\=1\ -DKASAN_CLASSIC\=1\ -fsanitize\=address\ -mllvm\ -asan-globals-live-support\ -mllvm\ -asan-force-dynamic-shadow
+    export KASAN_CFLAGS_TBI\=-DKASAN\=1\ -DKASAN_TBI\=1\ -fsanitize\=kernel-hwaddress\ -mllvm\ -hwasan-recover\=0\ -mllvm\ -hwasan-instrument-atomics\=0\ -mllvm\ -hwasan-instrument-stack\=1\ -mllvm\ -hwasan-generate-tags-with-calls\=1\ -mllvm\ -hwasan-instrument-with-calls\=1\ -mllvm\ -hwasan-use-short-granules\=0\ -mllvm\ -hwasan-memory-access-callback-prefix\=__asan_
+    export KASAN_DEFAULT_CFLAGS\=-DKASAN\=1\ -DKASAN_CLASSIC\=1\ -fsanitize\=address\ -mllvm\ -asan-globals-live-support\ -mllvm\ -asan-force-dynamic-shadow
+    export KEEP_PRIVATE_EXTERNS\=NO
+    export LD_DEPENDENCY_INFO_FILE\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/undefined_arch/Focus\ Feed\ Next_dependency_info.dat
+    export LD_EXPORT_SYMBOLS\=YES
+    export LD_GENERATE_MAP_FILE\=NO
+    export LD_MAP_FILE_PATH\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next-LinkMap-normal-undefined_arch.txt
+    export LD_NO_PIE\=NO
+    export LD_QUOTE_LINKER_ARGUMENTS_FOR_COMPILER_DRIVER\=YES
+    export LD_RUNPATH_SEARCH_PATHS\=\ @executable_path/Frameworks
+    export LD_RUNPATH_SEARCH_PATHS_YES\=@loader_path/../Frameworks
+    export LD_SHARED_CACHE_ELIGIBLE\=Automatic
+    export LD_WARN_DUPLICATE_LIBRARIES\=NO
+    export LD_WARN_UNUSED_DYLIBS\=NO
+    export LEGACY_DEVELOPER_DIR\=/Applications/Xcode_26.3.app/Contents/PlugIns/Xcode3Core.ideplugin/Contents/SharedSupport/Developer
+    export LEX\=lex
+    export LIBRARY_DEXT_INSTALL_PATH\=/Library/DriverExtensions
+    export LIBRARY_FLAG_NOSPACE\=YES
+    export LIBRARY_FLAG_PREFIX\=-l
+    export LIBRARY_KEXT_INSTALL_PATH\=/Library/Extensions
+    export LIBRARY_SEARCH_PATHS\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos\ 
+    export LINKER_DISPLAYS_MANGLED_NAMES\=NO
+    export LINK_FILE_LIST_normal_arm64\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/Focus\ Feed\ Next.LinkFileList
+    export LINK_OBJC_RUNTIME\=YES
+    export LINK_WITH_STANDARD_LIBRARIES\=YES
+    export LLVM_TARGET_TRIPLE_OS_VERSION\=ios16.0
+    export LLVM_TARGET_TRIPLE_VENDOR\=apple
+    export LM_AUX_CONST_METADATA_LIST_PATH_normal_arm64\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/Focus\ Feed\ Next.SwiftConstValuesFileList
+    export LOCALIZATION_EXPORT_SUPPORTED\=YES
+    export LOCALIZATION_PREFERS_STRING_CATALOGS\=NO
+    export LOCALIZED_RESOURCES_FOLDER_PATH\=Focus\ Feed\ Next.app/en.lproj
+    export LOCALIZED_STRING_MACRO_NAMES\=NSLocalizedString\ CFCopyLocalizedString
+    export LOCALIZED_STRING_SWIFTUI_SUPPORT\=YES
+    export LOCAL_ADMIN_APPS_DIR\=/Applications/Utilities
+    export LOCAL_APPS_DIR\=/Applications
+    export LOCAL_DEVELOPER_DIR\=/Library/Developer
+    export LOCAL_LIBRARY_DIR\=/Library
+    export LOCROOT\=/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    export LOCSYMROOT\=/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    export MACH_O_TYPE\=mh_execute
+    export MAC_OS_X_PRODUCT_BUILD_VERSION\=24G830
+    export MAC_OS_X_VERSION_ACTUAL\=150709
+    export MAC_OS_X_VERSION_MAJOR\=150000
+    export MAC_OS_X_VERSION_MINOR\=150700
+    export MAKE_MERGEABLE\=NO
+    export MERGEABLE_LIBRARY\=NO
+    export MERGED_BINARY_TYPE\=none
+    export MERGE_LINKED_LIBRARIES\=NO
+    export METAL_LIBRARY_FILE_BASE\=default
+    export METAL_LIBRARY_OUTPUT_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app
+    export MODULES_FOLDER_PATH\=Focus\ Feed\ Next.app/Modules
+    export MODULE_CACHE_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex
+    export MTL_ENABLE_DEBUG_INFO\=NO
+    export MTL_FAST_MATH\=YES
+    export NATIVE_ARCH\=arm64
+    export NATIVE_ARCH_32_BIT\=arm
+    export NATIVE_ARCH_64_BIT\=arm64
+    export NATIVE_ARCH_ACTUAL\=arm64
+    export NO_COMMON\=YES
+    export OBJECT_FILE_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects
+    export OBJECT_FILE_DIR_normal\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal
+    export OBJROOT\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex
+    export ONLY_ACTIVE_ARCH\=NO
+    export OS\=MACOS
+    export OSAC\=/usr/bin/osacompile
+    export PACKAGE_TYPE\=com.apple.package-type.wrapper.application
+    export PASCAL_STRINGS\=YES
+    export PATH\=/Applications/Xcode_26.3.app/Contents/SharedFrameworks/SwiftBuild.framework/Versions/A/PlugIns/SWBBuildService.bundle/Contents/PlugIns/SWBUniversalPlatformPlugin.bundle/Contents/Frameworks/SWBUniversalPlatform.framework/Resources:/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.cO5SN2/Metal.xctoolchain/usr/bin:/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.cO5SN2/Metal.xctoolchain/usr/local/bin:/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.cO5SN2/Metal.xctoolchain/usr/libexec:/Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin:/Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/bin:/Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/libexec:/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/usr/bin:/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/usr/local/bin:/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin:/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/local/bin:/Applications/Xcode_26.3.app/Contents/Developer/usr/bin:/Applications/Xcode_26.3.app/Contents/Developer/usr/local/bin:/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/node_modules/.bin:/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/node_modules/.bin:/Users/runner/work/FocusFeedNext-iOS/node_modules/.bin:/Users/runner/work/node_modules/.bin:/Users/runner/node_modules/.bin:/Users/node_modules/.bin:/node_modules/.bin:/Users/runner/hostedtoolcache/node/24.20.0/arm64/lib/node_modules/npm/node_modules/@npmcli/run-script/lib/node-gyp-bin:/Users/runner/hostedtoolcache/node/24.20.0/arm64/bin:/opt/homebrew/lib/ruby/gems/3.3.0/bin:/opt/homebrew/opt/ruby@3.3/bin:/Users/runner/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/runner/.cargo/bin:/usr/local/opt/curl/bin:/usr/local/bin:/usr/local/sbin:/Users/runner/bin:/Users/runner/.yarn/bin:/Users/runner/Library/Android/sdk/tools:/Users/runner/Library/Android/sdk/platform-tools:/Library/Frameworks/Python.framework/Versions/Current/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/usr/bin:/bin:/usr/sbin:/sbin:/Users/runner/.dotnet/tools
+    export PATH_PREFIXES_EXCLUDED_FROM_HEADER_DEPENDENCIES\=/usr/include\ /usr/local/include\ /System/Library/Frameworks\ /System/Library/PrivateFrameworks\ /Applications/Xcode_26.3.app/Contents/Developer/Headers\ /Applications/Xcode_26.3.app/Contents/Developer/SDKs\ /Applications/Xcode_26.3.app/Contents/Developer/Platforms
+    export PBDEVELOPMENTPLIST_PATH\=Focus\ Feed\ Next.app/pbdevelopment.plist
+    export PER_ARCH_MODULE_FILE_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/undefined_arch
+    export PER_ARCH_OBJECT_FILE_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/undefined_arch
+    export PER_VARIANT_OBJECT_FILE_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal
+    export PKGINFO_FILE_PATH\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/PkgInfo
+    export PKGINFO_PATH\=Focus\ Feed\ Next.app/PkgInfo
+    export PLATFORM_DEVELOPER_APPLICATIONS_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Applications
+    export PLATFORM_DEVELOPER_BIN_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin
+    export PLATFORM_DEVELOPER_LIBRARY_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library
+    export PLATFORM_DEVELOPER_SDK_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs
+    export PLATFORM_DEVELOPER_TOOLS_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Tools
+    export PLATFORM_DEVELOPER_USR_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr
+    export PLATFORM_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform
+    export PLATFORM_DISPLAY_NAME\=iOS
+    export PLATFORM_FAMILY_NAME\=iOS
+    export PLATFORM_NAME\=iphoneos
+    export PLATFORM_PREFERRED_ARCH\=arm64
+    export PLATFORM_PRODUCT_BUILD_VERSION\=23C57
+    export PLATFORM_REQUIRES_SWIFT_AUTOLINK_EXTRACT\=NO
+    export PLATFORM_REQUIRES_SWIFT_MODULEWRAP\=NO
+    export PLIST_FILE_OUTPUT_FORMAT\=binary
+    export PLUGINS_FOLDER_PATH\=Focus\ Feed\ Next.app/PlugIns
+    export PRECOMPS_INCLUDE_HEADERS_FROM_BUILT_PRODUCTS_DIR\=YES
+    export PRECOMP_DESTINATION_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/PrefixHeaders
+    export PRIVATE_HEADERS_FOLDER_PATH\=Focus\ Feed\ Next.app/PrivateHeaders
+    export PROCESSED_INFOPLIST_PATH\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/undefined_arch/Processed-Info.plist
+    export PRODUCT_BUNDLE_IDENTIFIER\=com.focusfeed.next
+    export PRODUCT_BUNDLE_PACKAGE_TYPE\=APPL
+    export PRODUCT_MODULE_NAME\=Focus_Feed_Next
+    export PRODUCT_NAME\=Focus\ Feed\ Next
+    export PRODUCT_SETTINGS_PATH\=/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next_iOS/Info.plist
+    export PRODUCT_TYPE\=com.apple.product-type.application
+    export PROFILING_CODE\=NO
+    export PROJECT\=focus-feed-next
+    export PROJECT_DERIVED_FILE_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/DerivedSources
+    export PROJECT_DIR\=/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    export PROJECT_FILE_PATH\=/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
+    export PROJECT_GUID\=cf9129c7f7a12cfb2814ac2741ff25a3
+    export PROJECT_NAME\=focus-feed-next
+    export PROJECT_TEMP_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build
+    export PROJECT_TEMP_ROOT\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex
+    export PROVISIONING_PROFILE_REQUIRED\=YES
+    export PROVISIONING_PROFILE_REQUIRED_YES_YES\=YES
+    export PROVISIONING_PROFILE_SUPPORTED\=YES
+    export PUBLIC_HEADERS_FOLDER_PATH\=Focus\ Feed\ Next.app/Headers
+    export RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET\=15.0
+    export RECURSIVE_SEARCH_PATHS_FOLLOW_SYMLINKS\=YES
+    export REMOVE_CVS_FROM_RESOURCES\=YES
+    export REMOVE_GIT_FROM_RESOURCES\=YES
+    export REMOVE_HEADERS_FROM_EMBEDDED_BUNDLES\=YES
+    export REMOVE_HG_FROM_RESOURCES\=YES
+    export REMOVE_STATIC_EXECUTABLES_FROM_EMBEDDED_BUNDLES\=YES
+    export REMOVE_SVN_FROM_RESOURCES\=YES
+    export RESCHEDULE_INDEPENDENT_HEADERS_PHASES\=YES
+    export REZ_COLLECTOR_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/ResourceManagerResources
+    export REZ_OBJECTS_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/ResourceManagerResources/Objects
+    export REZ_SEARCH_PATHS\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos\ 
+    export RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES\=NO
+    export RUNTIME_EXCEPTION_ALLOW_JIT\=NO
+    export RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY\=NO
+    export RUNTIME_EXCEPTION_DEBUGGING_TOOL\=NO
+    export RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION\=NO
+    export RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION\=NO
+    export SCAN_ALL_SOURCE_FILES_FOR_INCLUDES\=NO
+    export SCRIPTS_FOLDER_PATH\=Focus\ Feed\ Next.app/Scripts
+    export SCRIPT_INPUT_FILE_COUNT\=0
+    export SCRIPT_INPUT_FILE_LIST_COUNT\=0
+    export SCRIPT_OUTPUT_FILE_0\=/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Externals/x86_64/release/libapp.a
+    export SCRIPT_OUTPUT_FILE_1\=/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Externals/arm64/release/libapp.a
+    export SCRIPT_OUTPUT_FILE_COUNT\=2
+    export SCRIPT_OUTPUT_FILE_LIST_COUNT\=0
+    export SDKROOT\=/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk
+    export SDK_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk
+    export SDK_DIR_iphoneos\=/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk
+    export SDK_DIR_iphoneos26_2\=/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk
+    export SDK_NAME\=iphoneos26.2
+    export SDK_NAMES\=iphoneos26.2
+    export SDK_PRODUCT_BUILD_VERSION\=23C57
+    export SDK_STAT_CACHE_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData
+    export SDK_STAT_CACHE_ENABLE\=YES
+    export SDK_STAT_CACHE_PATH\=/Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.2-23C57-dc75598d0054f22ec865fa860f139d722dd23b4ebda140f7210d155ff1243552.sdkstatcache
+    export SDK_VERSION\=26.2
+    export SDK_VERSION_ACTUAL\=260200
+    export SDK_VERSION_MAJOR\=260000
+    export SDK_VERSION_MINOR\=260200
+    export SED\=/usr/bin/sed
+    export SEPARATE_STRIP\=NO
+    export SEPARATE_SYMBOL_EDIT\=NO
+    export SET_DIR_MODE_OWNER_GROUP\=YES
+    export SET_FILE_MODE_OWNER_GROUP\=NO
+    export SHALLOW_BUNDLE\=YES
+    export SHALLOW_BUNDLE_TRIPLE\=ios
+    export SHALLOW_BUNDLE_ios_macabi\=NO
+    export SHALLOW_BUNDLE_macos\=NO
+    export SHARED_DERIVED_FILE_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/DerivedSources
+    export SHARED_FRAMEWORKS_FOLDER_PATH\=Focus\ Feed\ Next.app/SharedFrameworks
+    export SHARED_PRECOMPS_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/PrecompiledHeaders
+    export SHARED_SUPPORT_FOLDER_PATH\=Focus\ Feed\ Next.app/SharedSupport
+    export SKIP_INSTALL\=NO
+    export SOURCE_ROOT\=/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    export SRCROOT\=/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    export STRINGSDATA_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/undefined_arch
+    export STRINGSDATA_ROOT\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build
+    export STRINGS_FILE_INFOPLIST_RENAME\=YES
+    export STRINGS_FILE_OUTPUT_ENCODING\=binary
+    export STRING_CATALOG_GENERATE_SYMBOLS\=NO
+    export STRIP_BITCODE_FROM_COPIED_FILES\=YES
+    export STRIP_INSTALLED_PRODUCT\=YES
+    export STRIP_STYLE\=all
+    export STRIP_SWIFT_SYMBOLS\=YES
+    export SUPPORTED_DEVICE_FAMILIES\=1,2
+    export SUPPORTED_PLATFORMS\=iphoneos\ iphonesimulator
+    export SUPPORTS_MACCATALYST\=NO
+    export SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD\=YES
+    export SUPPORTS_ON_DEMAND_RESOURCES\=YES
+    export SUPPORTS_TEXT_BASED_API\=NO
+    export SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD\=YES
+    export SUPPRESS_WARNINGS\=NO
+    export SWIFT_COMPILATION_MODE\=wholemodule
+    export SWIFT_EMIT_CONST_VALUE_PROTOCOLS\=AppIntent\ EntityQuery\ AppEntity\ TransientEntity\ AppEnum\ AppShortcutProviding\ AppShortcutsProvider\ AnyResolverProviding\ AppIntentsPackage\ DynamicOptionsProvider\ _IntentValueRepresentable\ _AssistantIntentsProvider\ _GenerativeFunctionExtractable\ IntentValueQuery\ Resolver\ AppExtension\ ExtensionPointDefining
+    export SWIFT_EMIT_LOC_STRINGS\=NO
+    export SWIFT_ENABLE_EXPLICIT_MODULES\=YES
+    export SWIFT_OPTIMIZATION_LEVEL\=-O
+    export SWIFT_PLATFORM_TARGET_PREFIX\=ios
+    export SWIFT_RESPONSE_FILE_PATH_normal_arm64\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/Focus\ Feed\ Next.SwiftFileList
+    export SWIFT_VERSION\=5.0
+    export SYMROOT\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products
+    export SYSTEM_ADMIN_APPS_DIR\=/Applications/Utilities
+    export SYSTEM_APPS_DIR\=/Applications
+    export SYSTEM_CORE_SERVICES_DIR\=/System/Library/CoreServices
+    export SYSTEM_DEMOS_DIR\=/Applications/Extras
+    export SYSTEM_DEVELOPER_APPS_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Applications
+    export SYSTEM_DEVELOPER_BIN_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/usr/bin
+    export SYSTEM_DEVELOPER_DEMOS_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Applications/Utilities/Built\ Examples
+    export SYSTEM_DEVELOPER_DIR\=/Applications/Xcode_26.3.app/Contents/Developer
+    export SYSTEM_DEVELOPER_DOC_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/ADC\ Reference\ Library
+    export SYSTEM_DEVELOPER_GRAPHICS_TOOLS_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Applications/Graphics\ Tools
+    export SYSTEM_DEVELOPER_JAVA_TOOLS_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Applications/Java\ Tools
+    export SYSTEM_DEVELOPER_PERFORMANCE_TOOLS_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Applications/Performance\ Tools
+    export SYSTEM_DEVELOPER_RELEASENOTES_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/ADC\ Reference\ Library/releasenotes
+    export SYSTEM_DEVELOPER_TOOLS\=/Applications/Xcode_26.3.app/Contents/Developer/Tools
+    export SYSTEM_DEVELOPER_TOOLS_DOC_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/ADC\ Reference\ Library/documentation/DeveloperTools
+    export SYSTEM_DEVELOPER_TOOLS_RELEASENOTES_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/ADC\ Reference\ Library/releasenotes/DeveloperTools
+    export SYSTEM_DEVELOPER_USR_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/usr
+    export SYSTEM_DEVELOPER_UTILITIES_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Applications/Utilities
+    export SYSTEM_DEXT_INSTALL_PATH\=/System/Library/DriverExtensions
+    export SYSTEM_DOCUMENTATION_DIR\=/Library/Documentation
+    export SYSTEM_EXTENSIONS_FOLDER_PATH\=Focus\ Feed\ Next.app/SystemExtensions
+    export SYSTEM_EXTENSIONS_FOLDER_PATH_SHALLOW_BUNDLE_NO\=Focus\ Feed\ Next.app/Library/SystemExtensions
+    export SYSTEM_EXTENSIONS_FOLDER_PATH_SHALLOW_BUNDLE_YES\=Focus\ Feed\ Next.app/SystemExtensions
+    export SYSTEM_KEXT_INSTALL_PATH\=/System/Library/Extensions
+    export SYSTEM_LIBRARY_DIR\=/System/Library
+    export TAPI_DEMANGLE\=YES
+    export TAPI_ENABLE_PROJECT_HEADERS\=NO
+    export TAPI_LANGUAGE\=objective-c
+    export TAPI_LANGUAGE_STANDARD\=compiler-default
+    export TAPI_USE_SRCROOT\=YES
+    export TAPI_VERIFY_MODE\=Pedantic
+    export TARGETED_DEVICE_FAMILY\=1,2
+    export TARGETNAME\=focus-feed-next_iOS
+    export TARGET_BUILD_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos
+    export TARGET_NAME\=focus-feed-next_iOS
+    export TARGET_TEMP_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build
+    export TEMP_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build
+    export TEMP_FILES_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build
+    export TEMP_FILE_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build
+    export TEMP_ROOT\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex
+    export TEMP_SANDBOX_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/TemporaryTaskSandboxes
+    export TEST_FRAMEWORK_SEARCH_PATHS\=\ /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks\ /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/Developer/Library/Frameworks
+    export TEST_LIBRARY_SEARCH_PATHS\=\ /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib
+    export TOOLCHAINS\=com.apple.dt.toolchain.Metal.32023.864\ com.apple.dt.toolchain.XcodeDefault
+    export TOOLCHAIN_DIR\=/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.cO5SN2/Metal.xctoolchain
+    export TOOLCHAIN_VERSION\=32023.864
+    export TREAT_MISSING_BASELINES_AS_TEST_FAILURES\=NO
+    export TREAT_MISSING_SCRIPT_PHASE_OUTPUTS_AS_ERRORS\=NO
+    export UID\=501
+    export UNINSTALLED_PRODUCTS_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/UninstalledProducts
+    export UNLOCALIZED_RESOURCES_FOLDER_PATH\=Focus\ Feed\ Next.app
+    export UNLOCALIZED_RESOURCES_FOLDER_PATH_SHALLOW_BUNDLE_NO\=Focus\ Feed\ Next.app/Resources
+    export UNLOCALIZED_RESOURCES_FOLDER_PATH_SHALLOW_BUNDLE_YES\=Focus\ Feed\ Next.app
+    export UNSTRIPPED_PRODUCT\=NO
+    export USER\=runner
+    export USER_APPS_DIR\=/Users/runner/Applications
+    export USER_LIBRARY_DIR\=/Users/runner/Library
+    export USE_DYNAMIC_NO_PIC\=YES
+    export USE_HEADERMAP\=YES
+    export USE_HEADER_SYMLINKS\=NO
+    export VALIDATE_DEVELOPMENT_ASSET_PATHS\=YES_ERROR
+    export VALIDATE_PRODUCT\=NO
+    export VALID_ARCHS\=arm64
+    export VERBOSE_PBXCP\=NO
+    export VERSIONPLIST_PATH\=Focus\ Feed\ Next.app/version.plist
+    export VERSION_INFO_BUILDER\=runner
+    export VERSION_INFO_FILE\=Focus\ Feed\ Next_vers.c
+    export VERSION_INFO_STRING\=\"@\(\#\)PROGRAM:Focus\ Feed\ Next\ \ PROJECT:focus-feed-next-\"
+    export WORKSPACE_DIR\=/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
+    export WRAPPER_EXTENSION\=app
+    export WRAPPER_NAME\=Focus\ Feed\ Next.app
+    export WRAPPER_SUFFIX\=.app
+    export WRAP_ASSET_PACKS_IN_SEPARATE_DIRECTORIES\=NO
+    export XCODE_APP_SUPPORT_DIR\=/Applications/Xcode_26.3.app/Contents/Developer/Library/Xcode
+    export XCODE_PRODUCT_BUILD_VERSION\=17C529
+    export XCODE_VERSION_ACTUAL\=2630
+    export XCODE_VERSION_MAJOR\=2600
+    export XCODE_VERSION_MINOR\=2630
+    export XPCSERVICES_FOLDER_PATH\=Focus\ Feed\ Next.app/XPCServices
+    export YACC\=yacc
+    export _DISCOVER_COMMAND_LINE_LINKER_INPUTS\=YES
+    export _DISCOVER_COMMAND_LINE_LINKER_INPUTS_INCLUDE_WL\=YES
+    export _LD_MULTIARCH\=YES
+    export _WRAPPER_CONTENTS_DIR_SHALLOW_BUNDLE_NO\=/Contents
+    export _WRAPPER_PARENT_PATH_SHALLOW_BUNDLE_NO\=/..
+    export _WRAPPER_RESOURCES_DIR_SHALLOW_BUNDLE_NO\=/Resources
+    export __DIAGNOSE_DEPRECATED_ARCHS\=YES
+    export __IS_NOT_MACOS\=YES
+    export __IS_NOT_MACOS_macosx\=NO
+    export __IS_NOT_SIMULATOR\=YES
+    export __IS_NOT_SIMULATOR_simulator\=NO
+    export arch\=undefined_arch
+    export variant\=normal
+    /bin/sh -c /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Script-CACB89CD57612EE7CB36B615.sh
+
+> focusfeednext@0.8.4 tauri
+> tauri ios xcode-script -v --platform iOS --sdk-root /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk --framework-search-paths /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos  "." --header-search-paths /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/include  --gcc-preprocessor-definitions  --configuration release arm64
+
+[1m[33m        Warn[0m No code signing certificates found. You must add one and set the certificate development team ID on the `bundle > iOS > developmentTeam` config value or the `APPLE_DEVELOPMENT_TEAM` environment variable. To list the available certificates, run `tauri info`.
+[1m[92m Downloading[0m crates ...
+[1m[92m  Downloaded[0m objc2-core-data v0.3.2
+[1m[92m  Downloaded[0m objc2-quartz-core v0.3.2
+[1m[92m  Downloaded[0m objc2-user-notifications v0.3.2
+[1m[92m  Downloaded[0m objc2-core-location v0.3.2
+[1m[92m  Downloaded[0m core-foundation v0.9.4
+[1m[92m  Downloaded[0m objc2-core-image v0.3.2
+[1m[92m  Downloaded[0m objc2-cloud-kit v0.3.2
+[1m[92m  Downloaded[0m security-framework v2.11.1
+[1m[92m  Downloaded[0m objc2-core-text v0.3.2
+[1m[92m  Downloaded[0m reqwest v0.13.4
+[1m[92m  Downloaded[0m objc2-ui-kit v0.3.2
+[1m[92m   Compiling[0m proc-macro2 v1.0.107
+[1m[92m   Compiling[0m quote v1.0.47
+[1m[92m   Compiling[0m unicode-ident v1.0.24
+[1m[92m   Compiling[0m libc v0.2.189
+[1m[92m   Compiling[0m serde_core v1.0.229
+[1m[92m   Compiling[0m zmij v1.0.23
+[1m[92m   Compiling[0m shlex v2.0.1
+[1m[92m   Compiling[0m icu_normalizer_data v2.2.0
+[1m[92m   Compiling[0m icu_properties_data v2.2.0
+[1m[92m   Compiling[0m find-msvc-tools v0.1.9
+[1m[92m   Compiling[0m cc v1.3.0
+[1m[92m   Compiling[0m syn v2.0.119
+[1m[92m   Compiling[0m syn v3.0.3
+[1m[92m   Compiling[0m siphasher v1.0.3
+[1m[92m   Compiling[0m phf_shared v0.13.1
+[1m[92m   Compiling[0m fastrand v2.5.0
+[1m[92m   Compiling[0m memchr v2.8.3
+[1m[92m   Compiling[0m phf_generator v0.13.1
+[1m[92m   Compiling[0m stable_deref_trait v1.2.1
+[1m[92m   Compiling[0m serde v1.0.229
+[1m[92m   Compiling[0m cfg-if v1.0.4
+[1m[92m   Compiling[0m smallvec v1.15.2
+[1m[92m   Compiling[0m serde_derive v1.0.229
+[1m[92m   Compiling[0m itoa v1.0.18
+[1m[92m   Compiling[0m bitflags v2.13.1
+[1m[92m   Compiling[0m serde_json v1.0.151
+[1m[92m   Compiling[0m typeid v1.0.3
+[1m[92m   Compiling[0m time-core v0.1.9
+[1m[92m   Compiling[0m num-conv v0.2.2
+[1m[92m   Compiling[0m phf_codegen v0.13.1
+[1m[92m   Compiling[0m synstructure v0.13.2
+[1m[92m   Compiling[0m erased-serde v0.4.10
+[1m[92m   Compiling[0m thiserror v1.0.69
+[1m[92m   Compiling[0m writeable v0.6.3
+[1m[92m   Compiling[0m thiserror v2.0.19
+[1m[92m   Compiling[0m litemap v0.8.2
+[1m[92m   Compiling[0m strsim v0.11.1
+[1m[92m   Compiling[0m ident_case v1.0.1
+[1m[92m   Compiling[0m objc2-exception-helper v0.1.1
+[1m[92m   Compiling[0m autocfg v1.5.1
+[1m[92m   Compiling[0m darling_core v0.23.0
+[1m[92m   Compiling[0m utf8_iter v1.0.4
+[1m[92m   Compiling[0m parking_lot_core v0.9.12
+[1m[92m   Compiling[0m thiserror-impl v2.0.19
+[1m[92m   Compiling[0m zerofrom-derive v0.1.7
+[1m[92m   Compiling[0m yoke-derive v0.8.2
+[1m[92m   Compiling[0m zerovec-derive v0.11.3
+[1m[92m   Compiling[0m displaydoc v0.2.6
+[1m[92m   Compiling[0m zerofrom v0.1.8
+[1m[92m   Compiling[0m yoke v0.8.3
+[1m[92m   Compiling[0m phf_macros v0.13.1
+[1m[92m   Compiling[0m zerovec v0.11.6
+[1m[92m   Compiling[0m zerotrie v0.2.4
+[1m[92m   Compiling[0m darling_macro v0.23.0
+[1m[92m   Compiling[0m thiserror-impl v1.0.69
+[1m[92m   Compiling[0m tinystr v0.8.3
+[1m[92m   Compiling[0m potential_utf v0.1.5
+[1m[92m   Compiling[0m anyhow v1.0.104
+[1m[92m   Compiling[0m icu_locale_core v2.2.0
+[1m[92m   Compiling[0m icu_collections v2.2.0
+[1m[92m   Compiling[0m new_debug_unreachable v1.0.6
+[1m[92m   Compiling[0m scopeguard v1.2.0
+[1m[92m   Compiling[0m lock_api v0.4.14
+[1m[92m   Compiling[0m darling v0.23.0
+[1m[92m   Compiling[0m phf v0.13.1
+[1m[92m   Compiling[0m icu_provider v2.2.0
+[1m[92m   Compiling[0m string_cache_codegen v0.6.1
+[1m[92m   Compiling[0m getrandom v0.4.3
+[1m[92m   Compiling[0m precomputed-hash v0.1.1
+[1m[92m   Compiling[0m winnow v1.0.4
+[1m[92m   Compiling[0m objc2 v0.6.4
+[1m[92m   Compiling[0m icu_normalizer v2.2.0
+[1m[92m   Compiling[0m web_atoms v0.2.5
+[1m[92m   Compiling[0m icu_properties v2.2.0
+[1m[92m   Compiling[0m parking_lot v0.12.5
+[1m[92m   Compiling[0m toml_parser v1.1.2+spec-1.1.0
+[1m[92m   Compiling[0m serde_with_macros v3.21.0
+[1m[92m   Compiling[0m serde_spanned v1.1.1
+[1m[92m   Compiling[0m ctor-proc-macro v0.0.7
+[1m[92m   Compiling[0m toml_writer v1.1.2+spec-1.1.0
+[1m[92m   Compiling[0m objc2-encode v4.1.0
+[1m[92m   Compiling[0m idna_adapter v1.2.2
+[1m[92m   Compiling[0m string_cache v0.9.0
+[1m[92m   Compiling[0m bytes v1.12.1
+[1m[92m   Compiling[0m semver v1.0.28
+[1m[92m   Compiling[0m percent-encoding v2.3.2
+[1m[92m   Compiling[0m log v0.4.33
+[1m[92m   Compiling[0m dtoa v1.0.11
+[1m[92m   Compiling[0m form_urlencoded v1.2.2
+[1m[92m   Compiling[0m dtoa-short v0.3.5
+[1m[92m   Compiling[0m uuid v1.24.0
+[1m[92m   Compiling[0m idna v1.1.0
+[1m[92m   Compiling[0m tendril v0.5.1
+[1m[92m   Compiling[0m derive_more-impl v2.1.1
+[1m[92m   Compiling[0m cssparser-macros v0.6.1
+[1m[92m   Compiling[0m indexmap v1.9.3
+[1m[92m   Compiling[0m selectors v0.36.1
+[1m[92m   Compiling[0m aho-corasick v1.1.4
+[1m[92m   Compiling[0m toml_datetime v1.1.1+spec-1.1.0
+[1m[92m   Compiling[0m camino v1.2.4
+[1m[92m   Compiling[0m alloc-no-stdlib v2.0.4
+[1m[92m   Compiling[0m unic-char-range v0.9.0
+[1m[92m   Compiling[0m regex-syntax v0.8.11
+[1m[92m   Compiling[0m byteorder v1.5.0
+[1m[92m   Compiling[0m unic-common v0.9.0
+[1m[92m   Compiling[0m unic-ucd-version v0.9.0
+[1m[92m   Compiling[0m derive_more v2.1.1
+[1m[92m   Compiling[0m unic-char-property v0.9.0
+[1m[92m   Compiling[0m alloc-stdlib v0.2.4
+[1m[92m   Compiling[0m toml v1.1.3+spec-1.1.0
+[1m[92m   Compiling[0m cssparser v0.36.0
+[1m[92m   Compiling[0m markup5ever v0.38.0
+[1m[92m   Compiling[0m objc2-core-foundation v0.3.2
+[1m[92m   Compiling[0m url v2.5.8
+[1m[92m   Compiling[0m regex-automata v0.4.16
+[1m[92m   Compiling[0m swift-rs v1.0.7
+[1m[92m   Compiling[0m serde_derive_internals v0.29.1
+[1m[92m   Compiling[0m servo_arc v0.4.3
+[1m[92m   Compiling[0m fnv v1.0.7
+[1m[92m   Compiling[0m powerfmt v0.2.0
+[1m[92m   Compiling[0m schemars v0.8.22
+[1m[92m   Compiling[0m deranged v0.5.8
+[1m[92m   Compiling[0m hashbrown v0.17.1
+[1m[92m   Compiling[0m hashbrown v0.12.3
+[1m[92m   Compiling[0m bit-vec v0.8.0
+[1m[92m   Compiling[0m rustc-hash v2.1.3
+[1m[92m   Compiling[0m version_check v0.9.5
+[1m[92m   Compiling[0m equivalent v1.0.2
+[1m[92m   Compiling[0m indexmap v2.14.0
+[1m[92m   Compiling[0m time v0.3.54
+[1m[92m   Compiling[0m bit-set v0.8.0
+[1m[92m   Compiling[0m regex v1.13.1
+[1m[92m   Compiling[0m schemars_derive v0.8.22
+[1m[92m   Compiling[0m cfb v0.7.3
+[1m[92m   Compiling[0m html5ever v0.38.0
+[1m[92m   Compiling[0m brotli-decompressor v5.0.3
+[1m[92m   Compiling[0m unic-ucd-ident v0.9.0
+[1m[92m   Compiling[0m jsonptr v0.6.3
+[1m[92m   Compiling[0m cargo-platform v0.1.9
+[1m[92m   Compiling[0m quick-xml v0.41.0
+[1m[92m   Compiling[0m base64 v0.22.1
+[1m[92m   Compiling[0m base64 v0.21.7
+[1m[92m   Compiling[0m dyn-clone v1.0.20
+[1m[92m   Compiling[0m same-file v1.0.6
+[1m[92m   Compiling[0m dunce v1.0.5
+[1m[92m   Compiling[0m foldhash v0.2.0
+[1m[92m   Compiling[0m http v1.4.2
+[1m[92m   Compiling[0m dom_query v0.27.0
+[1m[92m   Compiling[0m plist v1.10.0
+[1m[92m   Compiling[0m walkdir v2.5.0
+[1m[92m   Compiling[0m json-patch v3.0.1
+[1m[92m   Compiling[0m cargo_metadata v0.19.2
+[1m[92m   Compiling[0m brotli v8.0.4
+[1m[92m   Compiling[0m urlpattern v0.3.0
+[1m[92m   Compiling[0m serde-untagged v0.1.9
+[1m[92m   Compiling[0m infer v0.19.0
+[1m[92m   Compiling[0m serde_with v3.21.0
+[1m[92m   Compiling[0m ctor v0.8.0
+[1m[92m   Compiling[0m glob v0.3.4
+[1m[92m   Compiling[0m pin-project-lite v0.2.17
+[1m[92m   Compiling[0m objc2-foundation v0.3.2
+[1m[92m   Compiling[0m tauri-utils v2.9.3
+[1m[92m   Compiling[0m futures-core v0.3.33
+[1m[92m   Compiling[0m errno v0.3.14
+[1m[92m   Compiling[0m signal-hook-registry v1.4.8
+[1m[92m   Compiling[0m tokio-macros v2.7.0
+[1m[92m   Compiling[0m mio v1.2.2
+[1m[92m   Compiling[0m socket2 v0.6.5
+[1m[92m   Compiling[0m futures-sink v0.3.33
+[1m[92m   Compiling[0m tokio v1.53.1
+[1m[92m   Compiling[0m rustc_version v0.4.1
+[1m[92m   Compiling[0m toml_datetime v0.7.5+spec-1.1.0
+[1m[92m   Compiling[0m once_cell v1.21.4
+[1m[92m   Compiling[0m winnow v0.7.15
+[1m[92m   Compiling[0m option-ext v0.2.0
+[1m[92m   Compiling[0m core-foundation-sys v0.8.7
+[1m[92m   Compiling[0m dirs-sys v0.5.0
+[1m[92m   Compiling[0m toml v0.9.12+spec-1.1.0
+[1m[92m   Compiling[0m embed-resource v3.0.11
+[1m[92m   Compiling[0m generic-array v0.14.7
+[1m[92m   Compiling[0m heck v0.5.0
+[1m[92m   Compiling[0m cargo_toml v0.22.3
+[1m[92m   Compiling[0m tauri-winres v0.3.6
+[1m[92m   Compiling[0m dirs v6.0.0
+[1m[92m   Compiling[0m http-body v1.1.0
+[1m[92m   Compiling[0m time-macros v0.2.32
+[1m[92m   Compiling[0m num_threads v0.1.7
+[1m[92m   Compiling[0m httparse v1.10.1
+[1m[92m   Compiling[0m typenum v1.20.1
+[1m[92m   Compiling[0m slab v0.4.12
+[1m[92m   Compiling[0m simd-adler32 v0.3.10
+[1m[92m   Compiling[0m crc32fast v1.5.0
+[1m[92m   Compiling[0m futures-io v0.3.33
+[1m[92m   Compiling[0m futures-task v0.3.33
+[1m[92m   Compiling[0m futures-util v0.3.33
+[1m[92m   Compiling[0m tauri-build v2.6.3
+[1m[92m   Compiling[0m block2 v0.6.2
+[1m[92m   Compiling[0m tower-service v0.3.3
+[1m[92m   Compiling[0m adler2 v2.0.1
+[1m[92m   Compiling[0m try-lock v0.2.5
+[1m[92m   Compiling[0m want v0.3.1
+[1m[92m   Compiling[0m miniz_oxide v0.8.9
+[1m[92m   Compiling[0m objc2-quartz-core v0.3.2
+[1m[92m   Compiling[0m objc2-core-data v0.3.2
+[1m[92m   Compiling[0m objc2-core-image v0.3.2
+[1m[92m   Compiling[0m objc2-cloud-kit v0.3.2
+[1m[92m   Compiling[0m objc2-user-notifications v0.3.2
+[1m[92m   Compiling[0m objc2-core-location v0.3.2
+[1m[92m   Compiling[0m tracing-core v0.1.36
+[1m[92m   Compiling[0m futures-channel v0.3.33
+[1m[92m   Compiling[0m cookie v0.18.1
+[1m[92m   Compiling[0m objc2-core-text v0.3.2
+[1m[92m   Compiling[0m objc2-core-graphics v0.3.2
+[1m[92m   Compiling[0m httpdate v1.0.3
+[1m[92m   Compiling[0m atomic-waker v1.1.2
+[1m[92m   Compiling[0m crossbeam-utils v0.8.22
+[1m[92m   Compiling[0m hyper v1.11.0
+[1m[92m   Compiling[0m objc2-ui-kit v0.3.2
+[1m[92m   Compiling[0m tracing v0.1.44
+[1m[92m   Compiling[0m flate2 v1.1.9
+[1m[92m   Compiling[0m tauri v2.11.5
+[1m[92m   Compiling[0m block-buffer v0.10.4
+[1m[92m   Compiling[0m crypto-common v0.1.7
+[1m[92m   Compiling[0m fdeflate v0.3.7
+[1m[92m   Compiling[0m tauri-plugin v2.6.3
+[1m[92m   Compiling[0m security-framework-sys v2.17.0
+[1m[92m   Compiling[0m sync_wrapper v1.0.2
+[1m[92m   Compiling[0m dpi v0.1.2
+[1m[92m   Compiling[0m tower-layer v0.3.3
+[1m[92m   Compiling[0m ipnet v2.12.0
+[1m[92m   Compiling[0m raw-window-handle v0.6.2
+[1m[92m   Compiling[0m bitflags v1.3.2
+[1m[92m   Compiling[0m png v0.17.16
+[1m[92m   Compiling[0m hyper-util v0.1.20
+[1m[92m   Compiling[0m tower v0.5.3
+[1m[92m   Compiling[0m digest v0.10.7
+[1m[92m   Compiling[0m http-body-util v0.1.4
+[1m[92m   Compiling[0m cpufeatures v0.2.17
+[1m[92m   Compiling[0m wry v0.55.1
+[1m[92m   Compiling[0m tauri-runtime v2.11.3
+[1m[92m   Compiling[0m sha2 v0.10.9
+[1m[92m   Compiling[0m crossbeam-channel v0.5.16
+[1m[92m   Compiling[0m tower-http v0.6.11
+[1m[92m   Compiling[0m ico v0.5.0
+[1m[92m   Compiling[0m objc2-web-kit v0.3.2
+[1m[92m   Compiling[0m tokio-util v0.7.19
+[1m[92m   Compiling[0m core-foundation v0.10.1
+[1m[92m   Compiling[0m getrandom v0.3.4
+[1m[92m   Compiling[0m native-tls v0.2.18
+[1m[92m   Compiling[0m tauri-runtime-wry v2.11.4
+[1m[92m   Compiling[0m security-framework v3.7.0
+[1m[92m   Compiling[0m tauri-codegen v2.6.3
+[1m[92m   Compiling[0m serialize-to-javascript-impl v0.1.2
+[1m[92m   Compiling[0m vcpkg v0.2.15
+[1m[92m   Compiling[0m pkg-config v0.3.33
+[1m[92m   Compiling[0m libsqlite3-sys v0.38.1
+[1m[92m   Compiling[0m serialize-to-javascript v0.1.2
+[1m[92m   Compiling[0m tauri-macros v2.6.3
+[1m[92m   Compiling[0m tao v0.35.3
+[1m[92m   Compiling[0m reqwest v0.13.4
+[1m[92m   Compiling[0m tauri-plugin-log v2.9.0
+[1m[92m   Compiling[0m tauri-plugin-ios-reader v0.1.0 (/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/plugins/ios-reader)
+[1m[92m   Compiling[0m zeroize_derive v1.5.0
+[1m[92m   Compiling[0m num-traits v0.2.19
+[1m[92m   Compiling[0m serde_repr v0.1.21
+[1m[92m   Compiling[0m mime v0.3.17
+[1m[92m   Compiling[0m zeroize v1.9.0
+[1m[92m   Compiling[0m tokio-native-tls v0.3.1
+[1m[92m   Compiling[0m core-foundation v0.9.4
+[1m[92m   Compiling[0m ryu v1.0.23
+[1m[92m   Compiling[0m serde_urlencoded v0.7.1
+[1m[92m   Compiling[0m security-framework v2.11.1
+[1m[92m   Compiling[0m hyper-tls v0.6.0
+[1m[92m   Compiling[0m rustls-pki-types v1.15.1
+[1m[92m   Compiling[0m focus-feed-next v0.8.4 (/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri)
+[1m[92m   Compiling[0m hashlink v0.12.1
+[1m[92m   Compiling[0m fern v0.7.1
+[1m[92m   Compiling[0m iana-time-zone v0.1.65
+[1m[92m   Compiling[0m fallible-iterator v0.3.0
+[1m[92m   Compiling[0m fallible-streaming-iterator v0.1.9
+[1m[92m   Compiling[0m chrono v0.4.45
+[1m[92m   Compiling[0m reqwest v0.12.28
+[1m[92m   Compiling[0m keyring v3.6.3
+[1m[92m   Compiling[0m getrandom v0.2.17
+[1m[92m   Compiling[0m rusqlite v0.40.1
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 1m 28s
+npm notice
+npm notice New major version of npm available! 11.19.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+CpResource /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/assets /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/assets (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/assets /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app
+
+MkDir /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/thinned (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    /bin/mkdir -p /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/thinned
+
+GenerateAssetSymbols /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Assets.xcassets (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    /Applications/Xcode_26.3.app/Contents/Developer/usr/bin/actool /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Assets.xcassets --compile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app --output-format human-readable-text --notices --warnings --export-dependency-info /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_dependencies --output-partial-info-plist /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_generated_info.plist --app-icon AppIcon --compress-pngs --enable-on-demand-resources YES --development-region en --target-device iphone --target-device ipad --minimum-deployment-target 16.0 --platform iphoneos --bundle-identifier com.focusfeed.next --generate-objc-asset-symbols /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources/GeneratedAssetSymbols.h --generate-asset-symbol-index /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources/GeneratedAssetSymbols-Index.plist
+/* com.apple.actool.compilation-results */
+/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources/GeneratedAssetSymbols-Index.plist
+/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources/GeneratedAssetSymbols.h
+
+
+MkDir /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/unthinned (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    /bin/mkdir -p /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/unthinned
+
+CompileStoryboard /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/LaunchScreen.storyboard (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    /Applications/Xcode_26.3.app/Contents/Developer/usr/bin/ibtool --errors --warnings --notices --module Focus_Feed_Next --output-partial-info-plist /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/LaunchScreen-SBPartialInfo.plist --auto-activate-custom-fonts --target-device iphone --target-device ipad --minimum-deployment-target 16.0 --output-format human-readable-text /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/LaunchScreen.storyboard --compilation-directory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build
+
+CompileAssetCatalogVariant thinned /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Assets.xcassets (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    /Applications/Xcode_26.3.app/Contents/Developer/usr/bin/actool /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Assets.xcassets --compile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/thinned --output-format human-readable-text --notices --warnings --export-dependency-info /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_dependencies_thinned --output-partial-info-plist /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_generated_info.plist_thinned --app-icon AppIcon --compress-pngs --enable-on-demand-resources YES --development-region en --target-device iphone --target-device ipad --minimum-deployment-target 16.0 --platform iphoneos
+/* com.apple.actool.document.notices */
+/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Assets.xcassets:./AppIcon.appiconset/[][ipad][76x76][][][1x][][][][]: notice: 76x76@1x app icons only apply to iPad apps targeting releases of iOS prior to 10.0.
+/* com.apple.actool.compilation-results */
+/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_generated_info.plist_thinned
+/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/thinned/AppIcon60x60@2x.png
+/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/thinned/AppIcon76x76@2x~ipad.png
+/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/thinned/Assets.car
+
+
+CompileC /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/main.o /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Sources/focus-feed-next/main.mm normal arm64 objective-c++ com.apple.compilers.llvm.clang.1_0.compiler (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    
+    Using response file: /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/af3fcb34312c57c0f52879cdce924b91-common-args.resp
+    
+    /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -x objective-c++ -ivfsstatcache /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.2-23C57-dc75598d0054f22ec865fa860f139d722dd23b4ebda140f7210d155ff1243552.sdkstatcache -fmessage-length\=0 -fdiagnostics-show-note-include-stack -fmacro-backtrace-limit\=0 -fno-color-diagnostics -fmodules-prune-interval\=86400 -fmodules-prune-after\=345600 -fbuild-session-file\=/Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -fmodules-validate-once-per-build-session -Wnon-modular-include-in-framework-module -Werror\=non-modular-include-in-framework-module -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes -Werror\=return-type -Wdocumentation -Wunreachable-code -Wquoted-include-in-framework-header -Wno-implicit-atomic-properties -Werror\=deprecated-objc-isa-usage -Wno-objc-interface-ivars -Werror\=objc-root-class -Wno-arc-repeated-use-of-weak -Wimplicit-retain-self -Wno-non-virtual-dtor -Wno-overloaded-virtual -Wno-exit-time-destructors -Wduplicate-method-match -Wno-missing-braces -Wparentheses -Wswitch -Wunused-function -Wno-unused-label -Wno-unused-parameter -Wunused-variable -Wunused-value -Wempty-body -Wuninitialized -Wconditional-uninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wno-conversion -Wconstant-conversion -Wint-conversion -Wbool-conversion -Wenum-conversion -Wno-float-conversion -Wnon-literal-null-conversion -Wobjc-literal-conversion -Wshorten-64-to-32 -Wno-newline-eof -Wno-selector -Wno-strict-selector-match -Wundeclared-selector -Wdeprecated-implementations -Wno-c++11-extensions -Wno-implicit-fallthrough -fstrict-aliasing -Wprotocol -Wdeprecated-declarations -Winvalid-offsetof -Wno-sign-conversion -Winfinite-recursion -Wmove -Wcomma -Wblock-capture-autoreleasing -Wstrict-prototypes -Wrange-loop-analysis -Wno-semicolon-before-method-body -Wunguarded-availability @/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/af3fcb34312c57c0f52879cdce924b91-common-args.resp -MMD -MT dependencies -MF /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/main.d --serialize-diagnostics /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/main.dia -c /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Sources/focus-feed-next/main.mm -o /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/main.o
+
+Ld /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Focus\ Feed\ Next normal (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++ -Xlinker -reproducible -target arm64-apple-ios16.0 -isysroot /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -Os -L/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/EagerLinkingTBDs/release-iphoneos -L/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos -L/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Externals/arm64/release -L/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/usr/lib/swift -L/Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphoneos -L/Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/iphoneos -F/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/EagerLinkingTBDs/release-iphoneos -F/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos -F. -filelist /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/Focus\ Feed\ Next.LinkFileList -Xlinker -rpath -Xlinker @executable_path/Frameworks -dead_strip -Xlinker -object_path_lto -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/Focus\ Feed\ Next_lto.o -Xlinker -dependency_info -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/Focus\ Feed\ Next_dependency_info.dat -stdlib\=libc++ -fobjc-arc -fobjc-link-runtime -lapp -framework CoreGraphics -framework Metal -framework MetalKit -framework QuartzCore -framework Security -framework UIKit -framework WebKit -o /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Focus\ Feed\ Next
+
+LinkStoryboards (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    /Applications/Xcode_26.3.app/Contents/Developer/usr/bin/ibtool --errors --warnings --notices --module Focus_Feed_Next --target-device iphone --target-device ipad --minimum-deployment-target 16.0 --output-format human-readable-text --link /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/LaunchScreen.storyboardc
+
+LinkAssetCatalog /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Assets.xcassets (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    builtin-linkAssetCatalog --thinned /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/thinned --thinned-dependencies /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_dependencies_thinned --thinned-info-plist-content /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_generated_info.plist_thinned --unthinned /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/unthinned --unthinned-dependencies /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_dependencies_unthinned --unthinned-info-plist-content /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_generated_info.plist_unthinned --output /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app --plist-output /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_generated_info.plist
+note: Emplaced /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus Feed Next.app/Assets.car (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+note: Emplaced /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus Feed Next.app/AppIcon60x60@2x.png (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+note: Emplaced /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus Feed Next.app/AppIcon76x76@2x~ipad.png (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+
+ProcessInfoPlistFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Info.plist /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next_iOS/Info.plist (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    builtin-infoPlistUtility /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next_iOS/Info.plist -producttype com.apple.product-type.application -genpkginfo /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/PkgInfo -expandbuildsettings -format binary -platform iphoneos -additionalcontentfile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/LaunchScreen-SBPartialInfo.plist -additionalcontentfile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_generated_info.plist -requiredArchitecture arm64 -o /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Info.plist
+
+CopySwiftLibs /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    builtin-swiftStdLibTool --copy --verbose --scan-executable /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Focus\ Feed\ Next --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Frameworks --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/PlugIns --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/SystemExtensions --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Extensions --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/CoreGraphics.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/Metal.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/MetalKit.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/QuartzCore.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/Security.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/UIKit.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/WebKit.framework --platform iphoneos --toolchain /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.cO5SN2/Metal.xctoolchain --toolchain /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os --back-deploy-swift-span
+Ignoring --strip-bitcode because --sign was not passed
+
+GenerateDSYMFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app.dSYM /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Focus\ Feed\ Next (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/dsymutil /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Focus\ Feed\ Next -o /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app.dSYM
+
+RegisterExecutionPolicyException /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    builtin-RegisterExecutionPolicyException /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app
+
+Validate /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    builtin-validationUtility /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app -shallow-bundle -infoplist-subpath Info.plist
+
+Touch /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    /usr/bin/touch -c /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app
+
+note: Run script build phase 'Build Rust Code' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+** BUILD SUCCEEDED **
+
+Setting version of project focus-feed-next to: 
+    0.8.4.1.
+
+Also setting CFBundleVersion key (assuming it exists)
+
+Updating CFBundleVersion in Info.plist(s)...
+
+Updated CFBundleVersion in "focus-feed-next.xcodeproj/../focus-feed-next_iOS/Info.plist" to 0.8.4.1
+
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS, id:dvtdevice-DVTiPhonePlaceholder-iphoneos:placeholder, name:Any iOS Device }
+{ platform:iOS Simulator, id:dvtdevice-DVTiOSDeviceSimulatorPlaceholder-iphonesimulator:placeholder, name:Any iOS Simulator Device }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:8eccf5332f2294dd3d2344646987668dd58ea3b4, name:My Mac }
+{ platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:EFC27B51-A1AC-4C44-A0CE-43F84B5F0B68, OS:2.3, name:Apple Vision Pro }
+{ platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:136F9422-A9E1-4C19-88AF-45BB818E37BB, OS:2.4, name:Apple Vision Pro }
+{ platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:0C5BF083-23A9-419B-9CBD-8E2AA7E26265, OS:2.5, name:Apple Vision Pro }
+{ platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:EB17C5F7-7C10-47FF-9344-F550DB0D244F, OS:26.1, name:Apple Vision Pro }
+{ platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:62E72748-B3EC-4F87-AAD9-DE47D54B7B63, OS:26.2, name:Apple Vision Pro }
+{ platform:iOS Simulator, arch:arm64, id:B7718686-AA2A-4157-8E04-7FA4AE6F7BD0, OS:18.5, name:iPad (10th generation) }
+{ platform:iOS Simulator, arch:arm64, id:FF8C8404-A040-4C69-BE4F-258FA2571EA2, OS:18.6, name:iPad (10th generation) }
+{ platform:iOS Simulator, arch:arm64, id:5A7C2682-DC41-42B4-A065-6477314C6107, OS:26.0.1, name:iPad (10th generation) }
+{ platform:iOS Simulator, arch:arm64, id:388BAFD3-DA76-4ACF-AB96-CB8111ABF99E, OS:26.1, name:iPad (10th generation) }
+{ platform:iOS Simulator, arch:arm64, id:AC7BF8FD-BAB0-4374-A4F7-52ABA082B92E, OS:26.2, name:iPad (10th generation) }
+{ platform:iOS Simulator, arch:arm64, id:7222C0FB-7BCD-457A-AD32-76C948D2602F, OS:18.5, name:iPad (A16) }
+{ platform:iOS Simulator, arch:arm64, id:458323E3-9E85-4764-B868-F02CE9C4ADF0, OS:18.6, name:iPad (A16) }
+{ platform:iOS Simulator, arch:arm64, id:3869DFDE-0197-4B91-915D-90B3D279FE15, OS:26.0.1, name:iPad (A16) }
+{ platform:iOS Simulator, arch:arm64, id:BAD1706E-E13F-444D-B19F-C7A451E7774A, OS:26.1, name:iPad (A16) }
+{ platform:iOS Simulator, arch:arm64, id:E1D34F4A-69A6-4E07-8C9F-D5E775E2A416, OS:26.2, name:iPad (A16) }
+{ platform:iOS Simulator, arch:arm64, id:FB985C96-A632-42FC-A064-57F80EA1A0AF, OS:18.5, name:iPad Air 11-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:6CE4BAD1-E547-4D95-B130-FBCDCE49282B, OS:18.6, name:iPad Air 11-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:5DCA7372-1294-4245-AADE-E9938CC9119F, OS:26.0.1, name:iPad Air 11-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:B5D41CE2-3444-4312-8351-5A2B58E90C26, OS:26.1, name:iPad Air 11-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:28EB6DDD-01F7-42F7-B1FF-56CC398818EB, OS:26.2, name:iPad Air 11-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:238ABD15-A231-49EB-9A8E-2A18835D05E4, OS:18.5, name:iPad Air 11-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:A1F6F219-8660-4BC0-B7E9-17BEE98456F5, OS:18.6, name:iPad Air 11-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:244E1618-3993-4A44-B213-FA496A601843, OS:26.0.1, name:iPad Air 11-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:5DE60B78-C540-4CAE-BF3B-D31601C7ABBB, OS:26.1, name:iPad Air 11-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:EF008AE9-B743-4A49-A8AD-A27FD9CCAE52, OS:26.2, name:iPad Air 11-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:DEC44A2A-1119-4A2D-89C9-0A7E48485C1E, OS:18.5, name:iPad Air 13-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:6AF871A0-5FC9-4DA0-92D3-D60A3F3986E0, OS:18.6, name:iPad Air 13-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:DC7ED953-B711-4AC8-A414-A7008BA50DAD, OS:26.0.1, name:iPad Air 13-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:D3B307C6-3981-42AF-9708-E15A72BECF2D, OS:26.1, name:iPad Air 13-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:6235A74F-E996-4A4A-B5B9-91A8A87F50EE, OS:26.2, name:iPad Air 13-inch (M2) }
+{ platform:iOS Simulator, arch:arm64, id:9747906A-4708-4563-B8B9-1FE571CEA8C5, OS:18.5, name:iPad Air 13-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:24D6FA4F-CB44-41E0-B6E8-91374A95E4CA, OS:18.6, name:iPad Air 13-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:1262447B-91B2-4C0C-90E8-36537D183683, OS:26.0.1, name:iPad Air 13-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:40C16C1A-5BA0-41C6-99A5-355F9CBACD9F, OS:26.1, name:iPad Air 13-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:8C025F3C-2545-40A5-AC87-FF534DB84D42, OS:26.2, name:iPad Air 13-inch (M3) }
+{ platform:iOS Simulator, arch:arm64, id:2EDB2671-090C-4988-822E-421879ECE84C, OS:18.5, name:iPad Pro 11-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:41C766F4-A950-4049-81B8-1B578B5804D8, OS:18.6, name:iPad Pro 11-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:CE25E477-AAC4-469F-9343-301D5ABCD9BC, OS:26.0.1, name:iPad Pro 11-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:38A0995A-759F-417D-ACED-70D43D6DBB82, OS:26.1, name:iPad Pro 11-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:FABE5896-BAF4-4220-8AFE-C1E31625D4DC, OS:26.2, name:iPad Pro 11-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:07E2DE8A-D138-4013-A250-9EDE31AAB9DE, OS:26.0.1, name:iPad Pro 11-inch (M5) }
+{ platform:iOS Simulator, arch:arm64, id:165A6108-1D5C-4AFB-94C8-64E25DA3E7B5, OS:26.1, name:iPad Pro 11-inch (M5) }
+{ platform:iOS Simulator, arch:arm64, id:93F8D73D-86A4-455D-8E33-EFA55B5760E4, OS:26.2, name:iPad Pro 11-inch (M5) }
+{ platform:iOS Simulator, arch:arm64, id:AFBB202F-0F39-4DD8-8C47-DAB97D7D9DF2, OS:18.5, name:iPad Pro 13-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:DD335931-190E-4075-B666-91C698C0CDEC, OS:18.6, name:iPad Pro 13-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:1A4FA0DD-F5CE-49FF-A6E2-1CAC22BE4C80, OS:26.0.1, name:iPad Pro 13-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:380AF256-AA90-49F1-BC8E-618736C734CB, OS:26.1, name:iPad Pro 13-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:5A602664-A209-462C-9B02-6E51FACDFED6, OS:26.2, name:iPad Pro 13-inch (M4) }
+{ platform:iOS Simulator, arch:arm64, id:7EBB23D5-64E2-4DDB-B24F-86C16A07ED26, OS:26.0.1, name:iPad Pro 13-inch (M5) }
+{ platform:iOS Simulator, arch:arm64, id:B673CC61-F30B-479A-9672-FA680127EE1F, OS:26.1, name:iPad Pro 13-inch (M5) }
+{ platform:iOS Simulator, arch:arm64, id:0DE52589-6E0B-47D4-B4A7-7E4E3D9C1049, OS:26.2, name:iPad Pro 13-inch (M5) }
+{ platform:iOS Simulator, arch:arm64, id:773C1AA1-17A9-4EC1-8BE5-D4BB00DF3AC1, OS:18.5, name:iPad mini (A17 Pro) }
+{ platform:iOS Simulator, arch:arm64, id:417FB14E-FFC0-4FB1-B6D6-BA85C2FFC3D5, OS:18.6, name:iPad mini (A17 Pro) }
+{ platform:iOS Simulator, arch:arm64, id:B12E6DD0-E867-4D26-BFBA-2BD9C3D55DBD, OS:26.0.1, name:iPad mini (A17 Pro) }
+{ platform:iOS Simulator, arch:arm64, id:CFF66741-12D5-44BF-BABB-29622D014BE2, OS:26.1, name:iPad mini (A17 Pro) }
+{ platform:iOS Simulator, arch:arm64, id:9D9BF050-F6F5-4D32-84C0-4B7AC57F63EF, OS:26.2, name:iPad mini (A17 Pro) }
+{ platform:iOS Simulator, arch:arm64, id:F0E646EF-4792-4F36-B48B-EC89B3A6B73B, OS:18.5, name:iPhone 16 }
+{ platform:iOS Simulator, arch:arm64, id:02010C24-263D-445A-8934-74FE019F15CA, OS:18.6, name:iPhone 16 }
+{ platform:iOS Simulator, arch:arm64, id:2D9C6CF6-FA7D-4D87-84C4-D5FA503F22B9, OS:26.0.1, name:iPhone 16 }
+{ platform:iOS Simulator, arch:arm64, id:6D9FD9BD-F027-4EE5-83A6-BC98ED2603B0, OS:26.1, name:iPhone 16 }
+{ platform:iOS Simulator, arch:arm64, id:2911FD29-A09E-4A81-BEA7-99A616FB7FC8, OS:26.2, name:iPhone 16 }
+{ platform:iOS Simulator, arch:arm64, id:183F93DA-9B72-40B1-AD0E-287526E4E9D5, OS:18.5, name:iPhone 16 Plus }
+{ platform:iOS Simulator, arch:arm64, id:102FCD1A-4F6B-4B15-ABA9-774BC75ADB11, OS:18.6, name:iPhone 16 Plus }
+{ platform:iOS Simulator, arch:arm64, id:2EE15100-41A2-4790-893A-050FC5FE5AA8, OS:26.0.1, name:iPhone 16 Plus }
+{ platform:iOS Simulator, arch:arm64, id:C1337AE6-D82D-4C09-B0BA-4437460B306E, OS:26.1, name:iPhone 16 Plus }
+{ platform:iOS Simulator, arch:arm64, id:CFF67BF1-533D-480D-9A76-F1EADAD339C7, OS:26.2, name:iPhone 16 Plus }
+{ platform:iOS Simulator, arch:arm64, id:DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9, OS:18.5, name:iPhone 16 Pro }
+{ platform:iOS Simulator, arch:arm64, id:7FF9581C-A82C-472C-B005-492B077D1038, OS:18.6, name:iPhone 16 Pro }
+{ platform:iOS Simulator, arch:arm64, id:3C00406B-9DB5-4106-B5FD-132C84BF188A, OS:26.0.1, name:iPhone 16 Pro }
+{ platform:iOS Simulator, arch:arm64, id:3F7F71D8-9EE4-4B63-84A8-6EBD0C5017BE, OS:26.1, name:iPhone 16 Pro }
+{ platform:iOS Simulator, arch:arm64, id:291E4B86-C951-41A7-8327-84BF0304D0A9, OS:26.2, name:iPhone 16 Pro }
+{ platform:iOS Simulator, arch:arm64, id:F1218AE5-3D29-4CE5-9D0F-6F21CEAA502C, OS:18.5, name:iPhone 16 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:BAE7F30B-6707-4BF4-8375-FE75C94DD2FA, OS:18.6, name:iPhone 16 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:E1605B84-CF5A-4193-878D-3623BD8B90AE, OS:26.0.1, name:iPhone 16 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:920BDAA4-BD69-4998-9337-3B06B2C584F4, OS:26.1, name:iPhone 16 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:9F3D563E-AF8A-4089-B32E-3ADADEB067F0, OS:26.2, name:iPhone 16 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:51F5467F-16A9-4296-9C05-A74F91234967, OS:18.5, name:iPhone 16e }
+{ platform:iOS Simulator, arch:arm64, id:8CBC396B-9510-42FF-AC70-614F5BD0FC86, OS:18.6, name:iPhone 16e }
+{ platform:iOS Simulator, arch:arm64, id:4118C2C1-7E78-41EB-B816-3C75C7076F1E, OS:26.0.1, name:iPhone 16e }
+{ platform:iOS Simulator, arch:arm64, id:A1D6E20D-5C3F-46E8-88C8-9A88DB2C1D0E, OS:26.1, name:iPhone 16e }
+{ platform:iOS Simulator, arch:arm64, id:1ECD563C-BBBB-42E5-9A9F-648809113BF6, OS:26.2, name:iPhone 16e }
+{ platform:iOS Simulator, arch:arm64, id:003F24D4-BA1A-4D48-A26E-C14D511E7472, OS:26.0.1, name:iPhone 17 }
+{ platform:iOS Simulator, arch:arm64, id:3D025AD9-C9BB-46A3-BCB4-B84F592C53A0, OS:26.1, name:iPhone 17 }
+{ platform:iOS Simulator, arch:arm64, id:22970779-4A47-463E-8B6D-CC012359B320, OS:26.2, name:iPhone 17 }
+{ platform:iOS Simulator, arch:arm64, id:517BAAA1-7BAB-4B50-8B25-04EF0238019B, OS:26.0.1, name:iPhone 17 Pro }
+{ platform:iOS Simulator, arch:arm64, id:DBAE96AF-90B5-4387-B859-66348EF015C7, OS:26.1, name:iPhone 17 Pro }
+{ platform:iOS Simulator, arch:arm64, id:E952A9B0-CC78-435C-BF08-06AD47FE1076, OS:26.2, name:iPhone 17 Pro }
+{ platform:iOS Simulator, arch:arm64, id:CA359E70-5E9C-400C-A7E1-34013F7B088A, OS:26.0.1, name:iPhone 17 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:1BF1F2D9-05B4-4B31-BE19-1031B4A0EA80, OS:26.1, name:iPhone 17 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:4C675116-265D-488F-BFFA-836A4545674C, OS:26.2, name:iPhone 17 Pro Max }
+{ platform:iOS Simulator, arch:arm64, id:AB0FB058-2DF8-4824-A382-91FE8566B342, OS:26.0.1, name:iPhone Air }
+{ platform:iOS Simulator, arch:arm64, id:55DF797C-6847-4575-ABFA-4E2A08520774, OS:26.1, name:iPhone Air }
+{ platform:iOS Simulator, arch:arm64, id:1CE1A334-F45C-4216-823B-EE5E6389838F, OS:26.2, name:iPhone Air }
+{ platform:iOS Simulator, arch:arm64, id:22A3039C-6A45-47F4-82D4-80C58CA94379, OS:18.5, name:iPhone SE (3rd generation) }
+{ platform:iOS Simulator, arch:arm64, id:8938AAA2-76B5-4D49-A228-383499B04C02, OS:18.6, name:iPhone SE (3rd generation) }
+{ platform:iOS Simulator, arch:arm64, id:F3967A6C-63E1-4323-9EA7-6C26D42F77A3, OS:26.0.1, name:iPhone SE (3rd generation) }
+{ platform:iOS Simulator, arch:arm64, id:3EF44343-CDF7-4757-BAE2-47B813D8FF60, OS:26.1, name:iPhone SE (3rd generation) }
+{ platform:iOS Simulator, arch:arm64, id:48B2DA2E-AF18-4E36-BB25-B25969A4EBCF, OS:26.2, name:iPhone SE (3rd generation) }
+        Info connection; remote_addr=127.0.0.1:49348 conn_id=1
+2026-10-11 18:57:49.101 xcodebuild[27090:305829] [MT] IDEDistribution: -[IDEDistributionLogging _createLoggingBundleAtPath:]: Created bundle at path "/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/focus-feed-next_iOS_2026-10-11_18-57-49.101.xcdistributionlogs".
+error: exportArchive No Team Found in Archive
+
+** EXPORT FAILED **
+
+failed to export iOS app: command ["xcodebuild"] exited with code 70
+       Error failed to export iOS app: command ["xcodebuild"] exited with code 70
+No errors detected in compressed data of /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/dist-ios/FocusFeedNext-unsigned.ipa.
+Unsigned IPA: /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/dist-ios/FocusFeedNext-unsigned.ipa
