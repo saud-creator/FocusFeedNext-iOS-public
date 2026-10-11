@@ -225,7 +225,10 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
     @objc private func reloadLogin() {
         guard !loginCompleting else { return }
         journal.record("recovery",stage:"login")
-        (loginPopup ?? loginBrowser)?.reload()
+        if let view = loginPopup ?? loginBrowser {
+            if view.url == nil { view.load(URLRequest(url:URL(string:"https://x.com/i/flow/login")!)) }
+            else { view.reload() }
+        }
     }
     @objc private func shareLoginReport() {
         guard let controller = loginController, controller.presentedViewController == nil else { return }
@@ -756,7 +759,11 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
     }
     private func installIdentityCookies(_ cookies: [HTTPCookie], args: RequestArgs, reply: RequestReply, done: @escaping () -> Void) {
         guard reply.pending else { return }
-        guard let selection = LoginCookies.select(cookies), selection.token == args.authToken else { done(); return }
+        guard let selection = LoginCookies.select(cookies), selection.token == args.authToken else {
+            replies.removeValue(forKey:args.context.id)
+            journal.record("failure",stage:"cookies",code:"authentication_expired")
+            reply.resolve(ConnectionFault.value("authentication_expired","cookies",id:args.context.id,retryable:false)); return
+        }
         let store = browser.configuration.websiteDataStore.httpCookieStore
         store.getAllCookies { existing in
             guard reply.pending else { return }
