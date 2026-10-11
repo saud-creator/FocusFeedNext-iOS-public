@@ -1,1 +1,1 @@
-Native session and WebKit checks passed: 69 assertions; fixture traffic only.
+Native session and WebKit checks passed: 68 assertions; fixture traffic only.
