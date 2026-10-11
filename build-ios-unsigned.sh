@@ -57,7 +57,7 @@ trap 'rm -rf "$staging"' EXIT
 mkdir -p "$staging/Payload"
 ditto "$app" "$staging/Payload/$(basename "$app")"
 packaged_app="$staging/Payload/$(basename "$app")"
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion 800.$build_number" "$packaged_app/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion 801.$build_number" "$packaged_app/Info.plist"
 executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$packaged_app/Info.plist")
 lipo "$packaged_app/$executable" -verify_arch arm64
 /usr/libexec/PlistBuddy -c 'Print :CFBundleSupportedPlatforms' "$packaged_app/Info.plist" | grep -q iPhoneOS
