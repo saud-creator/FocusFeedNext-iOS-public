@@ -1,5 +1,4 @@
 curl: (7) Failed to connect to 127.0.0.1 port 8769 after 0 ms: Couldn't connect to server
-curl: (7) Failed to connect to 127.0.0.1 port 8769 after 0 ms: Couldn't connect to server
 Native session and WebKit checks passed: 45 assertions; fixture traffic only.
 info: downloading component rust-std
 
@@ -34,14 +33,14 @@ libtatsu
 libusbmuxd
 [32m==>[0m [1mFetching downloads for: [32mlibimobiledevice[39m[0m
 ✔︎ Bottle Manifest libplist (2.7.0)
-✔︎ Bottle Manifest libtatsu (1.0.5)
 ✔︎ Bottle Manifest libimobiledevice-glue (1.3.2)
+✔︎ Bottle Manifest libtatsu (1.0.5)
+✔︎ Bottle libimobiledevice (1.4.0)
 ✔︎ Bottle Manifest libusbmuxd (2.1.1)
 ✔︎ Bottle libplist (2.7.0)
-✔︎ Bottle libimobiledevice-glue (1.3.2)
-✔︎ Bottle libimobiledevice (1.4.0)
-✔︎ Bottle libusbmuxd (2.1.1)
 ✔︎ Bottle libtatsu (1.0.5)
+✔︎ Bottle libimobiledevice-glue (1.3.2)
+✔︎ Bottle libusbmuxd (2.1.1)
 [32m==>[0m [1mReinstalling [32mlibimobiledevice[39m [0m
 [32m==>[0m [1mInstalling dependencies for libimobiledevice:[0m [32mlibplist[39m, [32mlibimobiledevice-glue[39m, [32mlibtatsu[39m and [32mlibusbmuxd[39m[0m
 [32m==>[0m [1mInstalling libimobiledevice dependency: [32mlibplist[39m[0m
@@ -163,7 +162,7 @@ dist/assets/FeedList-EKumMX05.js          106.34 kB │ gzip: 32.75 kB
 dist/assets/index-CJA8AN16.js             221.07 kB │ gzip: 69.39 kB
 dist/assets/PageHeader-BUwx82Io.js        295.18 kB │ gzip: 91.06 kB
 
-[32m✓ built in 262ms[39m
+[32m✓ built in 269ms[39m
 Command line invocation:
     /Applications/Xcode_26.3.app/Contents/Developer/usr/bin/xcodebuild -allowProvisioningUpdates -scheme focus-feed-next_iOS -workspace /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj/project.xcworkspace/ -sdk iphoneos -configuration release build
 
@@ -172,7 +171,7 @@ Build settings from command line:
 
 --- xcodebuild: WARNING: Using the first of multiple matching destinations:
 { platform:iOS, id:dvtdevice-DVTiPhonePlaceholder-iphoneos:placeholder, name:Any iOS Device }
-{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:2fe7c7681ed42467edaf71020716fe8e8ca2621c, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:3480045723f413ee836c66ebacf679051dfbf67a, name:My Mac }
 { platform:iOS Simulator, id:dvtdevice-DVTiOSDeviceSimulatorPlaceholder-iphonesimulator:placeholder, name:Any iOS Simulator Device }
 { platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:EFC27B51-A1AC-4C44-A0CE-43F84B5F0B68, OS:2.3, name:Apple Vision Pro }
 { platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:136F9422-A9E1-4C19-88AF-45BB818E37BB, OS:2.4, name:Apple Vision Pro }
@@ -305,20 +304,20 @@ ExecuteExternalTool /Applications/Xcode_26.3.app/Contents/Developer/usr/bin/acto
 
 ExecuteExternalTool /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
 
-Build description signature: 70c1f27781cd76f456f0766d9d8ba16d
-Build description path: /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/XCBuildData/70c1f27781cd76f456f0766d9d8ba16d.xcbuilddata
-CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex
-    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
-    builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex
-
+Build description signature: d9d1bf6af3ed78f6d83f5bbc765075b6
+Build description path: /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/XCBuildData/d9d1bf6af3ed78f6d83f5bbc765075b6.xcbuilddata
 CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products
     cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
     builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products
 
+CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
+    builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex
+
 ClangStatCache /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.2-23C57-dc75598d0054f22ec865fa860f139d722dd23b4ebda140f7210d155ff1243552.sdkstatcache
     cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
     /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -o /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.2-23C57-dc75598d0054f22ec865fa860f139d722dd23b4ebda140f7210d155ff1243552.sdkstatcache
-        Info connection; remote_addr=127.0.0.1:49227 conn_id=0
+        Info connection; remote_addr=127.0.0.1:49219 conn_id=0
 
 CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos
     cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next.xcodeproj
@@ -344,10 +343,6 @@ WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-
     cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
     write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Script-CACB89CD57612EE7CB36B615.sh
 
-WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next.hmap (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
-    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
-    write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next.hmap
-
 WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/Focus\ Feed\ Next.LinkFileList (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
     cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
     write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/Focus\ Feed\ Next.LinkFileList
@@ -356,6 +351,10 @@ WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-
     cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
     write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/af3fcb34312c57c0f52879cdce924b91-common-args.resp
 -target arm64-apple-ios16.0 '-std=gnu++14' '-stdlib=libc++' -fobjc-arc -fobjc-weak -fmodules -fno-cxx-modules -gmodules '-fmodules-cache-path=/Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex' -fpascal-strings -Os -fno-common '-DNS_BLOCK_ASSERTIONS=1' '-DOBJC_OLD_DISPATCH_PROTOTYPES=0' -isysroot /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -g '-fvisibility=hidden' -fvisibility-inlines-hidden -iquote '/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus Feed Next-generated-files.hmap' '-I/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus Feed Next-own-target-headers.hmap' '-I/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus Feed Next-all-target-headers.hmap' -iquote '/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus Feed Next-project-headers.hmap' -I/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/include -I/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources-normal/arm64 -I/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources/arm64 -I/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources -F/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos -F.
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next.hmap (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next.hmap
 
 WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Focus\ Feed\ Next.DependencyStaticMetadataFileList (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
     cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
@@ -741,7 +740,7 @@ PhaseScriptExecution Build\ Rust\ Code /Users/runner/Library/Developer/Xcode/Der
     export OSAC\=/usr/bin/osacompile
     export PACKAGE_TYPE\=com.apple.package-type.wrapper.application
     export PASCAL_STRINGS\=YES
-    export PATH\=/Applications/Xcode_26.3.app/Contents/SharedFrameworks/SwiftBuild.framework/Versions/A/PlugIns/SWBBuildService.bundle/Contents/PlugIns/SWBUniversalPlatformPlugin.bundle/Contents/Frameworks/SWBUniversalPlatform.framework/Resources:/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.WRG331/Metal.xctoolchain/usr/bin:/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.WRG331/Metal.xctoolchain/usr/local/bin:/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.WRG331/Metal.xctoolchain/usr/libexec:/Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin:/Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/bin:/Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/libexec:/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/usr/bin:/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/usr/local/bin:/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin:/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/local/bin:/Applications/Xcode_26.3.app/Contents/Developer/usr/bin:/Applications/Xcode_26.3.app/Contents/Developer/usr/local/bin:/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/node_modules/.bin:/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/node_modules/.bin:/Users/runner/work/FocusFeedNext-iOS/node_modules/.bin:/Users/runner/work/node_modules/.bin:/Users/runner/node_modules/.bin:/Users/node_modules/.bin:/node_modules/.bin:/Users/runner/hostedtoolcache/node/24.20.0/arm64/lib/node_modules/npm/node_modules/@npmcli/run-script/lib/node-gyp-bin:/Users/runner/hostedtoolcache/node/24.20.0/arm64/bin:/opt/homebrew/lib/ruby/gems/3.3.0/bin:/opt/homebrew/opt/ruby@3.3/bin:/Users/runner/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/runner/.cargo/bin:/usr/local/opt/curl/bin:/usr/local/bin:/usr/local/sbin:/Users/runner/bin:/Users/runner/.yarn/bin:/Users/runner/Library/Android/sdk/tools:/Users/runner/Library/Android/sdk/platform-tools:/Library/Frameworks/Python.framework/Versions/Current/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/usr/bin:/bin:/usr/sbin:/sbin:/Users/runner/.dotnet/tools
+    export PATH\=/Applications/Xcode_26.3.app/Contents/SharedFrameworks/SwiftBuild.framework/Versions/A/PlugIns/SWBBuildService.bundle/Contents/PlugIns/SWBUniversalPlatformPlugin.bundle/Contents/Frameworks/SWBUniversalPlatform.framework/Resources:/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.qLJhlU/Metal.xctoolchain/usr/bin:/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.qLJhlU/Metal.xctoolchain/usr/local/bin:/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.qLJhlU/Metal.xctoolchain/usr/libexec:/Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin:/Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/bin:/Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/libexec:/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/usr/bin:/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/usr/local/bin:/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin:/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/local/bin:/Applications/Xcode_26.3.app/Contents/Developer/usr/bin:/Applications/Xcode_26.3.app/Contents/Developer/usr/local/bin:/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/node_modules/.bin:/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/node_modules/.bin:/Users/runner/work/FocusFeedNext-iOS/node_modules/.bin:/Users/runner/work/node_modules/.bin:/Users/runner/node_modules/.bin:/Users/node_modules/.bin:/node_modules/.bin:/Users/runner/hostedtoolcache/node/24.20.0/arm64/lib/node_modules/npm/node_modules/@npmcli/run-script/lib/node-gyp-bin:/Users/runner/hostedtoolcache/node/24.20.0/arm64/bin:/opt/homebrew/lib/ruby/gems/3.3.0/bin:/opt/homebrew/opt/ruby@3.3/bin:/Users/runner/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/runner/.cargo/bin:/usr/local/opt/curl/bin:/usr/local/bin:/usr/local/sbin:/Users/runner/bin:/Users/runner/.yarn/bin:/Users/runner/Library/Android/sdk/tools:/Users/runner/Library/Android/sdk/platform-tools:/Library/Frameworks/Python.framework/Versions/Current/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/usr/bin:/bin:/usr/sbin:/sbin:/Users/runner/.dotnet/tools
     export PATH_PREFIXES_EXCLUDED_FROM_HEADER_DEPENDENCIES\=/usr/include\ /usr/local/include\ /System/Library/Frameworks\ /System/Library/PrivateFrameworks\ /Applications/Xcode_26.3.app/Contents/Developer/Headers\ /Applications/Xcode_26.3.app/Contents/Developer/SDKs\ /Applications/Xcode_26.3.app/Contents/Developer/Platforms
     export PBDEVELOPMENTPLIST_PATH\=Focus\ Feed\ Next.app/pbdevelopment.plist
     export PER_ARCH_MODULE_FILE_DIR\=/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/undefined_arch
@@ -914,7 +913,7 @@ PhaseScriptExecution Build\ Rust\ Code /Users/runner/Library/Developer/Xcode/Der
     export TEST_FRAMEWORK_SEARCH_PATHS\=\ /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks\ /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/Developer/Library/Frameworks
     export TEST_LIBRARY_SEARCH_PATHS\=\ /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib
     export TOOLCHAINS\=com.apple.dt.toolchain.Metal.32023.864\ com.apple.dt.toolchain.XcodeDefault
-    export TOOLCHAIN_DIR\=/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.WRG331/Metal.xctoolchain
+    export TOOLCHAIN_DIR\=/var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.qLJhlU/Metal.xctoolchain
     export TOOLCHAIN_VERSION\=32023.864
     export TREAT_MISSING_BASELINES_AS_TEST_FAILURES\=NO
     export TREAT_MISSING_SCRIPT_PHASE_OUTPUTS_AS_ERRORS\=NO
@@ -971,360 +970,360 @@ PhaseScriptExecution Build\ Rust\ Code /Users/runner/Library/Developer/Xcode/Der
 [1m[33m        Warn[0m No code signing certificates found. You must add one and set the certificate development team ID on the `bundle > iOS > developmentTeam` config value or the `APPLE_DEVELOPMENT_TEAM` environment variable. To list the available certificates, run `tauri info`.
 [1m[92m    Updating[0m crates.io index
 [1m[92m Downloading[0m crates ...
-[1m[92m  Downloaded[0m alloc-stdlib v0.2.4
-[1m[92m  Downloaded[0m base64 v0.21.7
-[1m[92m  Downloaded[0m atomic-waker v1.1.2
-[1m[92m  Downloaded[0m block-buffer v0.10.4
 [1m[92m  Downloaded[0m alloc-no-stdlib v2.0.4
-[1m[92m  Downloaded[0m cfg-if v1.0.4
-[1m[92m  Downloaded[0m autocfg v1.5.1
-[1m[92m  Downloaded[0m cargo-platform v0.1.9
-[1m[92m  Downloaded[0m cpufeatures v0.2.17
-[1m[92m  Downloaded[0m glob v0.3.4
-[1m[92m  Downloaded[0m serde_spanned v1.1.1
-[1m[92m  Downloaded[0m cssparser-macros v0.6.1
-[1m[92m  Downloaded[0m ctor v0.8.0
-[1m[92m  Downloaded[0m dirs v6.0.0
-[1m[92m  Downloaded[0m dyn-clone v1.0.20
-[1m[92m  Downloaded[0m foreign-types v0.5.0
-[1m[92m  Downloaded[0m crypto-common v0.1.7
-[1m[92m  Downloaded[0m dpi v0.1.2
-[1m[92m  Downloaded[0m fnv v1.0.7
-[1m[92m  Downloaded[0m form_urlencoded v1.2.2
+[1m[92m  Downloaded[0m serde_repr v0.1.21
+[1m[92m  Downloaded[0m derive_more-impl v2.1.1
 [1m[92m  Downloaded[0m adler2 v2.0.1
-[1m[92m  Downloaded[0m core-graphics-types v0.2.0
-[1m[92m  Downloaded[0m ctor-proc-macro v0.0.7
-[1m[92m  Downloaded[0m darling_macro v0.23.0
-[1m[92m  Downloaded[0m dirs-sys v0.5.0
-[1m[92m  Downloaded[0m dtoa-short v0.3.5
-[1m[92m  Downloaded[0m dtor-proc-macro v0.0.6
-[1m[92m  Downloaded[0m errno v0.3.14
-[1m[92m  Downloaded[0m foreign-types-shared v0.3.1
-[1m[92m  Downloaded[0m futures-core v0.3.33
-[1m[92m  Downloaded[0m futures-sink v0.3.33
-[1m[92m  Downloaded[0m generic-array v0.14.7
-[1m[92m  Downloaded[0m heck v0.5.0
+[1m[92m  Downloaded[0m sync_wrapper v1.0.2
+[1m[92m  Downloaded[0m unic-ucd-version v0.9.0
+[1m[92m  Downloaded[0m form_urlencoded v1.2.2
+[1m[92m  Downloaded[0m semver v1.0.28
 [1m[92m  Downloaded[0m serde_urlencoded v0.7.1
-[1m[92m  Downloaded[0m equivalent v1.0.2
-[1m[92m  Downloaded[0m foreign-types-macros v0.2.4
-[1m[92m  Downloaded[0m futures-io v0.3.33
-[1m[92m  Downloaded[0m futures-macro v0.3.33
-[1m[92m  Downloaded[0m hex v0.4.3
-[1m[92m  Downloaded[0m http-body v1.1.0
+[1m[92m  Downloaded[0m block-buffer v0.10.4
+[1m[92m  Downloaded[0m serde-untagged v0.1.9
 [1m[92m  Downloaded[0m serialize-to-javascript v0.1.2
 [1m[92m  Downloaded[0m serialize-to-javascript-impl v0.1.2
 [1m[92m  Downloaded[0m servo_arc v0.4.3
-[1m[92m  Downloaded[0m ident_case v1.0.1
+[1m[92m  Downloaded[0m alloc-stdlib v0.2.4
+[1m[92m  Downloaded[0m bit-set v0.8.0
+[1m[92m  Downloaded[0m dirs-sys v0.5.0
+[1m[92m  Downloaded[0m futures-core v0.3.33
+[1m[92m  Downloaded[0m atomic-waker v1.1.2
+[1m[92m  Downloaded[0m dyn-clone v1.0.20
+[1m[92m  Downloaded[0m http-body v1.1.0
+[1m[92m  Downloaded[0m dirs v6.0.0
+[1m[92m  Downloaded[0m fallible-streaming-iterator v0.1.9
+[1m[92m  Downloaded[0m futures-macro v0.3.33
+[1m[92m  Downloaded[0m serde_spanned v1.1.1
+[1m[92m  Downloaded[0m time-core v0.1.9
+[1m[92m  Downloaded[0m tower-service v0.3.3
+[1m[92m  Downloaded[0m try-lock v0.2.5
+[1m[92m  Downloaded[0m version_check v0.9.5
+[1m[92m  Downloaded[0m tinyvec_macros v0.1.1
+[1m[92m  Downloaded[0m tower-layer v0.3.3
+[1m[92m  Downloaded[0m unic-common v0.9.0
+[1m[92m  Downloaded[0m utf8_iter v1.0.4
+[1m[92m  Downloaded[0m want v0.3.1
+[1m[92m  Downloaded[0m string_cache_codegen v0.6.1
+[1m[92m  Downloaded[0m unic-char-range v0.9.0
+[1m[92m  Downloaded[0m cargo-platform v0.1.9
+[1m[92m  Downloaded[0m cargo_metadata v0.19.2
+[1m[92m  Downloaded[0m cssparser-macros v0.6.1
+[1m[92m  Downloaded[0m fdeflate v0.3.7
+[1m[92m  Downloaded[0m byteorder v1.5.0
+[1m[92m  Downloaded[0m darling_macro v0.23.0
+[1m[92m  Downloaded[0m dpi v0.1.2
+[1m[92m  Downloaded[0m hex v0.4.3
+[1m[92m  Downloaded[0m ctor v0.8.0
+[1m[92m  Downloaded[0m futures-io v0.3.33
+[1m[92m  Downloaded[0m siphasher v1.0.3
+[1m[92m  Downloaded[0m typeid v1.0.3
+[1m[92m  Downloaded[0m crypto-common v0.1.7
+[1m[92m  Downloaded[0m dtor-proc-macro v0.0.6
+[1m[92m  Downloaded[0m errno v0.3.14
+[1m[92m  Downloaded[0m core-graphics-types v0.2.0
+[1m[92m  Downloaded[0m foreign-types-macros v0.2.4
+[1m[92m  Downloaded[0m futures-task v0.3.33
+[1m[92m  Downloaded[0m heck v0.5.0
+[1m[92m  Downloaded[0m http-body-util v0.1.4
+[1m[92m  Downloaded[0m serde v1.0.229
+[1m[92m  Downloaded[0m sha2 v0.10.9
+[1m[92m  Downloaded[0m stable_deref_trait v1.2.1
+[1m[92m  Downloaded[0m thiserror-impl v1.0.69
+[1m[92m  Downloaded[0m dtoa-short v0.3.5
+[1m[92m  Downloaded[0m fnv v1.0.7
+[1m[92m  Downloaded[0m cfg-if v1.0.4
+[1m[92m  Downloaded[0m embed_plist v1.2.2
+[1m[92m  Downloaded[0m autocfg v1.5.1
 [1m[92m  Downloaded[0m bit-vec v0.8.0
 [1m[92m  Downloaded[0m bitflags v1.3.2
-[1m[92m  Downloaded[0m byteorder v1.5.0
-[1m[92m  Downloaded[0m cargo_metadata v0.19.2
-[1m[92m  Downloaded[0m dtor v0.3.0
-[1m[92m  Downloaded[0m embed_plist v1.2.2
-[1m[92m  Downloaded[0m fallible-streaming-iterator v0.1.9
-[1m[92m  Downloaded[0m strsim v0.11.1
-[1m[92m  Downloaded[0m try-lock v0.2.5
-[1m[92m  Downloaded[0m idna_adapter v1.2.2
-[1m[92m  Downloaded[0m anyhow v1.0.104
-[1m[92m  Downloaded[0m bit-set v0.8.0
-[1m[92m  Downloaded[0m block2 v0.6.2
 [1m[92m  Downloaded[0m bs58 v0.5.1
-[1m[92m  Downloaded[0m cargo_toml v0.22.3
-[1m[92m  Downloaded[0m cookie v0.18.1
+[1m[92m  Downloaded[0m camino v1.2.4
 [1m[92m  Downloaded[0m core-foundation v0.9.4
 [1m[92m  Downloaded[0m core-foundation v0.10.1
-[1m[92m  Downloaded[0m core-foundation-sys v0.8.7
-[1m[92m  Downloaded[0m core-graphics v0.25.0
-[1m[92m  Downloaded[0m crc32fast v1.5.0
-[1m[92m  Downloaded[0m crossbeam-utils v0.8.22
+[1m[92m  Downloaded[0m cpufeatures v0.2.17
+[1m[92m  Downloaded[0m ctor-proc-macro v0.0.7
 [1m[92m  Downloaded[0m deranged v0.5.8
-[1m[92m  Downloaded[0m digest v0.10.7
-[1m[92m  Downloaded[0m displaydoc v0.2.6
 [1m[92m  Downloaded[0m dtoa v1.0.11
+[1m[92m  Downloaded[0m dtor v0.3.0
 [1m[92m  Downloaded[0m dunce v1.0.5
 [1m[92m  Downloaded[0m embed-resource v3.0.11
+[1m[92m  Downloaded[0m equivalent v1.0.2
 [1m[92m  Downloaded[0m erased-serde v0.4.10
 [1m[92m  Downloaded[0m fallible-iterator v0.3.0
-[1m[92m  Downloaded[0m fastrand v2.5.0
-[1m[92m  Downloaded[0m fdeflate v0.3.7
 [1m[92m  Downloaded[0m find-msvc-tools v0.1.9
 [1m[92m  Downloaded[0m foldhash v0.2.0
-[1m[92m  Downloaded[0m futures-task v0.3.33
-[1m[92m  Downloaded[0m getrandom v0.2.17
-[1m[92m  Downloaded[0m getrandom v0.3.4
-[1m[92m  Downloaded[0m getrandom v0.4.3
-[1m[92m  Downloaded[0m hashlink v0.12.1
+[1m[92m  Downloaded[0m foreign-types v0.5.0
+[1m[92m  Downloaded[0m foreign-types-shared v0.3.1
+[1m[92m  Downloaded[0m futures-sink v0.3.33
+[1m[92m  Downloaded[0m generic-array v0.14.7
+[1m[92m  Downloaded[0m glob v0.3.4
 [1m[92m  Downloaded[0m security-framework-sys v2.17.0
-[1m[92m  Downloaded[0m serde_repr v0.1.21
-[1m[92m  Downloaded[0m siphasher v1.0.3
-[1m[92m  Downloaded[0m string_cache_codegen v0.6.1
-[1m[92m  Downloaded[0m sync_wrapper v1.0.2
-[1m[92m  Downloaded[0m time-core v0.1.9
-[1m[92m  Downloaded[0m tokio-macros v2.7.0
-[1m[92m  Downloaded[0m tower-layer v0.3.3
-[1m[92m  Downloaded[0m tower-service v0.3.3
-[1m[92m  Downloaded[0m typeid v1.0.3
-[1m[92m  Downloaded[0m unic-char-property v0.9.0
-[1m[92m  Downloaded[0m unic-common v0.9.0
-[1m[92m  Downloaded[0m unic-ucd-ident v0.9.0
-[1m[92m  Downloaded[0m unic-ucd-version v0.9.0
-[1m[92m  Downloaded[0m utf8_iter v1.0.4
-[1m[92m  Downloaded[0m version_check v0.9.5
-[1m[92m  Downloaded[0m want v0.3.1
-[1m[92m  Downloaded[0m zerofrom v0.1.8
-[1m[92m  Downloaded[0m zerofrom-derive v0.1.7
-[1m[92m  Downloaded[0m zeroize_derive v1.5.0
-[1m[92m  Downloaded[0m schemars_derive v0.8.22
-[1m[92m  Downloaded[0m semver v1.0.28
-[1m[92m  Downloaded[0m hyper-tls v0.6.0
-[1m[92m  Downloaded[0m new_debug_unreachable v1.0.6
-[1m[92m  Downloaded[0m num-conv v0.2.2
-[1m[92m  Downloaded[0m objc2-io-surface v0.3.2
-[1m[92m  Downloaded[0m percent-encoding v2.3.2
-[1m[92m  Downloaded[0m quote v1.0.47
-[1m[92m  Downloaded[0m base64 v0.22.1
-[1m[92m  Downloaded[0m bitflags v2.13.1
-[1m[92m  Downloaded[0m bytes v1.12.1
-[1m[92m  Downloaded[0m camino v1.2.4
-[1m[92m  Downloaded[0m cc v1.3.0
-[1m[92m  Downloaded[0m cfb v0.7.3
-[1m[92m  Downloaded[0m crossbeam-channel v0.5.16
-[1m[92m  Downloaded[0m cssparser v0.36.0
-[1m[92m  Downloaded[0m darling v0.23.0
-[1m[92m  Downloaded[0m darling_core v0.23.0
-[1m[92m  Downloaded[0m derive_more v2.1.1
-[1m[92m  Downloaded[0m derive_more-impl v2.1.1
-[1m[92m  Downloaded[0m dispatch2 v0.3.1
-[1m[92m  Downloaded[0m dom_query v0.27.0
-[1m[92m  Downloaded[0m flate2 v1.1.9
-[1m[92m  Downloaded[0m futures-channel v0.3.33
-[1m[92m  Downloaded[0m hashbrown v0.12.3
-[1m[92m  Downloaded[0m html5ever v0.38.0
-[1m[92m  Downloaded[0m http v1.4.2
-[1m[92m  Downloaded[0m http-body-util v0.1.4
 [1m[92m  Downloaded[0m serde_derive_internals v0.29.1
 [1m[92m  Downloaded[0m shlex v2.0.1
-[1m[92m  Downloaded[0m signal-hook-registry v1.4.8
 [1m[92m  Downloaded[0m simd-adler32 v0.3.10
-[1m[92m  Downloaded[0m slab v0.4.12
-[1m[92m  Downloaded[0m stable_deref_trait v1.2.1
-[1m[92m  Downloaded[0m synstructure v0.13.2
+[1m[92m  Downloaded[0m string_cache v0.9.0
+[1m[92m  Downloaded[0m strsim v0.11.1
+[1m[92m  Downloaded[0m swift-rs v1.0.7
+[1m[92m  Downloaded[0m tauri-plugin v2.6.3
 [1m[92m  Downloaded[0m tauri-winres v0.3.6
 [1m[92m  Downloaded[0m tempfile v3.27.0
-[1m[92m  Downloaded[0m thiserror-impl v1.0.69
+[1m[92m  Downloaded[0m thiserror v1.0.69
+[1m[92m  Downloaded[0m thiserror v2.0.19
 [1m[92m  Downloaded[0m thiserror-impl v2.0.19
 [1m[92m  Downloaded[0m tinystr v0.8.3
-[1m[92m  Downloaded[0m tinyvec_macros v0.1.1
+[1m[92m  Downloaded[0m tokio-macros v2.7.0
 [1m[92m  Downloaded[0m tokio-native-tls v0.3.1
 [1m[92m  Downloaded[0m toml_datetime v0.7.5+spec-1.1.0
 [1m[92m  Downloaded[0m toml_datetime v1.1.1+spec-1.1.0
 [1m[92m  Downloaded[0m toml_writer v1.1.2+spec-1.1.0
-[1m[92m  Downloaded[0m unic-char-range v0.9.0
+[1m[92m  Downloaded[0m unic-char-property v0.9.0
+[1m[92m  Downloaded[0m unic-ucd-ident v0.9.0
 [1m[92m  Downloaded[0m urlpattern v0.3.0
 [1m[92m  Downloaded[0m walkdir v2.5.0
+[1m[92m  Downloaded[0m web_atoms v0.2.5
 [1m[92m  Downloaded[0m writeable v0.6.3
-[1m[92m  Downloaded[0m yoke-derive v0.8.2
-[1m[92m  Downloaded[0m zeroize v1.9.0
-[1m[92m  Downloaded[0m serde v1.0.229
-[1m[92m  Downloaded[0m hyper-util v0.1.20
-[1m[92m  Downloaded[0m icu_provider v2.2.0
-[1m[92m  Downloaded[0m num-traits v0.2.19
-[1m[92m  Downloaded[0m parking_lot v0.12.5
-[1m[92m  Downloaded[0m parking_lot_core v0.9.12
-[1m[92m  Downloaded[0m phf v0.13.1
-[1m[92m  Downloaded[0m same-file v1.0.6
-[1m[92m  Downloaded[0m aho-corasick v1.1.4
-[1m[92m  Downloaded[0m brotli-decompressor v5.0.3
-[1m[92m  Downloaded[0m chrono v0.4.45
-[1m[92m  Downloaded[0m futures-util v0.3.33
-[1m[92m  Downloaded[0m hashbrown v0.17.1
+[1m[92m  Downloaded[0m yoke v0.8.3
+[1m[92m  Downloaded[0m schemars_derive v0.8.22
+[1m[92m  Downloaded[0m zerofrom v0.1.8
+[1m[92m  Downloaded[0m json-patch v3.0.1
+[1m[92m  Downloaded[0m mime v0.3.17
+[1m[92m  Downloaded[0m anyhow v1.0.104
+[1m[92m  Downloaded[0m bitflags v2.13.1
+[1m[92m  Downloaded[0m block2 v0.6.2
+[1m[92m  Downloaded[0m bytes v1.12.1
+[1m[92m  Downloaded[0m cargo_toml v0.22.3
+[1m[92m  Downloaded[0m cfb v0.7.3
+[1m[92m  Downloaded[0m cookie v0.18.1
+[1m[92m  Downloaded[0m core-foundation-sys v0.8.7
+[1m[92m  Downloaded[0m core-graphics v0.25.0
+[1m[92m  Downloaded[0m crc32fast v1.5.0
+[1m[92m  Downloaded[0m crossbeam-utils v0.8.22
+[1m[92m  Downloaded[0m cssparser v0.36.0
+[1m[92m  Downloaded[0m darling v0.23.0
+[1m[92m  Downloaded[0m darling_core v0.23.0
+[1m[92m  Downloaded[0m digest v0.10.7
+[1m[92m  Downloaded[0m dispatch2 v0.3.1
+[1m[92m  Downloaded[0m displaydoc v0.2.6
+[1m[92m  Downloaded[0m fastrand v2.5.0
+[1m[92m  Downloaded[0m futures-channel v0.3.33
+[1m[92m  Downloaded[0m getrandom v0.2.17
+[1m[92m  Downloaded[0m getrandom v0.3.4
+[1m[92m  Downloaded[0m getrandom v0.4.3
+[1m[92m  Downloaded[0m hashlink v0.12.1
+[1m[92m  Downloaded[0m selectors v0.36.1
+[1m[92m  Downloaded[0m serde_core v1.0.229
 [1m[92m  Downloaded[0m serde_derive v1.0.229
 [1m[92m  Downloaded[0m serde_with_macros v3.21.0
-[1m[92m  Downloaded[0m sha2 v0.10.9
+[1m[92m  Downloaded[0m signal-hook-registry v1.4.8
+[1m[92m  Downloaded[0m slab v0.4.12
 [1m[92m  Downloaded[0m smallvec v1.15.2
-[1m[92m  Downloaded[0m string_cache v0.9.0
-[1m[92m  Downloaded[0m swift-rs v1.0.7
+[1m[92m  Downloaded[0m socket2 v0.6.5
+[1m[92m  Downloaded[0m synstructure v0.13.2
 [1m[92m  Downloaded[0m tauri-build v2.6.3
 [1m[92m  Downloaded[0m tauri-codegen v2.6.3
 [1m[92m  Downloaded[0m tauri-macros v2.6.3
-[1m[92m  Downloaded[0m tauri-plugin v2.6.3
 [1m[92m  Downloaded[0m tauri-runtime v2.11.3
+[1m[92m  Downloaded[0m tauri-runtime-wry v2.11.4
 [1m[92m  Downloaded[0m tendril v0.5.1
-[1m[92m  Downloaded[0m thiserror v1.0.69
-[1m[92m  Downloaded[0m thiserror v2.0.19
 [1m[92m  Downloaded[0m time-macros v0.2.32
 [1m[92m  Downloaded[0m tinyvec v1.12.0
 [1m[92m  Downloaded[0m toml v0.9.12+spec-1.1.0
 [1m[92m  Downloaded[0m toml v1.1.3+spec-1.1.0
 [1m[92m  Downloaded[0m toml_parser v1.1.2+spec-1.1.0
 [1m[92m  Downloaded[0m tracing-core v0.1.36
-[1m[92m  Downloaded[0m unicode-ident v1.0.24
-[1m[92m  Downloaded[0m web_atoms v0.2.5
-[1m[92m  Downloaded[0m yoke v0.8.3
-[1m[92m  Downloaded[0m idna v1.1.0
-[1m[92m  Downloaded[0m lock_api v0.4.14
-[1m[92m  Downloaded[0m rusqlite v0.40.1
-[1m[92m  Downloaded[0m ryu v1.0.23
-[1m[92m  Downloaded[0m schemars v0.8.22
-[1m[92m  Downloaded[0m schemars v0.9.0
-[1m[92m  Downloaded[0m schemars v1.2.1
-[1m[92m  Downloaded[0m scopeguard v1.2.0
-[1m[92m  Downloaded[0m security-framework v2.11.1
-[1m[92m  Downloaded[0m security-framework v3.7.0
-[1m[92m  Downloaded[0m selectors v0.36.1
-[1m[92m  Downloaded[0m serde-untagged v0.1.9
-[1m[92m  Downloaded[0m zerotrie v0.2.4
-[1m[92m  Downloaded[0m pin-project-lite v0.2.17
-[1m[92m  Downloaded[0m pkg-config v0.3.33
-[1m[92m  Downloaded[0m brotli v8.0.4
-[1m[92m  Downloaded[0m fern v0.7.1
-[1m[92m  Downloaded[0m serde_core v1.0.229
-[1m[92m  Downloaded[0m socket2 v0.6.5
-[1m[92m  Downloaded[0m tauri-runtime-wry v2.11.4
 [1m[92m  Downloaded[0m tray-icon v0.24.1
-[1m[92m  Downloaded[0m url v2.5.8
-[1m[92m  Downloaded[0m uuid v1.24.0
-[1m[92m  Downloaded[0m objc2-foundation v0.3.2
-[1m[92m  Downloaded[0m objc2-web-kit v0.3.2
-[1m[92m  Downloaded[0m once_cell v1.21.4
-[1m[92m  Downloaded[0m option-ext v0.2.0
-[1m[92m  Downloaded[0m phf_codegen v0.13.1
-[1m[92m  Downloaded[0m phf_generator v0.13.1
-[1m[92m  Downloaded[0m phf_macros v0.13.1
-[1m[92m  Downloaded[0m phf_shared v0.13.1
-[1m[92m  Downloaded[0m plist v1.10.0
-[1m[92m  Downloaded[0m indexmap v1.9.3
+[1m[92m  Downloaded[0m unicode-ident v1.0.24
+[1m[92m  Downloaded[0m ryu v1.0.23
+[1m[92m  Downloaded[0m objc2-core-location v0.3.2
+[1m[92m  Downloaded[0m phf v0.13.1
+[1m[92m  Downloaded[0m same-file v1.0.6
+[1m[92m  Downloaded[0m httpdate v1.0.3
+[1m[92m  Downloaded[0m hyper-tls v0.6.0
+[1m[92m  Downloaded[0m ipnet v2.12.0
 [1m[92m  Downloaded[0m itoa v1.0.18
-[1m[92m  Downloaded[0m jsonptr v0.6.3
-[1m[92m  Downloaded[0m keyboard-types v0.7.0
-[1m[92m  Downloaded[0m serde_json v1.0.151
+[1m[92m  Downloaded[0m ref-cast-impl v1.0.26
+[1m[92m  Downloaded[0m base64 v0.21.7
+[1m[92m  Downloaded[0m base64 v0.22.1
+[1m[92m  Downloaded[0m cc v1.3.0
+[1m[92m  Downloaded[0m crossbeam-channel v0.5.16
+[1m[92m  Downloaded[0m derive_more v2.1.1
+[1m[92m  Downloaded[0m dom_query v0.27.0
+[1m[92m  Downloaded[0m flate2 v1.1.9
+[1m[92m  Downloaded[0m hashbrown v0.12.3
+[1m[92m  Downloaded[0m hashbrown v0.17.1
+[1m[92m  Downloaded[0m html5ever v0.38.0
+[1m[92m  Downloaded[0m http v1.4.2
 [1m[92m  Downloaded[0m tauri-plugin-log v2.9.0
 [1m[92m  Downloaded[0m tower v0.5.3
 [1m[92m  Downloaded[0m typenum v1.20.1
-[1m[92m  Downloaded[0m unicode-segmentation v1.13.3
-[1m[92m  Downloaded[0m zerovec v0.11.6
-[1m[92m  Downloaded[0m icu_properties v2.2.0
-[1m[92m  Downloaded[0m icu_properties_data v2.2.0
-[1m[92m  Downloaded[0m indexmap v2.14.0
-[1m[92m  Downloaded[0m infer v0.19.0
-[1m[92m  Downloaded[0m ipnet v2.12.0
-[1m[92m  Downloaded[0m json-patch v3.0.1
+[1m[92m  Downloaded[0m uuid v1.24.0
+[1m[92m  Downloaded[0m icu_collections v2.2.0
+[1m[92m  Downloaded[0m indexmap v1.9.3
+[1m[92m  Downloaded[0m miniz_oxide v0.8.9
+[1m[92m  Downloaded[0m objc2-core-image v0.3.2
+[1m[92m  Downloaded[0m proc-macro2 v1.0.107
+[1m[92m  Downloaded[0m rustls-pki-types v1.15.1
+[1m[92m  Downloaded[0m httparse v1.10.1
+[1m[92m  Downloaded[0m jsonptr v0.6.3
+[1m[92m  Downloaded[0m keyboard-types v0.7.0
+[1m[92m  Downloaded[0m parking_lot_core v0.9.12
+[1m[92m  Downloaded[0m pin-project-lite v0.2.17
 [1m[92m  Downloaded[0m rustc-hash v2.1.3
 [1m[92m  Downloaded[0m rustc_version v0.4.1
-[1m[92m  Downloaded[0m zerovec-derive v0.11.3
-[1m[92m  Downloaded[0m httpdate v1.0.3
-[1m[92m  Downloaded[0m iana-time-zone v0.1.65
-[1m[92m  Downloaded[0m litemap v0.8.2
-[1m[92m  Downloaded[0m tauri-utils v2.9.3
+[1m[92m  Downloaded[0m idna_adapter v1.2.2
+[1m[92m  Downloaded[0m infer v0.19.0
+[1m[92m  Downloaded[0m potential_utf v0.1.5
+[1m[92m  Downloaded[0m precomputed-hash v0.1.1
+[1m[92m  Downloaded[0m raw-window-handle v0.6.2
+[1m[92m  Downloaded[0m ref-cast v1.0.26
 [1m[92m  Downloaded[0m tokio-util v0.7.19
-[1m[92m  Downloaded[0m reqwest v0.12.28
-[1m[92m  Downloaded[0m rustls-pki-types v1.15.1
-[1m[92m  Downloaded[0m zmij v1.0.23
-[1m[92m  Downloaded[0m httparse v1.10.1
-[1m[92m  Downloaded[0m log v0.4.33
+[1m[92m  Downloaded[0m unicode-segmentation v1.13.3
+[1m[92m  Downloaded[0m url v2.5.8
+[1m[92m  Downloaded[0m zerovec v0.11.6
+[1m[92m  Downloaded[0m memchr v2.8.3
+[1m[92m  Downloaded[0m mio v1.2.2
+[1m[92m  Downloaded[0m objc2-core-text v0.3.2
+[1m[92m  Downloaded[0m png v0.17.16
+[1m[92m  Downloaded[0m schemars v0.8.22
+[1m[92m  Downloaded[0m keyring v3.6.3
+[1m[92m  Downloaded[0m pkg-config v0.3.33
+[1m[92m  Downloaded[0m plist v1.10.0
+[1m[92m  Downloaded[0m zerotrie v0.2.4
+[1m[92m  Downloaded[0m icu_normalizer_data v2.2.0
+[1m[92m  Downloaded[0m objc2-core-data v0.3.2
+[1m[92m  Downloaded[0m powerfmt v0.2.0
+[1m[92m  Downloaded[0m quote v1.0.47
+[1m[92m  Downloaded[0m native-tls v0.2.18
+[1m[92m  Downloaded[0m option-ext v0.2.0
+[1m[92m  Downloaded[0m parking_lot v0.12.5
+[1m[92m  Downloaded[0m aho-corasick v1.1.4
+[1m[92m  Downloaded[0m brotli-decompressor v5.0.3
+[1m[92m  Downloaded[0m futures-util v0.3.33
+[1m[92m  Downloaded[0m serde_json v1.0.151
+[1m[92m  Downloaded[0m tauri-utils v2.9.3
 [1m[92m  Downloaded[0m tower-http v0.6.11
+[1m[92m  Downloaded[0m hyper v1.11.0
+[1m[92m  Downloaded[0m icu_properties_data v2.2.0
+[1m[92m  Downloaded[0m reqwest v0.13.4
+[1m[92m  Downloaded[0m hyper-util v0.1.20
+[1m[92m  Downloaded[0m png v0.18.1
+[1m[92m  Downloaded[0m indexmap v2.14.0
+[1m[92m  Downloaded[0m objc2-cloud-kit v0.3.2
+[1m[92m  Downloaded[0m muda v0.19.3
+[1m[92m  Downloaded[0m chrono v0.4.45
+[1m[92m  Downloaded[0m fern v0.7.1
+[1m[92m  Downloaded[0m serde_with v3.21.0
+[1m[92m  Downloaded[0m vcpkg v0.2.15
 [1m[92m  Downloaded[0m winnow v0.7.15
 [1m[92m  Downloaded[0m winnow v1.0.4
+[1m[92m  Downloaded[0m quick-xml v0.41.0
+[1m[92m  Downloaded[0m objc2-core-foundation v0.3.2
+[1m[92m  Downloaded[0m regex v1.13.1
+[1m[92m  Downloaded[0m time v0.3.54
 [1m[92m  Downloaded[0m wry v0.55.1
-[1m[92m  Downloaded[0m hyper v1.11.0
-[1m[92m  Downloaded[0m icu_collections v2.2.0
-[1m[92m  Downloaded[0m icu_locale_core v2.2.0
-[1m[92m  Downloaded[0m icu_normalizer v2.2.0
-[1m[92m  Downloaded[0m icu_normalizer_data v2.2.0
-[1m[92m  Downloaded[0m markup5ever v0.38.0
-[1m[92m  Downloaded[0m mime v0.3.17
-[1m[92m  Downloaded[0m num_threads v0.1.7
-[1m[92m  Downloaded[0m objc2-core-location v0.3.2
-[1m[92m  Downloaded[0m serde_with v3.21.0
-[1m[92m  Downloaded[0m tauri v2.11.5
-[1m[92m  Downloaded[0m vcpkg v0.2.15
-[1m[92m  Downloaded[0m memchr v2.8.3
-[1m[92m  Downloaded[0m miniz_oxide v0.8.9
-[1m[92m  Downloaded[0m muda v0.19.3
+[1m[92m  Downloaded[0m num-conv v0.2.2
+[1m[92m  Downloaded[0m num-traits v0.2.19
+[1m[92m  Downloaded[0m brotli v8.0.4
 [1m[92m  Downloaded[0m syn v2.0.119
 [1m[92m  Downloaded[0m syn v3.0.3
 [1m[92m  Downloaded[0m tao v0.35.3
-[1m[92m  Downloaded[0m time v0.3.54
-[1m[92m  Downloaded[0m reqwest v0.13.4
-[1m[92m  Downloaded[0m objc2-core-data v0.3.2
-[1m[92m  Downloaded[0m tracing v0.1.44
-[1m[92m  Downloaded[0m keyring v3.6.3
-[1m[92m  Downloaded[0m native-tls v0.2.18
-[1m[92m  Downloaded[0m objc2-core-image v0.3.2
-[1m[92m  Downloaded[0m mio v1.2.2
-[1m[92m  Downloaded[0m tokio v1.53.1
-[1m[92m  Downloaded[0m ico v0.5.0
-[1m[92m  Downloaded[0m objc2-cloud-kit v0.3.2
-[1m[92m  Downloaded[0m objc2-core-graphics v0.3.2
-[1m[92m  Downloaded[0m potential_utf v0.1.5
-[1m[92m  Downloaded[0m powerfmt v0.2.0
-[1m[92m  Downloaded[0m window-vibrancy v0.6.0
-[1m[92m  Downloaded[0m objc2-encode v4.1.0
-[1m[92m  Downloaded[0m objc2-exception-helper v0.1.1
-[1m[92m  Downloaded[0m objc2-user-notifications v0.3.2
-[1m[92m  Downloaded[0m proc-macro2 v1.0.107
-[1m[92m  Downloaded[0m ref-cast v1.0.26
-[1m[92m  Downloaded[0m ref-cast-impl v1.0.26
-[1m[92m  Downloaded[0m objc2-quartz-core v0.3.2
-[1m[92m  Downloaded[0m precomputed-hash v0.1.1
-[1m[92m  Downloaded[0m raw-window-handle v0.6.2
-[1m[92m  Downloaded[0m png v0.17.16
-[1m[92m  Downloaded[0m objc2-core-foundation v0.3.2
-[1m[92m  Downloaded[0m objc2-core-text v0.3.2
-[1m[92m  Downloaded[0m rustix v1.1.4
-[1m[92m  Downloaded[0m regex v1.13.1
-[1m[92m  Downloaded[0m objc2 v0.6.4
-[1m[92m  Downloaded[0m png v0.18.1
-[1m[92m  Downloaded[0m quick-xml v0.41.0
-[1m[92m  Downloaded[0m objc2-app-kit v0.3.2
-[1m[92m  Downloaded[0m regex-syntax v0.8.11
-[1m[92m  Downloaded[0m regex-automata v0.4.16
-[1m[92m  Downloaded[0m objc2-ui-kit v0.3.2
+[1m[92m  Downloaded[0m tauri v2.11.5
 [1m[92m  Downloaded[0m libc v0.2.189
+[1m[92m  Downloaded[0m yoke-derive v0.8.2
+[1m[92m  Downloaded[0m zerofrom-derive v0.1.7
+[1m[92m  Downloaded[0m zeroize_derive v1.5.0
+[1m[92m  Downloaded[0m zmij v1.0.23
+[1m[92m  Downloaded[0m iana-time-zone v0.1.65
+[1m[92m  Downloaded[0m litemap v0.8.2
+[1m[92m  Downloaded[0m markup5ever v0.38.0
+[1m[92m  Downloaded[0m new_debug_unreachable v1.0.6
+[1m[92m  Downloaded[0m objc2-foundation v0.3.2
+[1m[92m  Downloaded[0m scopeguard v1.2.0
+[1m[92m  Downloaded[0m security-framework v3.7.0
+[1m[92m  Downloaded[0m zeroize v1.9.0
+[1m[92m  Downloaded[0m ident_case v1.0.1
+[1m[92m  Downloaded[0m lock_api v0.4.14
+[1m[92m  Downloaded[0m tracing v0.1.44
+[1m[92m  Downloaded[0m zerovec-derive v0.11.3
+[1m[92m  Downloaded[0m icu_provider v2.2.0
+[1m[92m  Downloaded[0m regex-automata v0.4.16
+[1m[92m  Downloaded[0m icu_properties v2.2.0
+[1m[92m  Downloaded[0m icu_locale_core v2.2.0
+[1m[92m  Downloaded[0m icu_normalizer v2.2.0
+[1m[92m  Downloaded[0m log v0.4.33
+[1m[92m  Downloaded[0m tokio v1.53.1
+[1m[92m  Downloaded[0m security-framework v2.11.1
+[1m[92m  Downloaded[0m ico v0.5.0
+[1m[92m  Downloaded[0m schemars v1.2.1
+[1m[92m  Downloaded[0m window-vibrancy v0.6.0
+[1m[92m  Downloaded[0m idna v1.1.0
+[1m[92m  Downloaded[0m phf_macros v0.13.1
+[1m[92m  Downloaded[0m num_threads v0.1.7
+[1m[92m  Downloaded[0m percent-encoding v2.3.2
+[1m[92m  Downloaded[0m objc2-encode v4.1.0
+[1m[92m  Downloaded[0m objc2-user-notifications v0.3.2
+[1m[92m  Downloaded[0m once_cell v1.21.4
+[1m[92m  Downloaded[0m phf_generator v0.13.1
 [1m[92m  Downloaded[0m libsqlite3-sys v0.38.1
+[1m[92m  Downloaded[0m objc2-exception-helper v0.1.1
+[1m[92m  Downloaded[0m objc2-io-surface v0.3.2
+[1m[92m  Downloaded[0m objc2-quartz-core v0.3.2
+[1m[92m  Downloaded[0m phf_codegen v0.13.1
+[1m[92m  Downloaded[0m phf_shared v0.13.1
+[1m[92m  Downloaded[0m schemars v0.9.0
+[1m[92m  Downloaded[0m objc2-core-graphics v0.3.2
+[1m[92m  Downloaded[0m objc2-web-kit v0.3.2
+[1m[92m  Downloaded[0m reqwest v0.12.28
+[1m[92m  Downloaded[0m rusqlite v0.40.1
+[1m[92m  Downloaded[0m regex-syntax v0.8.11
+[1m[92m  Downloaded[0m rustix v1.1.4
+[1m[92m  Downloaded[0m objc2 v0.6.4
+[1m[92m  Downloaded[0m objc2-app-kit v0.3.2
+[1m[92m  Downloaded[0m objc2-ui-kit v0.3.2
 [1m[92m   Compiling[0m proc-macro2 v1.0.107
-[1m[92m   Compiling[0m quote v1.0.47
 [1m[92m   Compiling[0m unicode-ident v1.0.24
+[1m[92m   Compiling[0m quote v1.0.47
 [1m[92m   Compiling[0m libc v0.2.189
 [1m[92m   Compiling[0m serde_core v1.0.229
 [1m[92m   Compiling[0m zmij v1.0.23
+[1m[92m   Compiling[0m icu_properties_data v2.2.0
 [1m[92m   Compiling[0m icu_normalizer_data v2.2.0
 [1m[92m   Compiling[0m shlex v2.0.1
 [1m[92m   Compiling[0m find-msvc-tools v0.1.9
-[1m[92m   Compiling[0m icu_properties_data v2.2.0
-[1m[92m   Compiling[0m cc v1.3.0
 [1m[92m   Compiling[0m syn v2.0.119
 [1m[92m   Compiling[0m syn v3.0.3
+[1m[92m   Compiling[0m cc v1.3.0
 [1m[92m   Compiling[0m siphasher v1.0.3
 [1m[92m   Compiling[0m phf_shared v0.13.1
-[1m[92m   Compiling[0m memchr v2.8.3
 [1m[92m   Compiling[0m fastrand v2.5.0
+[1m[92m   Compiling[0m memchr v2.8.3
 [1m[92m   Compiling[0m phf_generator v0.13.1
-[1m[92m   Compiling[0m stable_deref_trait v1.2.1
 [1m[92m   Compiling[0m serde v1.0.229
+[1m[92m   Compiling[0m stable_deref_trait v1.2.1
 [1m[92m   Compiling[0m cfg-if v1.0.4
 [1m[92m   Compiling[0m smallvec v1.15.2
+[1m[92m   Compiling[0m serde_derive v1.0.229
 [1m[92m   Compiling[0m itoa v1.0.18
 [1m[92m   Compiling[0m bitflags v2.13.1
 [1m[92m   Compiling[0m serde_json v1.0.151
-[1m[92m   Compiling[0m serde_derive v1.0.229
 [1m[92m   Compiling[0m typeid v1.0.3
-[1m[92m   Compiling[0m num-conv v0.2.2
 [1m[92m   Compiling[0m time-core v0.1.9
+[1m[92m   Compiling[0m num-conv v0.2.2
 [1m[92m   Compiling[0m phf_codegen v0.13.1
-[1m[92m   Compiling[0m thiserror v1.0.69
-[1m[92m   Compiling[0m writeable v0.6.3
-[1m[92m   Compiling[0m erased-serde v0.4.10
-[1m[92m   Compiling[0m synstructure v0.13.2
-[1m[92m   Compiling[0m litemap v0.8.2
 [1m[92m   Compiling[0m thiserror v2.0.19
+[1m[92m   Compiling[0m writeable v0.6.3
+[1m[92m   Compiling[0m synstructure v0.13.2
+[1m[92m   Compiling[0m erased-serde v0.4.10
 [1m[92m   Compiling[0m strsim v0.11.1
 [1m[92m   Compiling[0m ident_case v1.0.1
-[1m[92m   Compiling[0m objc2-exception-helper v0.1.1
+[1m[92m   Compiling[0m litemap v0.8.2
+[1m[92m   Compiling[0m thiserror v1.0.69
 [1m[92m   Compiling[0m darling_core v0.23.0
+[1m[92m   Compiling[0m objc2-exception-helper v0.1.1
+[1m[92m   Compiling[0m parking_lot_core v0.9.12
 [1m[92m   Compiling[0m utf8_iter v1.0.4
 [1m[92m   Compiling[0m autocfg v1.5.1
-[1m[92m   Compiling[0m parking_lot_core v0.9.12
 [1m[92m   Compiling[0m thiserror-impl v2.0.19
 [1m[92m   Compiling[0m zerofrom-derive v0.1.7
 [1m[92m   Compiling[0m yoke-derive v0.8.2
@@ -1332,48 +1331,48 @@ PhaseScriptExecution Build\ Rust\ Code /Users/runner/Library/Developer/Xcode/Der
 [1m[92m   Compiling[0m displaydoc v0.2.6
 [1m[92m   Compiling[0m zerofrom v0.1.8
 [1m[92m   Compiling[0m yoke v0.8.3
-[1m[92m   Compiling[0m zerovec v0.11.6
 [1m[92m   Compiling[0m phf_macros v0.13.1
+[1m[92m   Compiling[0m zerovec v0.11.6
 [1m[92m   Compiling[0m zerotrie v0.2.4
 [1m[92m   Compiling[0m darling_macro v0.23.0
 [1m[92m   Compiling[0m tinystr v0.8.3
-[1m[92m   Compiling[0m icu_locale_core v2.2.0
 [1m[92m   Compiling[0m potential_utf v0.1.5
-[1m[92m   Compiling[0m thiserror-impl v1.0.69
+[1m[92m   Compiling[0m icu_locale_core v2.2.0
 [1m[92m   Compiling[0m icu_collections v2.2.0
+[1m[92m   Compiling[0m thiserror-impl v1.0.69
 [1m[92m   Compiling[0m scopeguard v1.2.0
 [1m[92m   Compiling[0m anyhow v1.0.104
 [1m[92m   Compiling[0m new_debug_unreachable v1.0.6
 [1m[92m   Compiling[0m lock_api v0.4.14
 [1m[92m   Compiling[0m darling v0.23.0
-[1m[92m   Compiling[0m phf v0.13.1
 [1m[92m   Compiling[0m icu_provider v2.2.0
+[1m[92m   Compiling[0m phf v0.13.1
 [1m[92m   Compiling[0m string_cache_codegen v0.6.1
-[1m[92m   Compiling[0m precomputed-hash v0.1.1
-[1m[92m   Compiling[0m getrandom v0.4.3
-[1m[92m   Compiling[0m winnow v1.0.4
 [1m[92m   Compiling[0m objc2 v0.6.4
-[1m[92m   Compiling[0m web_atoms v0.2.5
-[1m[92m   Compiling[0m icu_properties v2.2.0
-[1m[92m   Compiling[0m icu_normalizer v2.2.0
-[1m[92m   Compiling[0m toml_parser v1.1.2+spec-1.1.0
+[1m[92m   Compiling[0m precomputed-hash v0.1.1
+[1m[92m   Compiling[0m winnow v1.0.4
+[1m[92m   Compiling[0m getrandom v0.4.3
 [1m[92m   Compiling[0m parking_lot v0.12.5
+[1m[92m   Compiling[0m web_atoms v0.2.5
+[1m[92m   Compiling[0m toml_parser v1.1.2+spec-1.1.0
+[1m[92m   Compiling[0m icu_normalizer v2.2.0
+[1m[92m   Compiling[0m icu_properties v2.2.0
 [1m[92m   Compiling[0m serde_with_macros v3.21.0
 [1m[92m   Compiling[0m serde_spanned v1.1.1
-[1m[92m   Compiling[0m objc2-encode v4.1.0
-[1m[92m   Compiling[0m ctor-proc-macro v0.0.7
 [1m[92m   Compiling[0m toml_writer v1.1.2+spec-1.1.0
-[1m[92m   Compiling[0m string_cache v0.9.0
+[1m[92m   Compiling[0m ctor-proc-macro v0.0.7
+[1m[92m   Compiling[0m objc2-encode v4.1.0
 [1m[92m   Compiling[0m idna_adapter v1.2.2
+[1m[92m   Compiling[0m string_cache v0.9.0
 [1m[92m   Compiling[0m bytes v1.12.1
 [1m[92m   Compiling[0m semver v1.0.28
-[1m[92m   Compiling[0m dtoa v1.0.11
-[1m[92m   Compiling[0m percent-encoding v2.3.2
 [1m[92m   Compiling[0m log v0.4.33
-[1m[92m   Compiling[0m form_urlencoded v1.2.2
+[1m[92m   Compiling[0m percent-encoding v2.3.2
+[1m[92m   Compiling[0m dtoa v1.0.11
 [1m[92m   Compiling[0m dtoa-short v0.3.5
-[1m[92m   Compiling[0m uuid v1.24.0
+[1m[92m   Compiling[0m form_urlencoded v1.2.2
 [1m[92m   Compiling[0m idna v1.1.0
+[1m[92m   Compiling[0m uuid v1.24.0
 [1m[92m   Compiling[0m tendril v0.5.1
 [1m[92m   Compiling[0m derive_more-impl v2.1.1
 [1m[92m   Compiling[0m cssparser-macros v0.6.1
@@ -1381,59 +1380,59 @@ PhaseScriptExecution Build\ Rust\ Code /Users/runner/Library/Developer/Xcode/Der
 [1m[92m   Compiling[0m selectors v0.36.1
 [1m[92m   Compiling[0m aho-corasick v1.1.4
 [1m[92m   Compiling[0m toml_datetime v1.1.1+spec-1.1.0
+[1m[92m   Compiling[0m camino v1.2.4
 [1m[92m   Compiling[0m regex-syntax v0.8.11
-[1m[92m   Compiling[0m unic-common v0.9.0
-[1m[92m   Compiling[0m alloc-no-stdlib v2.0.4
 [1m[92m   Compiling[0m unic-char-range v0.9.0
 [1m[92m   Compiling[0m byteorder v1.5.0
-[1m[92m   Compiling[0m camino v1.2.4
-[1m[92m   Compiling[0m derive_more v2.1.1
-[1m[92m   Compiling[0m unic-char-property v0.9.0
-[1m[92m   Compiling[0m alloc-stdlib v0.2.4
+[1m[92m   Compiling[0m unic-common v0.9.0
+[1m[92m   Compiling[0m alloc-no-stdlib v2.0.4
 [1m[92m   Compiling[0m unic-ucd-version v0.9.0
+[1m[92m   Compiling[0m alloc-stdlib v0.2.4
+[1m[92m   Compiling[0m unic-char-property v0.9.0
+[1m[92m   Compiling[0m derive_more v2.1.1
 [1m[92m   Compiling[0m toml v1.1.3+spec-1.1.0
 [1m[92m   Compiling[0m cssparser v0.36.0
 [1m[92m   Compiling[0m markup5ever v0.38.0
 [1m[92m   Compiling[0m objc2-core-foundation v0.3.2
-[1m[92m   Compiling[0m regex-automata v0.4.16
 [1m[92m   Compiling[0m url v2.5.8
+[1m[92m   Compiling[0m regex-automata v0.4.16
 [1m[92m   Compiling[0m swift-rs v1.0.7
 [1m[92m   Compiling[0m serde_derive_internals v0.29.1
 [1m[92m   Compiling[0m servo_arc v0.4.3
-[1m[92m   Compiling[0m version_check v0.9.5
-[1m[92m   Compiling[0m bit-vec v0.8.0
-[1m[92m   Compiling[0m rustc-hash v2.1.3
-[1m[92m   Compiling[0m deranged v0.5.8
-[1m[92m   Compiling[0m schemars v0.8.22
 [1m[92m   Compiling[0m powerfmt v0.2.0
+[1m[92m   Compiling[0m rustc-hash v2.1.3
+[1m[92m   Compiling[0m bit-vec v0.8.0
+[1m[92m   Compiling[0m schemars v0.8.22
 [1m[92m   Compiling[0m fnv v1.0.7
-[1m[92m   Compiling[0m hashbrown v0.12.3
-[1m[92m   Compiling[0m equivalent v1.0.2
+[1m[92m   Compiling[0m version_check v0.9.5
+[1m[92m   Compiling[0m deranged v0.5.8
 [1m[92m   Compiling[0m hashbrown v0.17.1
-[1m[92m   Compiling[0m time v0.3.54
+[1m[92m   Compiling[0m equivalent v1.0.2
+[1m[92m   Compiling[0m hashbrown v0.12.3
 [1m[92m   Compiling[0m indexmap v2.14.0
-[1m[92m   Compiling[0m cfb v0.7.3
+[1m[92m   Compiling[0m time v0.3.54
 [1m[92m   Compiling[0m schemars_derive v0.8.22
 [1m[92m   Compiling[0m regex v1.13.1
+[1m[92m   Compiling[0m cfb v0.7.3
 [1m[92m   Compiling[0m bit-set v0.8.0
 [1m[92m   Compiling[0m html5ever v0.38.0
 [1m[92m   Compiling[0m unic-ucd-ident v0.9.0
 [1m[92m   Compiling[0m brotli-decompressor v5.0.3
-[1m[92m   Compiling[0m cargo-platform v0.1.9
 [1m[92m   Compiling[0m jsonptr v0.6.3
+[1m[92m   Compiling[0m cargo-platform v0.1.9
 [1m[92m   Compiling[0m quick-xml v0.41.0
-[1m[92m   Compiling[0m base64 v0.21.7
-[1m[92m   Compiling[0m dunce v1.0.5
 [1m[92m   Compiling[0m base64 v0.22.1
 [1m[92m   Compiling[0m same-file v1.0.6
-[1m[92m   Compiling[0m foldhash v0.2.0
 [1m[92m   Compiling[0m dyn-clone v1.0.20
+[1m[92m   Compiling[0m foldhash v0.2.0
+[1m[92m   Compiling[0m dunce v1.0.5
+[1m[92m   Compiling[0m base64 v0.21.7
+[1m[92m   Compiling[0m walkdir v2.5.0
+[1m[92m   Compiling[0m dom_query v0.27.0
 [1m[92m   Compiling[0m http v1.4.2
 [1m[92m   Compiling[0m plist v1.10.0
-[1m[92m   Compiling[0m dom_query v0.27.0
-[1m[92m   Compiling[0m walkdir v2.5.0
-[1m[92m   Compiling[0m brotli v8.0.4
 [1m[92m   Compiling[0m json-patch v3.0.1
+[1m[92m   Compiling[0m brotli v8.0.4
 [1m[92m   Compiling[0m cargo_metadata v0.19.2
 [1m[92m   Compiling[0m urlpattern v0.3.0
 [1m[92m   Compiling[0m serde-untagged v0.1.9
@@ -1443,8 +1442,8 @@ PhaseScriptExecution Build\ Rust\ Code /Users/runner/Library/Developer/Xcode/Der
 [1m[92m   Compiling[0m pin-project-lite v0.2.17
 [1m[92m   Compiling[0m glob v0.3.4
 [1m[92m   Compiling[0m objc2-foundation v0.3.2
-[1m[92m   Compiling[0m tauri-utils v2.9.3
 [1m[92m   Compiling[0m futures-core v0.3.33
+[1m[92m   Compiling[0m tauri-utils v2.9.3
 [1m[92m   Compiling[0m errno v0.3.14
 [1m[92m   Compiling[0m signal-hook-registry v1.4.8
 [1m[92m   Compiling[0m tokio-macros v2.7.0
@@ -1454,8 +1453,8 @@ PhaseScriptExecution Build\ Rust\ Code /Users/runner/Library/Developer/Xcode/Der
 [1m[92m   Compiling[0m tokio v1.53.1
 [1m[92m   Compiling[0m rustc_version v0.4.1
 [1m[92m   Compiling[0m toml_datetime v0.7.5+spec-1.1.0
-[1m[92m   Compiling[0m once_cell v1.21.4
 [1m[92m   Compiling[0m core-foundation-sys v0.8.7
+[1m[92m   Compiling[0m once_cell v1.21.4
 [1m[92m   Compiling[0m option-ext v0.2.0
 [1m[92m   Compiling[0m winnow v0.7.15
 [1m[92m   Compiling[0m toml v0.9.12+spec-1.1.0
@@ -1471,33 +1470,33 @@ PhaseScriptExecution Build\ Rust\ Code /Users/runner/Library/Developer/Xcode/Der
 [1m[92m   Compiling[0m num_threads v0.1.7
 [1m[92m   Compiling[0m crc32fast v1.5.0
 [1m[92m   Compiling[0m futures-io v0.3.33
-[1m[92m   Compiling[0m slab v0.4.12
 [1m[92m   Compiling[0m typenum v1.20.1
-[1m[92m   Compiling[0m simd-adler32 v0.3.10
+[1m[92m   Compiling[0m slab v0.4.12
 [1m[92m   Compiling[0m httparse v1.10.1
 [1m[92m   Compiling[0m futures-task v0.3.33
+[1m[92m   Compiling[0m simd-adler32 v0.3.10
 [1m[92m   Compiling[0m futures-util v0.3.33
 [1m[92m   Compiling[0m tauri-build v2.6.3
 [1m[92m   Compiling[0m block2 v0.6.2
+[1m[92m   Compiling[0m try-lock v0.2.5
 [1m[92m   Compiling[0m adler2 v2.0.1
 [1m[92m   Compiling[0m tower-service v0.3.3
-[1m[92m   Compiling[0m try-lock v0.2.5
-[1m[92m   Compiling[0m want v0.3.1
 [1m[92m   Compiling[0m miniz_oxide v0.8.9
-[1m[92m   Compiling[0m objc2-core-image v0.3.2
-[1m[92m   Compiling[0m objc2-core-location v0.3.2
+[1m[92m   Compiling[0m want v0.3.1
 [1m[92m   Compiling[0m objc2-user-notifications v0.3.2
+[1m[92m   Compiling[0m objc2-core-location v0.3.2
 [1m[92m   Compiling[0m objc2-cloud-kit v0.3.2
-[1m[92m   Compiling[0m objc2-core-data v0.3.2
 [1m[92m   Compiling[0m objc2-quartz-core v0.3.2
+[1m[92m   Compiling[0m objc2-core-data v0.3.2
+[1m[92m   Compiling[0m objc2-core-image v0.3.2
 [1m[92m   Compiling[0m tracing-core v0.1.36
 [1m[92m   Compiling[0m futures-channel v0.3.33
 [1m[92m   Compiling[0m cookie v0.18.1
-[1m[92m   Compiling[0m objc2-core-text v0.3.2
 [1m[92m   Compiling[0m objc2-core-graphics v0.3.2
-[1m[92m   Compiling[0m atomic-waker v1.1.2
-[1m[92m   Compiling[0m crossbeam-utils v0.8.22
+[1m[92m   Compiling[0m objc2-core-text v0.3.2
 [1m[92m   Compiling[0m httpdate v1.0.3
+[1m[92m   Compiling[0m crossbeam-utils v0.8.22
+[1m[92m   Compiling[0m atomic-waker v1.1.2
 [1m[92m   Compiling[0m hyper v1.11.0
 [1m[92m   Compiling[0m objc2-ui-kit v0.3.2
 [1m[92m   Compiling[0m tracing v0.1.44
@@ -1510,13 +1509,13 @@ PhaseScriptExecution Build\ Rust\ Code /Users/runner/Library/Developer/Xcode/Der
 [1m[92m   Compiling[0m security-framework-sys v2.17.0
 [1m[92m   Compiling[0m sync_wrapper v1.0.2
 [1m[92m   Compiling[0m dpi v0.1.2
+[1m[92m   Compiling[0m bitflags v1.3.2
 [1m[92m   Compiling[0m tower-layer v0.3.3
 [1m[92m   Compiling[0m ipnet v2.12.0
 [1m[92m   Compiling[0m raw-window-handle v0.6.2
-[1m[92m   Compiling[0m bitflags v1.3.2
-[1m[92m   Compiling[0m png v0.17.16
 [1m[92m   Compiling[0m hyper-util v0.1.20
 [1m[92m   Compiling[0m tower v0.5.3
+[1m[92m   Compiling[0m png v0.17.16
 [1m[92m   Compiling[0m digest v0.10.7
 [1m[92m   Compiling[0m http-body-util v0.1.4
 [1m[92m   Compiling[0m cpufeatures v0.2.17
@@ -1524,8 +1523,8 @@ PhaseScriptExecution Build\ Rust\ Code /Users/runner/Library/Developer/Xcode/Der
 [1m[92m   Compiling[0m wry v0.55.1
 [1m[92m   Compiling[0m sha2 v0.10.9
 [1m[92m   Compiling[0m crossbeam-channel v0.5.16
-[1m[92m   Compiling[0m tower-http v0.6.11
 [1m[92m   Compiling[0m ico v0.5.0
+[1m[92m   Compiling[0m tower-http v0.6.11
 [1m[92m   Compiling[0m objc2-web-kit v0.3.2
 [1m[92m   Compiling[0m tokio-util v0.7.19
 [1m[92m   Compiling[0m core-foundation v0.10.1
@@ -1535,15 +1534,15 @@ PhaseScriptExecution Build\ Rust\ Code /Users/runner/Library/Developer/Xcode/Der
 [1m[92m   Compiling[0m security-framework v3.7.0
 [1m[92m   Compiling[0m tauri-codegen v2.6.3
 [1m[92m   Compiling[0m serialize-to-javascript-impl v0.1.2
-[1m[92m   Compiling[0m pkg-config v0.3.33
 [1m[92m   Compiling[0m vcpkg v0.2.15
+[1m[92m   Compiling[0m pkg-config v0.3.33
+[1m[92m   Compiling[0m libsqlite3-sys v0.38.1
 [1m[92m   Compiling[0m serialize-to-javascript v0.1.2
 [1m[92m   Compiling[0m tauri-macros v2.6.3
-[1m[92m   Compiling[0m libsqlite3-sys v0.38.1
 [1m[92m   Compiling[0m tao v0.35.3
 [1m[92m   Compiling[0m reqwest v0.13.4
-[1m[92m   Compiling[0m tauri-plugin-ios-reader v0.1.0 (/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/plugins/ios-reader)
 [1m[92m   Compiling[0m tauri-plugin-log v2.9.0
+[1m[92m   Compiling[0m tauri-plugin-ios-reader v0.1.0 (/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/plugins/ios-reader)
 [1m[92m   Compiling[0m zeroize_derive v1.5.0
 [1m[92m   Compiling[0m num-traits v0.2.19
 [1m[92m   Compiling[0m serde_repr v0.1.21
@@ -1560,14 +1559,14 @@ PhaseScriptExecution Build\ Rust\ Code /Users/runner/Library/Developer/Xcode/Der
 [1m[92m   Compiling[0m hashlink v0.12.1
 [1m[92m   Compiling[0m fern v0.7.1
 [1m[92m   Compiling[0m iana-time-zone v0.1.65
-[1m[92m   Compiling[0m fallible-iterator v0.3.0
 [1m[92m   Compiling[0m fallible-streaming-iterator v0.1.9
+[1m[92m   Compiling[0m fallible-iterator v0.3.0
 [1m[92m   Compiling[0m chrono v0.4.45
 [1m[92m   Compiling[0m reqwest v0.12.28
 [1m[92m   Compiling[0m keyring v3.6.3
 [1m[92m   Compiling[0m getrandom v0.2.17
 [1m[92m   Compiling[0m rusqlite v0.40.1
-[1m[92m    Finished[0m `release` profile [optimized] target(s) in 1m 46s
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 1m 38s
 npm notice
 npm notice New major version of npm available! 11.19.0 -> 12.2.0
 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
@@ -1578,6 +1577,14 @@ CpResource /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnu
     cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
     builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/assets /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app
 
+MkDir /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/thinned (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    /bin/mkdir -p /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/thinned
+
+MkDir /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/unthinned (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    /bin/mkdir -p /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/unthinned
+
 GenerateAssetSymbols /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Assets.xcassets (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
     cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
     /Applications/Xcode_26.3.app/Contents/Developer/usr/bin/actool /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Assets.xcassets --compile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app --output-format human-readable-text --notices --warnings --export-dependency-info /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_dependencies --output-partial-info-plist /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_generated_info.plist --app-icon AppIcon --compress-pngs --enable-on-demand-resources YES --development-region en --target-device iphone --target-device ipad --minimum-deployment-target 16.0 --platform iphoneos --bundle-identifier com.focusfeed.next --generate-objc-asset-symbols /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources/GeneratedAssetSymbols.h --generate-asset-symbol-index /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources/GeneratedAssetSymbols-Index.plist
@@ -1585,14 +1592,6 @@ GenerateAssetSymbols /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/sour
 /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources/GeneratedAssetSymbols-Index.plist
 /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/DerivedSources/GeneratedAssetSymbols.h
 
-
-MkDir /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/unthinned (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
-    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
-    /bin/mkdir -p /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/unthinned
-
-MkDir /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/thinned (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
-    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
-    /bin/mkdir -p /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/thinned
 
 CompileStoryboard /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/LaunchScreen.storyboard (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
     cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
@@ -1610,10 +1609,6 @@ CompileAssetCatalogVariant thinned /Users/runner/Library/Developer/Xcode/Derived
 /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/thinned/Assets.car
 
 
-LinkStoryboards (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
-    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
-    /Applications/Xcode_26.3.app/Contents/Developer/usr/bin/ibtool --errors --warnings --notices --module Focus_Feed_Next --target-device iphone --target-device ipad --minimum-deployment-target 16.0 --output-format human-readable-text --link /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/LaunchScreen.storyboardc
-
 CompileC /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/main.o /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Sources/focus-feed-next/main.mm normal arm64 objective-c++ com.apple.compilers.llvm.clang.1_0.compiler (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
     cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
     
@@ -1625,12 +1620,16 @@ Ld /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgni
     cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
     /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++ -Xlinker -reproducible -target arm64-apple-ios16.0 -isysroot /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -Os -L/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/EagerLinkingTBDs/release-iphoneos -L/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos -L/Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Externals/arm64/release -L/Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/usr/lib/swift -L/Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphoneos -L/Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/iphoneos -F/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/EagerLinkingTBDs/release-iphoneos -F/Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos -F. -filelist /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/Focus\ Feed\ Next.LinkFileList -Xlinker -rpath -Xlinker @executable_path/Frameworks -dead_strip -Xlinker -object_path_lto -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/Focus\ Feed\ Next_lto.o -Xlinker -dependency_info -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/Objects-normal/arm64/Focus\ Feed\ Next_dependency_info.dat -stdlib\=libc++ -fobjc-arc -fobjc-link-runtime -lapp -framework CoreGraphics -framework Metal -framework MetalKit -framework QuartzCore -framework Security -framework UIKit -framework WebKit -o /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Focus\ Feed\ Next
 
+LinkStoryboards (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+    cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
+    /Applications/Xcode_26.3.app/Contents/Developer/usr/bin/ibtool --errors --warnings --notices --module Focus_Feed_Next --target-device iphone --target-device ipad --minimum-deployment-target 16.0 --output-format human-readable-text --link /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/LaunchScreen.storyboardc
+
 LinkAssetCatalog /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/Assets.xcassets (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
     cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
     builtin-linkAssetCatalog --thinned /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/thinned --thinned-dependencies /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_dependencies_thinned --thinned-info-plist-content /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_generated_info.plist_thinned --unthinned /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_output/unthinned --unthinned-dependencies /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_dependencies_unthinned --unthinned-info-plist-content /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_generated_info.plist_unthinned --output /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app --plist-output /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/assetcatalog_generated_info.plist
 note: Emplaced /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus Feed Next.app/Assets.car (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
-note: Emplaced /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus Feed Next.app/AppIcon60x60@2x.png (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
 note: Emplaced /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus Feed Next.app/AppIcon76x76@2x~ipad.png (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
+note: Emplaced /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus Feed Next.app/AppIcon60x60@2x.png (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
 
 ProcessInfoPlistFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Info.plist /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple/focus-feed-next_iOS/Info.plist (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
     cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
@@ -1638,7 +1637,7 @@ ProcessInfoPlistFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-fee
 
 CopySwiftLibs /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
     cd /Users/runner/work/FocusFeedNext-iOS/FocusFeedNext-iOS/source/src-tauri/gen/apple
-    builtin-swiftStdLibTool --copy --verbose --scan-executable /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Focus\ Feed\ Next --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Frameworks --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/PlugIns --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/SystemExtensions --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Extensions --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/CoreGraphics.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/Metal.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/MetalKit.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/QuartzCore.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/Security.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/UIKit.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/WebKit.framework --platform iphoneos --toolchain /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.WRG331/Metal.xctoolchain --toolchain /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os --back-deploy-swift-span
+    builtin-swiftStdLibTool --copy --verbose --scan-executable /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Focus\ Feed\ Next --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Frameworks --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/PlugIns --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/SystemExtensions --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Extensions --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/CoreGraphics.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/Metal.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/MetalKit.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/QuartzCore.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/Security.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/UIKit.framework --scan-folder /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/WebKit.framework --platform iphoneos --toolchain /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.3.7003.10.qLJhlU/Metal.xctoolchain --toolchain /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Intermediates.noindex/focus-feed-next.build/release-iphoneos/focus-feed-next_iOS.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os --back-deploy-swift-span
 Ignoring --strip-bitcode because --sign was not passed
 
 GenerateDSYMFile /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app.dSYM /Users/runner/Library/Developer/Xcode/DerivedData/focus-feed-next-dnuhhflkgnivznecgunqqqxynmue/Build/Products/release-iphoneos/Focus\ Feed\ Next.app/Focus\ Feed\ Next (in target 'focus-feed-next_iOS' from project 'focus-feed-next')
@@ -1673,7 +1672,7 @@ Updated CFBundleVersion in "focus-feed-next.xcodeproj/../focus-feed-next_iOS/Inf
 --- xcodebuild: WARNING: Using the first of multiple matching destinations:
 { platform:iOS, id:dvtdevice-DVTiPhonePlaceholder-iphoneos:placeholder, name:Any iOS Device }
 { platform:iOS Simulator, id:dvtdevice-DVTiOSDeviceSimulatorPlaceholder-iphonesimulator:placeholder, name:Any iOS Simulator Device }
-{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:2fe7c7681ed42467edaf71020716fe8e8ca2621c, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:3480045723f413ee836c66ebacf679051dfbf67a, name:My Mac }
 { platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:EFC27B51-A1AC-4C44-A0CE-43F84B5F0B68, OS:2.3, name:Apple Vision Pro }
 { platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:136F9422-A9E1-4C19-88AF-45BB818E37BB, OS:2.4, name:Apple Vision Pro }
 { platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:0C5BF083-23A9-419B-9CBD-8E2AA7E26265, OS:2.5, name:Apple Vision Pro }
@@ -1772,8 +1771,8 @@ Updated CFBundleVersion in "focus-feed-next.xcodeproj/../focus-feed-next_iOS/Inf
 { platform:iOS Simulator, arch:arm64, id:F3967A6C-63E1-4323-9EA7-6C26D42F77A3, OS:26.0.1, name:iPhone SE (3rd generation) }
 { platform:iOS Simulator, arch:arm64, id:3EF44343-CDF7-4757-BAE2-47B813D8FF60, OS:26.1, name:iPhone SE (3rd generation) }
 { platform:iOS Simulator, arch:arm64, id:48B2DA2E-AF18-4E36-BB25-B25969A4EBCF, OS:26.2, name:iPhone SE (3rd generation) }
-        Info connection; remote_addr=127.0.0.1:49236 conn_id=1
-2026-10-11 04:19:22.843 xcodebuild[43149:114970] [MT] IDEDistribution: -[IDEDistributionLogging _createLoggingBundleAtPath:]: Created bundle at path "/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/focus-feed-next_iOS_2026-10-11_04-19-22.842.xcdistributionlogs".
+        Info connection; remote_addr=127.0.0.1:49229 conn_id=1
+2026-10-11 04:25:05.600 xcodebuild[16977:55343] [MT] IDEDistribution: -[IDEDistributionLogging _createLoggingBundleAtPath:]: Created bundle at path "/var/folders/nj/vtw8zd2j31d1gdrtntc5y4600000gn/T/focus-feed-next_iOS_2026-10-11_04-25-05.599.xcdistributionlogs".
 error: exportArchive No Team Found in Archive
 
 ** EXPORT FAILED **
