@@ -18,6 +18,8 @@ import { useI18n } from "@/i18n";
 import { useOpenProfile } from "@/components/account/AccountIdentity";
 import { useAppStore } from '@/stores/useAppStore';
 import { useEffectivePolicy } from '@/lib/runtime';
+import { usePlatform } from '@/lib/platform';
+import { ConnectionError, ConnectionReport } from '@/components/settings/IosConnection';
 
 /**
  * Shared feed screen used by Following, Focus Feed, Bookmarks and Lists.
@@ -53,6 +55,7 @@ export function FeedScreen({
   const { phase, readyToken } = useSessionReady();
   const interval = useAppStore(s => s.prefs.autoRefreshMinutes);
   const policy = useEffectivePolicy();
+  const { isIphone } = usePlatform();
   useEffect(() => {
     if (interval <= 0 || phase !== 'ready' || !policy.foreground || !policy.speculative) return;
     const timer = window.setInterval(() => { if (!f.isRefreshing && !f.isLoadingMore) void f.refresh(); }, interval * 60_000);
@@ -90,10 +93,10 @@ export function FeedScreen({
             {f.lastSync ? (
               <span>· updated {relativeTime(f.lastSync)} ago</span>
             ) : null}
-            {f.fromCache ? (
+            {f.fromCache && f.posts.length > 0 ? (
               <Badge tone="neutral">
                 <CloudOff className="size-3" />
-                Cached
+                {t('feed.cached')}
               </Badge>
             ) : null}
           </span>
@@ -127,15 +130,19 @@ export function FeedScreen({
         {f.refreshError ? (
           <div className="mb-4">
             <ErrorState
-              title="Live refresh failed"
+              title={t('feed.error.title')}
               message={f.refreshError}
-              repair="Showing locally cached posts instead. Live synchronization is temporarily unavailable."
+              repair={t(f.posts.length > 0 ? 'feed.error.repair' : 'feed.error.noCache')}
               onRetry={f.refresh}
             />
+            {isIphone && <div className="mt-3 rounded-xl border border-edge p-3 space-y-3">
+              {Boolean(f.refreshFailure) && <ConnectionError error={f.refreshFailure} />}
+              <ConnectionReport busy={f.isRefreshing} />
+            </div>}
           </div>
         ) : null}
 
-        <FeedList
+        {!(f.refreshError && f.posts.length === 0) && <FeedList
           posts={f.posts}
           readIds={f.readIds}
           // An empty local snapshot is not an empty feed while the one launch
@@ -162,7 +169,7 @@ export function FeedScreen({
           loadMoreError={f.loadMoreError}
           emptyTitle={emptyTitle}
           emptyHint={emptyHint}
-        />
+        />}
 
         {f.loadMoreError ? (
           <div className="mt-4">

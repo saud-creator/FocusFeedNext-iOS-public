@@ -188,24 +188,42 @@ transport.callAsyncJavaScript("const r=await fetch('/engine-me',{credentials:'in
 }
 waitUntil({directIdentity},"unmodified same-origin identity fetch")
 var engineInstalled=false
-let shim="""
-const originalFetch = globalThis.fetch.bind(globalThis);
-globalThis.fetch = (input, init) => {
-    const url = new URL(input, location.href);
-    let route;
-    if (url.href === 'https://x.com/home') route='/engine-home';
-    else if (url.hostname === 'abs.twimg.com') route='/engine-demand';
-    else if (url.pathname.endsWith('/account/multi/list.json')) route='/engine-me';
-    else if (url.pathname.endsWith('/UserByScreenName')) route='/engine-profile'+url.search;
-    else throw new Error('Fixture blocks unexpected network request');
-    return originalFetch(route, {...init, credentials:'include'});
-};
-"""
-transport.callAsyncJavaScript(shim+NativeReaderScript.source+";globalThis.__ffnReader=FfnReader;return true;",arguments:[:],in:nil,in:world) { result in
+let nativeBridge = ProviderHTTPBridge()
+var contentCookies = [
+    HTTPCookie(properties:[.name:"auth_token",.value:"fixture-only",.domain:".x.com",.path:"/",.secure:"TRUE"])!,
+    HTTPCookie(properties:[.name:"ct0",.value:"fixture-csrf",.domain:".x.com",.path:"/",.secure:"TRUE"])!
+]
+var contentJobs: [String:ProviderHTTPTransport] = [:]
+var engineOperations: [String:String] = [:]
+var httpRequests = 0
+nativeBridge.handle = { message, done in
+    guard let id = message["jobId"] as? String else { done(ConnectionFault.value("bridge_failure","bridge")); return }
+    if message["action"] as? String == "cancel" { contentJobs.removeValue(forKey:id)?.cancel(); done(["status":204,"text":"","headers":[:]]); return }
+    guard let parent = message["requestId"] as? String, let operation = engineOperations[parent],
+          let raw = message["url"] as? String, let url = URL(string:raw), let method = message["method"] as? String,
+          ProviderHTTPTransport.permits(url,method:method,operation:operation) else { done(ConnectionFault.value("bridge_failure","bridge")); return }
+    httpRequests += 1
+    let csrf = contentCookies.first { $0.name == "ct0" }!.value
+    let job = ProviderHTTPTransport(url:url,method:method,headers:message["headers"] as? [String:String] ?? [:],body:message["body"] as? String,cookies:contentCookies,csrf:csrf,timeout:18,fixtureBase:URL(string:"http://127.0.0.1:8769")!)
+    contentJobs[id] = job
+    job.start { result,changed in
+        contentJobs.removeValue(forKey:id)
+        for cookie in changed {
+            contentCookies.removeAll { $0.name == cookie.name && $0.path == cookie.path && $0.domain.trimmingCharacters(in:CharacterSet(charactersIn:".")) == cookie.domain.trimmingCharacters(in:CharacterSet(charactersIn:".")) }
+            contentCookies.append(cookie)
+        }
+        done(result)
+    }
+}
+transport.configuration.userContentController.addScriptMessageHandler(nativeBridge,contentWorld:world,name:"ffnHttp")
+// The actual compiled engine uses the native bridge from an opaque-origin
+// document. WebKit fetch is disabled to catch any remaining browser requests.
+transport.callAsyncJavaScript("globalThis.fetch=()=>{throw new Error('Browser fetch is forbidden in this test');};"+NativeReaderScript.source+";globalThis.__ffnReader=FfnReader;return true;",arguments:[:],in:nil,in:world) { result in
     if case .failure = result { require(false,"production engine install failed") };engineInstalled=true
 }
 waitUntil({engineInstalled},"production engine")
 func engineRequest(_ operation:String,_ variables:[String:Any],_ id:String)->[String:Any] {
+    engineOperations[id] = operation
     var done=false;var output:[String:Any] = [:]
     transport.callAsyncJavaScript("return await globalThis.__ffnReader.requestSafe(operation,variables,'fixture-csrf',context);",arguments:["operation":operation,"variables":variables,"context":["id":id,"generation":1,"priority":1,"deadline":Date().timeIntervalSince1970*1000+75000]],in:nil,in:world) { result in
         switch result { case .success(let value):output=value as? [String:Any] ?? [:];case .failure:require(false,"production request bridge failed") };done=true
@@ -216,6 +234,16 @@ let identity=engineRequest("Me",[:],"1")
 check(identity["status"] as? Int == 200,"real transaction engine and transferred cookies validate identity")
 let profile=engineRequest("UserByScreenName",["screen_name":"fixture"],"2")
 check(profile["status"] as? Int == 200,"profile request carries operation-specific features")
+let timeline = engineRequest("HomeLatestTimeline",["count":30],"4")
+check(timeline["status"] as? Int == 200 && String(describing:timeline["body"]!).contains("Fixture live post"),"native feed loads posts with current query ID, required feature and rotated CSRF")
+check(engineRequest("Bookmarks",["count":30],"5")["status"] as? Int == 200,"bookmarks load through authenticated native HTTP")
+check(engineRequest("Following",["userId":"42","count":30],"6")["status"] as? Int == 200,"following accounts use the GET query method")
+check(httpRequests >= 8,"content engine performs real URLSession HTTP requests without browser fetch")
+check(ProviderHTTPTransport.cookieHeader(contentCookies,url:URL(string:"https://abs.twimg.com/responsive-web/client-web/main.fixture.js")!) == nil,"provider credentials never reach the public metadata CDN")
+check(!ProviderHTTPTransport.permits(URL(string:"https://example.com/home")!,method:"GET",operation:"HomeLatestTimeline"),"native bridge rejects foreign hosts")
+check(!ProviderHTTPTransport.permits(URL(string:"https://x.com/i/api/graphql/query/Following")!,method:"POST",operation:"Following"),"native bridge rejects incorrect read methods")
+check(!ProviderHTTPTransport.permits(URL(string:"https://x.com/i/api/1.1/friendships/create.json")!,method:"POST",operation:"HomeLatestTimeline"),"timeline request cannot invoke an account write")
+check(!ProviderHTTPTransport.permits(URL(string:"https://abs.twimg.com/responsive-web/client-web/main.fixture.js?secret=1")!,method:"GET",operation:"HomeLatestTimeline"),"metadata requests cannot send arbitrary query arguments")
 let unsupported=engineRequest("NotAnOperation",[:],"3")
 check((unsupported["fault"] as? [String:Any])?["code"] as? String == "unsupported_response","unsupported request returns safe structured fault")
 let xToken=HTTPCookie(properties:[.name:"auth_token",.value:"fixture-token",.domain:".x.com",.path:"/"])!

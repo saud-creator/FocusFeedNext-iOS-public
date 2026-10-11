@@ -114,6 +114,9 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
     private var connectionTimings: [[String: Any]] = []
     private let journal = ConnectionJournal()
     private var identityJobs: [String: IdentityTransport] = [:]
+    private let httpBridge = ProviderHTTPBridge()
+    private var httpParents: [String: RequestArgs] = [:]
+    private var httpJobs: [String: (String, ProviderHTTPTransport)] = [:]
     private var routes = ["following", "focus", "bookmarks", "accounts", "more"]
     private let world = WKContentWorld.world(name: "FocusFeedPrivateTransport")
     private let keychainAccount = "twitter-browser-cookies-v1"
@@ -122,6 +125,11 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
         reader = webview
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
+        httpBridge.handle = { [weak self] message, done in
+            guard let self = self else { done(ConnectionFault.value("cancelled", "bridge", retryable:false)); return }
+            self.handleHTTP(message, done:done)
+        }
+        config.userContentController.addScriptMessageHandler(httpBridge, contentWorld:world, name:"ffnHttp")
         browser = WKWebView(frame: .zero, configuration: config)
         // Keep WebKit attached to the app's active hierarchy without exposing
         // the transport document to touch or accessibility navigation.
@@ -204,10 +212,13 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
             page.title = arabic ? "تسجيل الدخول إلى تويتر" : "Sign in to Twitter"
             page.view = login
             page.navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(self.cancelLogin))
+            let options = UIMenu(children:[
+                UIAction(title:arabic ? "إعادة تحميل" : "Reload",image:UIImage(systemName:"arrow.clockwise")) { [weak self] _ in self?.reloadLogin() },
+                UIAction(title:arabic ? "مشاركة التشخيص" : "Share report",image:UIImage(systemName:"square.and.arrow.up")) { [weak self] _ in self?.shareLoginReport() }
+            ])
             page.navigationItem.rightBarButtonItems = [
                 UIBarButtonItem(title: arabic ? "متابعة" : "Continue", style: .done, target: self, action: #selector(self.continueLogin)),
-                UIBarButtonItem(barButtonSystemItem: .refresh, target: self, action: #selector(self.reloadLogin)),
-                UIBarButtonItem(title: arabic ? "التشخيص" : "Report", style: .plain, target: self, action: #selector(self.shareLoginReport))
+                UIBarButtonItem(image:UIImage(systemName:"ellipsis.circle"),menu:options)
             ]
             page.cancel = { [weak self] in if self?.loginCompleting == false { self?.cancelLogin() } }
             let nav = UINavigationController(rootViewController: page)
@@ -437,6 +448,8 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
         transportEpoch &+= 1; transportNavigation = nil
         readyCallbacks.removeAll()
         for (id, (reply, _, _)) in replies { reply.resolve(ConnectionFault.transport(stage: stage, id: id, error: error)) }
+        httpParents.removeAll()
+        let jobs = httpJobs.values.map { $0.1 }; httpJobs.removeAll(); jobs.forEach { $0.cancel() }
         replies.removeAll()
         issuedIds.removeAll()
         browser.stopLoading()
@@ -484,6 +497,7 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
             if reply.authentication { reply.interruptAuthentication(authenticationFault) }
             else { reply.reject("Request no longer needed.") }
             identityJobs.removeValue(forKey:id)?.cancel()
+            cancelHTTP(id)
             replies.removeValue(forKey:id); issuedIds.remove(id); readyCallbacks.removeValue(forKey:id)
         }
         // WebKit can defer this script until activation. Scope cancellation to
@@ -498,11 +512,6 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
             return
         }
         if (webView === loginBrowser || webView === loginPopup), navigationAction.request.url?.host == "accounts.google.com" {
-            let arabic = Locale.preferredLanguages.first?.hasPrefix("ar") == true
-            if loginController?.presentedViewController == nil {
-                let alert = UIAlertController(title:arabic ? "استخدم البريد الإلكتروني أو اسم المستخدم" : "Use email or username",message:arabic ? "Google لا يدعم تسجيل الدخول داخل متصفح iOS المضمّن. سجّل الدخول إلى X باستخدام بريدك الإلكتروني أو اسم المستخدم وكلمة مرور X." : "Google does not support sign-in inside embedded iOS browsers. Sign in to X with your email or username and your X password.",preferredStyle:.alert)
-                alert.addAction(UIAlertAction(title:arabic ? "حسنًا" : "OK",style:.default)); loginController?.present(alert,animated:true)
-            }
             decisionHandler(.cancel); return
         }
         guard let url = navigationAction.request.url, url.scheme == "https", let host = url.host,
@@ -660,7 +669,8 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
                 self?.issuedIds.remove(args.context.id)
                 self?.readyCallbacks.removeValue(forKey:args.context.id)
                 self?.identityJobs.removeValue(forKey:args.context.id)?.cancel()
-                self?.journal.record("failure",stage:"identity",code:"timeout")
+                self?.cancelHTTP(args.context.id)
+                self?.journal.record("failure",stage:args.operation == "Me" ? "identity" : "provider",code:"timeout",detail:["operation":args.operation])
             }
             self.prepareCookies(args, reply) {
                 guard reply.pending else { return }
@@ -723,6 +733,7 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
         browser.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
             guard let self = self, reply.pending else { return }
             guard let selection = LoginCookies.select(cookies), selection.token == args.authToken else {
+                self.replies.removeValue(forKey:args.context.id)
                 reply.resolve(ConnectionFault.value("authentication_expired","cookies",id:args.context.id,retryable:false)); return
             }
             if reply.authentication { self.pendingCookies = selection.cookies }
@@ -799,12 +810,14 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
         if args.operation == "Me" { emitStage("identity") }
         let script = NativeReaderScript.source
         issuedIds.insert(args.context.id)
+        httpParents[args.context.id] = args
         let source = "if (!globalThis.__ffnReader) {" + script + ";globalThis.__ffnReader = FfnReader;}\nreturn await globalThis.__ffnReader.requestSafe(operation, variables, csrf, context);"
         browser.callAsyncJavaScript(source, arguments: ["operation": args.operation,
             "variables": args.variables.mapValues { $0.value }, "csrf": csrf,
             "context": ["id": args.context.id, "generation": args.context.generation, "priority": args.context.priority, "deadline": args.context.deadline,"authentication":args.context.authentication == true]], in: nil, in: world) { result in
             self.replies.removeValue(forKey: args.context.id)
             self.issuedIds.remove(args.context.id)
+            self.cancelHTTP(args.context.id)
             switch result {
             case .success(let value):
                 guard var response = value as? [String: Any] else { reply.reject("Twitter returned an unreadable response."); return }
@@ -818,12 +831,90 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
                     var body = response["body"] as? [String: Any] ?? ["users": response["body"] ?? []]
                     body["activeUserId"] = identity; response["body"] = body
                 }
-                self.journal.record(response["fault"] == nil ? "response" : "failure",stage:"provider",status:response["status"] as? Int,detail:response["fault"] as? [String:Any] ?? ["engine":"webkit","elapsedMs":reply.elapsedMs])
+                var detail = response["fault"] as? [String:Any] ?? [:]
+                detail["engine"] = "native"; detail["operation"] = args.operation; detail["elapsedMs"] = reply.elapsedMs
+                self.journal.record(response["fault"] == nil ? "response" : "failure",stage:detail["stage"] as? String ?? "provider",status:response["status"] as? Int,detail:detail)
                 reply.resolve(response)
             case .failure(let error):
                 reply.resolve(ConnectionFault.transport(stage: "transport_script", id: args.context.id, error: error))
             }
         }
+    }
+    private func cancelHTTP(_ parent: String) {
+        httpParents.removeValue(forKey:parent)
+        let ids = httpJobs.filter { $0.value.0 == parent }.map { $0.key }
+        for id in ids { httpJobs.removeValue(forKey:id)?.1.cancel() }
+    }
+    private func handleHTTP(_ message: [String:Any], done: @escaping ([String:Any]) -> Void) {
+        guard let parent = message["requestId"] as? String, let id = message["jobId"] as? String,
+              id.count <= 32, !id.isEmpty, id.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }) else {
+            done(ConnectionFault.value("bridge_failure","bridge",retryable:false)); return
+        }
+        let key = parent + ":" + id
+        if message["action"] as? String == "cancel" {
+            if let job = httpJobs[key], job.0 == parent { httpJobs.removeValue(forKey:key); job.1.cancel() }
+            done(["status":204,"text":"","headers":[:]]); return
+        }
+        guard message["action"] as? String == "fetch", let args = httpParents[parent],
+              let (reply,_,_) = replies[parent], reply.pending, issuedIds.contains(parent), activeToken == args.authToken,
+              httpJobs[key] == nil, httpJobs.count < 16,
+              let text = message["url"] as? String, let url = URL(string:text), let method = message["method"] as? String,
+              ProviderHTTPTransport.permits(url,method:method,operation:args.operation),
+              let headers = message["headers"] as? [String:String] else {
+            done(ConnectionFault.value("bridge_failure","bridge",id:parent,retryable:false)); return
+        }
+        let body = message["body"] as? String
+        guard (body?.utf8.count ?? 0) <= 65536,
+              headers["x-client-transaction-id"].map({ $0.count <= 512 && $0.range(of:"^[A-Za-z0-9+/=_-]+$",options:.regularExpression) != nil }) ?? true,
+              headers["content-type"].map({ ["application/json","application/x-www-form-urlencoded"].contains($0) }) ?? true else {
+            done(ConnectionFault.value("unsupported_response","bridge",id:parent,retryable:false)); return
+        }
+        let stage = ProviderHTTPTransport.stage(url)
+        browser.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
+            guard let self = self, reply.pending, self.httpParents[parent] != nil, self.activeToken == args.authToken else { done(ConnectionFault.value("cancelled",stage,id:parent,retryable:false)); return }
+            guard let selection = LoginCookies.select(cookies), selection.token == args.authToken else { done(ConnectionFault.value("authentication_expired","cookies",id:parent,retryable:false)); return }
+            let timeout = Double(args.context.deadline) / 1000 - Date().timeIntervalSince1970
+            guard timeout > 0 else { done(ConnectionFault.value("timeout",stage,id:parent)); return }
+            let job = ProviderHTTPTransport(url:url,method:method,headers:headers,body:body,cookies:selection.cookies,csrf:selection.csrf,timeout:timeout)
+            self.httpJobs[key] = (parent,job)
+            self.journal.record("request",stage:stage,detail:["engine":"native","operation":args.operation,"resource":url.host == "abs.twimg.com" ? "metadata" : url.path == "/home" ? "home" : "api"])
+            job.start { result, changed in
+                self.httpJobs.removeValue(forKey:key)
+                guard reply.pending, self.httpParents[parent] != nil, self.activeToken == args.authToken else { done(ConnectionFault.value("cancelled",stage,id:parent,retryable:false)); return }
+                var detail = result["fault"] as? [String:Any] ?? [:]
+                detail["engine"] = "native"; detail["operation"] = args.operation; detail["elapsedMs"] = result["httpMs"]
+                self.journal.record(result["fault"] == nil ? "response" : "failure",stage:stage,status:result["status"] as? Int,detail:detail)
+                self.installHTTPCookies(changed, token:args.authToken, pending:{ reply.pending && self.httpParents[parent] != nil }) { valid in
+                    done(valid ? result : ConnectionFault.value("authentication_expired","cookies",id:parent,retryable:false))
+                }
+            }
+        }
+    }
+    private func installHTTPCookies(_ changed: [HTTPCookie], token: String, pending: @escaping () -> Bool, done: @escaping (Bool) -> Void) {
+        guard !changed.isEmpty else { done(true); return }
+        cookieJobs.append {
+            let finish = { (valid: Bool) in self.cookieBusy = false; done(valid); self.drainCookies() }
+            guard pending(), self.activeToken == token else { finish(false); return }
+            let store = self.browser.configuration.websiteDataStore.httpCookieStore
+            store.getAllCookies { existing in
+                guard pending(), self.activeToken == token else { finish(false); return }
+                let removed = DispatchGroup()
+                for old in existing where changed.contains(where: { $0.name == old.name && $0.path == old.path && $0.domain.trimmingCharacters(in:CharacterSet(charactersIn:".")) == old.domain.trimmingCharacters(in:CharacterSet(charactersIn:".")) }) {
+                    removed.enter(); store.delete(old) { removed.leave() }
+                }
+                removed.notify(queue:.main) {
+                    guard pending(), self.activeToken == token else { finish(false); return }
+                    let installed = DispatchGroup()
+                    for cookie in changed where cookie.expiresDate == nil || cookie.expiresDate! > Date() {
+                        installed.enter(); store.setCookie(cookie) { installed.leave() }
+                    }
+                    installed.notify(queue:.main) { store.getAllCookies { current in
+                        finish(pending() && self.activeToken == token && LoginCookies.select(current)?.token == token)
+                    } }
+                }
+            }
+        }
+        drainCookies()
     }
     @objc func configureChrome(_ invoke: Invoke) throws {
         let args = try invoke.parseArgs(ChromeArgs.self)

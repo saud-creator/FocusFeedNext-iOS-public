@@ -29,7 +29,8 @@ final class ConnectionJournal {
             "stage": ["login","cookies","transport","transport_navigation","transport_origin","transport_process","transport_script","bootstrap","identity","provider","storage","bridge","queue","connected"],
             "code": ["missing_cookies","transport_initialization","transaction_bootstrap","authentication_expired","provider_rejection","rate_limited","account_challenge","timeout","cancelled","background_paused","session_storage","network_failure","unsupported_response","bridge_failure"],
             "nativeErrorDomain": ["url","webkit","other"],
-            "engine": ["native","webkit"], "page": ["login","home","challenge","other"]
+            "engine": ["native","webkit"], "page": ["login","home","challenge","other"],
+            "operation": ProviderHTTPTransport.operations, "resource": ["home","metadata","api"]
         ] {
             if let value = row[key] as? String, values.contains(value) { result[key] = value }
         }

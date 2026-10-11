@@ -35,7 +35,7 @@ function useIosAccount() {
   return { session: session.data, signIn, signOut, stage };
 }
 
-function ConnectionError({ error }: { error: unknown }) {
+export function ConnectionError({ error }: { error: unknown }) {
   const { t } = useI18n();
   const value = toAppError(error);
   const fault = value.nativeConnectionFault;
@@ -47,7 +47,7 @@ function ConnectionError({ error }: { error: unknown }) {
   </p>;
 }
 
-function ConnectionReport({ busy = false }: { busy?: boolean }) {
+export function ConnectionReport({ busy = false }: { busy?: boolean }) {
   const { t } = useI18n();
   const [report, setReport] = useState('');
   const [copied, setCopied] = useState(false);
@@ -105,6 +105,7 @@ export function IosConnection() {
     <CardHeader title={t('ios.account.title')} icon={<ShieldCheck className="size-4" />} />
     <CardBody className="space-y-4">
       <p className="text-sm text-ink-dim">{t('ios.account.description')}</p>
+      <p className="text-xs text-ink-mute">{t('ios.signin.hint')}</p>
       {session?.account ? <div className="flex items-center gap-3">
         {session.account.avatarUrl && <img src={session.account.avatarUrl} alt="" className="size-12 rounded-full" width={48} height={48} />}
         <div><p className="font-semibold">{session.account.displayName}</p><p className="text-sm text-ink-mute" dir="ltr">@{session.account.username}</p></div>
@@ -138,6 +139,7 @@ export function IosWelcome() {
     <h1>{t('ios.welcome.title')}</h1>
     <p className="ios-welcome-description">{t('ios.welcome.description')}</p>
     <div className="ios-welcome-actions">
+      <p className="text-sm text-ink-dim">{t('ios.signin.hint')}</p>
       <Button variant="primary" className="w-full min-h-14 rounded-2xl text-base" disabled={signIn.isPending || session?.checking} onClick={() => signIn.mutate()}>
         {signIn.isPending ? <LoaderCircle className="animate-spin" /> : <ArrowRight />}
         {t(signIn.isPending ? 'ios.signingIn' : 'ios.signin')}

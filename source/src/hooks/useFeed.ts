@@ -281,6 +281,7 @@ export function useFeed(feed: string, filters: FeedFilters) {
   const [pending, setPending] = useState<Post[]>([]);
   const [visible, setVisible] = useState<Post[]>([]);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [refreshFailure, setRefreshFailure] = useState<unknown>(null);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const atTopRef = useRef(true);
@@ -358,6 +359,7 @@ export function useFeed(feed: string, filters: FeedFilters) {
     mutationFn: () => api.refreshFeed(feed, filters, 30, cacheLimitRef.current),
     onMutate: () => {
       setRefreshError(null);
+      setRefreshFailure(null);
       return operationEpoch.current;
     },
     onSuccess: (res, _variables, startedAt) => {
@@ -373,6 +375,7 @@ export function useFeed(feed: string, filters: FeedFilters) {
     onError: (e, _variables, startedAt) => {
       if (startedAt === operationEpoch.current) {
         setRefreshError(toAppError(e).message);
+        setRefreshFailure(e);
       }
     },
   });
@@ -490,6 +493,7 @@ export function useFeed(feed: string, filters: FeedFilters) {
     isLoading: isInitialLoading,
     isRefreshing: refresh.isPending,
     refreshError,
+    refreshFailure,
     isLoadingMore: loadMore.isPending,
     loadMoreError,
     hasMore: nextCursor !== null,

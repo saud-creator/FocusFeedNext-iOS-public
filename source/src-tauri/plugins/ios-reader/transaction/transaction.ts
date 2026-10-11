@@ -59,7 +59,9 @@ class ClientTransaction {
    * Creates a new ClientTransaction instance
    * @param homePageDocument DOM Document object from X's responsive web app
    */
-  constructor(homePageDocument: Document) {
+  private readonly fetcher: typeof fetch;
+  constructor(homePageDocument: Document, fetcher: typeof fetch = fetch) {
+    this.fetcher = fetcher;
     this.homePageDocument = homePageDocument;
   }
 
@@ -101,8 +103,8 @@ class ClientTransaction {
    * @param homePageDocument DOM Document object from X's responsive web app
    * @returns Initialized ClientTransaction instance
    */
-  static async create(homePageDocument: Document, signal?: AbortSignal): Promise<ClientTransaction> {
-    const instance = new ClientTransaction(homePageDocument);
+  static async create(homePageDocument: Document, signal?: AbortSignal, fetcher: typeof fetch = fetch): Promise<ClientTransaction> {
+    const instance = new ClientTransaction(homePageDocument, fetcher);
     await instance.initialize(signal);
     return instance;
   }
@@ -128,7 +130,7 @@ class ClientTransaction {
     const timer = setTimeout(() => controller.abort(), 18000);
     let responseText: string;
     try {
-      const onDemandFileResponse = await fetch(onDemandFileUrl, { signal: controller.signal });
+      const onDemandFileResponse = await this.fetcher(onDemandFileUrl, { signal: controller.signal });
 
     if (!onDemandFileResponse.ok) {
       throw new OnDemandFileFetchError(

@@ -16,6 +16,47 @@ function fixture(handler: (url:string,init?:RequestInit)=>Response = () => Respo
   });
 }
 describe('production native reader engine', () => {
+  it('loads current timeline IDs and newly required flags before requesting content', async () => {
+    const fetch = vi.fn(async(url:string, init?:RequestInit) => {
+      if (url === 'https://x.com/home') return new Response(home.replace('</head>', '<link href="https://abs.twimg.com/responsive-web/client-web/vendor.a.js"><script src="https://abs.twimg.com/responsive-web/client-web/main.new.js"></script><script>var flags={"new_feed_flag":{"value":true}}</script></head>'));
+      if (url.includes('ondemand.s.')) return new Response('(keyBytes[0],16)(keyBytes[1],16)');
+      if (url.includes('main.new.js')) return new Response('queryId:"currentTimeline",operationName:"HomeLatestTimeline",operationType:"query",metadata:{featureSwitches:["new_feed_flag"]};operationName:"Following",queryId:"currentFollowing"');
+      expect(init?.method).toBe('GET');
+      if (url.includes('HomeLatestTimeline')) {
+        expect(new URL(url).pathname).toBe('/i/api/graphql/currentTimeline/HomeLatestTimeline');
+        expect(JSON.parse(new URL(url).searchParams.get('features')!)).toMatchObject({new_feed_flag:true});
+      } else expect(new URL(url).pathname).toBe('/i/api/graphql/currentFollowing/Following');
+      return Response.json({data:{timeline:{posts:['live-post']}}});
+    });
+    vi.stubGlobal('fetch',fetch);
+    const reader = await import('../../src-tauri/plugins/ios-reader/transaction/reader');
+    expect(await reader.requestSafe('HomeLatestTimeline',{count:30},'fixture',context())).toMatchObject({status:200,body:{data:{timeline:{posts:['live-post']}}}});
+    expect(await reader.requestSafe('Following',{userId:'42'},'fixture',context('2'))).toMatchObject({status:200});
+    expect(fetch.mock.calls.some(([url]) => url.includes('vendor.a.js'))).toBe(false);
+  });
+  it('uses the native HTTP bridge for bootstrap, CDN metadata and content and preserves its error details', async () => {
+    const browserFetch = vi.fn(()=>{ throw new Error('WebKit fetch must not run'); });
+    vi.stubGlobal('fetch',browserFetch);
+    const native = vi.fn(async(message:Record<string,unknown>) => {
+      expect(message.requestId).toBe('1');
+      expect(message.headers).not.toHaveProperty('x-csrf-token');
+      if (message.url === 'https://x.com/home') return {status:200,text:home,headers:{}};
+      if (String(message.url).includes('ondemand.s.')) return {status:200,text:'(keyBytes[0],16)(keyBytes[1],16)',headers:{}};
+      return {fault:{code:'provider_rejection',stage:'provider',retryable:false,httpStatus:403,nativeErrorDomain:'url',nativeErrorCode:-1009}};
+    });
+    vi.stubGlobal('webkit',{messageHandlers:{ffnHttp:{postMessage:native}}});
+    const reader = await import('../../src-tauri/plugins/ios-reader/transaction/reader');
+    expect(await reader.requestSafe('HomeLatestTimeline',{count:30},'fixture-secret',context())).toMatchObject({fault:{code:'provider_rejection',stage:'provider',httpStatus:403,nativeErrorCode:-1009,requestId:'1'}});
+    expect(browserFetch).not.toHaveBeenCalled();
+    expect(native.mock.calls).toHaveLength(3);
+    expect(JSON.stringify(native.mock.calls)).not.toContain('fixture-secret');
+  });
+  it('preserves a homepage rate limit without attempting transaction metadata or a feed request',async()=>{
+    const fetch = vi.fn(async()=>Response.json({}, {status:429})); vi.stubGlobal('fetch',fetch);
+    const reader = await import('../../src-tauri/plugins/ios-reader/transaction/reader');
+    expect(await reader.requestSafe('HomeLatestTimeline',{},'fixture',context())).toMatchObject({fault:{code:'rate_limited',stage:'bootstrap',httpStatus:429}});
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
   it('bootstraps the real transaction generator, uses profile-specific flags and reuses initialization', async () => {
     const fetch = fixture(url=>Response.json(url.includes('UserByScreenName') ? {data:{user:{result:{rest_id:'42'}}}} : {users:[{user_id:'42',screen_name:'fixture'}]}));
     vi.stubGlobal('fetch',fetch);

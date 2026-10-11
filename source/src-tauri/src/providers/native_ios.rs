@@ -1,5 +1,5 @@
 //! Standalone iOS provider. Network requests execute in an isolated native
-//! WKWebView on x.com, using its cookie store and WebKit transport. No CLI
+//! engine with authenticated URLSession HTTP and a private cookie store. No CLI
 //! process, Windows host, remote relay, or credential-bearing frontend call.
 use super::{ProviderCapabilities, XDataProvider};
 use crate::{credentials::CredentialStore, models::*};
@@ -467,6 +467,14 @@ mod tests {
         let error = connection_fault(fault);
         assert_eq!(error.code,ErrorCode::SchemaChanged);
         assert_eq!(error.native_connection_fault.unwrap().stage,"bootstrap");
+    }
+    #[test] fn native_http_fixture_yields_posts_and_cursor() {
+        let data: Value = serde_json::from_str(include_str!("../../../tools/ios-native-tests/timeline.json")).unwrap();
+        let page = parse_page(&data).unwrap();
+        assert_eq!(page.posts.len(), 1);
+        assert_eq!(page.posts[0].text, "Fixture live post");
+        assert_eq!(page.posts[0].author.username, "fixture");
+        assert_eq!(page.cursor.as_deref(), Some("fixture-next"));
     }
     #[test] fn unknown_schema_is_not_an_empty_success() { assert!(parse_page(&json!({"data": {}})).is_err()); }
     #[test] fn parses_cursor_post_and_video_variants_without_quote_duplicates() {

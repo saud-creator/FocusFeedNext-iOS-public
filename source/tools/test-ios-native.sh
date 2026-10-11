@@ -16,6 +16,7 @@ swiftc src-tauri/plugins/ios-reader/ios/Sources/SessionTransaction.swift \
   src-tauri/plugins/ios-reader/ios/Sources/LoginHandoff.swift \
   src-tauri/plugins/ios-reader/ios/Sources/ConnectionFault.swift \
   src-tauri/plugins/ios-reader/ios/Sources/IdentityTransport.swift \
+  src-tauri/plugins/ios-reader/ios/Sources/ProviderHTTPTransport.swift \
   src-tauri/plugins/ios-reader/ios/Sources/ConnectionJournal.swift \
   src-tauri/plugins/ios-reader/ios/Sources/ReaderScript.swift \
   tools/ios-native-tests/main.swift -o dist-ios/native-tests/verify-webkit

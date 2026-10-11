@@ -1,6 +1,6 @@
 [package]
 name = "focus-feed-next"
-version = "0.8.3"
+version = "0.8.4"
 description = "Focus Feed Next - a standalone, focus-oriented desktop reader for X"
 authors = ["Focus Feed Next"]
 license = "MIT"

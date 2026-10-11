@@ -19,7 +19,7 @@ import type { Catalog } from "./types";
 export const en: Catalog = {
   "ios.error.rate_limited": "X has temporarily limited requests. Wait before checking again.",
   "ios.error.account_challenge": "Complete the verification requested on the X page, then tap Continue.",
-  "ios.report.hint": "If sign-in fails, share this report so we can locate the failed step. It excludes passwords, cookies and account content.",
+  "ios.report.hint": "If sign-in or content loading fails, share this report to locate the failed request. It excludes passwords, cookies and account content.",
   "ios.report.generate": "View sign-in diagnostics",
   "ios.report.share": "Share diagnostic file",
   "ios.report.copy": "Copy report",
@@ -131,6 +131,7 @@ export const en: Catalog = {
   'ios.account.privacy': 'You sign in on Twitter’s own page. Your session stays in this iPhone’s Keychain. Your password is never read by Focus Feed.',
   'ios.signin': 'Sign in with Twitter',
   'ios.signingIn': 'Connecting your account…',
+  'ios.signin.hint': 'Use your X email or username. After signing in, your account connects automatically. Tap Continue only if the page stays open.',
   'ios.signout': 'Sign out',
   'ios.welcome.eyebrow': 'YOUR FEED. YOUR PACE.',
   'ios.welcome.title': 'A little less noise.\nA lot more focus.',
@@ -442,6 +443,7 @@ export const en: Catalog = {
   "feed.empty.title": "Nothing to read here",
   "feed.empty.hint": "Turn a filter off, or refresh. Nothing has been deleted.",
   "feed.error.title": "Live refresh failed",
+  "feed.error.noCache": "Posts have not loaded yet. Try again or share the diagnostic report to check the connection.",
   "feed.error.repair":
     "Locally cached posts are shown instead. Live synchronization is temporarily unavailable.",
   "feed.markAllRead": "Mark everything as read",
