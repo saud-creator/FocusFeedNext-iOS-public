@@ -1,0 +1,354 @@
+@import "tailwindcss";
+
+.post-text { font-size: calc(14.5px * var(--reading-scale, 1)) !important; }
+html[data-reduce-motion="true"] *, html[data-reduce-motion="true"] *::before, html[data-reduce-motion="true"] *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+html[data-reduce-transparency="true"] .ios-tabbar { backdrop-filter: none; background: var(--surface-1); }
+
+/* ---------------------------------------------------------------------------
+   Focus Feed Next design system.
+   Dark-first, built for long reading sessions. Deliberately not X's look:
+   calmer surfaces, wider rhythm, one accent, restrained shadows.
+--------------------------------------------------------------------------- */
+
+/*
+  These blocks are the *starting* palette. `src/lib/theme.ts` writes the same
+  custom properties inline on <html> once preferences are known, and an inline
+  declaration wins — so a custom colour needs no `!important` and no extra
+  class, and the window is painted correctly before React mounts rather than
+  flashing the dark default at somebody who chose light.
+*/
+:root {
+  --surface-0: #0a0b10;
+  --surface-1: #101219;
+  --surface-2: #161a26;
+  --surface-3: #1e2333;
+  --surface-4: #2b3247;
+  /* Lifted from #232838: at 1.18 against the card it outlines, that border
+     was not visible on an ordinary laptop panel. */
+  --border-subtle: #262c40;
+  --border-strong: #383f58;
+
+  --text-primary: #e9ebf4;
+  --text-secondary: #a6adc4;
+  --text-muted: #737b96;
+
+  --accent: #6d72f6;
+  --accent-hover: #8287ff;
+  --accent-soft: #1c1f3d;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #38bdf8;
+
+  /* What a photo or a letterboxed video sits on. Deliberately its own token:
+     media wants a darker, flatter bed than a card does, in every theme. */
+  --media-bg: #05060a;
+
+  /* Shape and weight. Overwritten from preferences; the values here are the
+     defaults those preferences start at. */
+  --radius: 12px;
+  --radius-card: 14px;
+  --shadow-card:
+    0 1px 2px rgba(0, 0, 0, 0.28), 0 8px 24px -12px rgba(0, 0, 0, 0.45);
+
+  /* Density. Both values are read by the base layer below. */
+  --text-base: 15px;
+  --leading-base: 1.6;
+  --row-gap: 0.75rem;
+
+  /* The switch thumb needs to be visible on its own track, which is a
+     different colour in a light theme than in a dark one. */
+  --switch-thumb: #ffffff;
+  --switch-thumb-border: rgba(0, 0, 0, 0.08);
+}
+
+/*
+  OLED near-black.
+
+  Near-black, not black: the background is almost off, but every surface stays
+  a visible step above it and the borders stay readable. A theme that paints
+  the card, the panel and the page the same #000000 has not saved power, it has
+  deleted the layout.
+*/
+[data-theme="oled"] {
+  --surface-0: #050507;
+  --surface-1: #0e1018;
+  --surface-2: #151824;
+  --surface-3: #202434;
+  --surface-4: #2a2f42;
+  --border-subtle: #2c3044;
+  --border-strong: #3f4560;
+
+  --text-primary: #f1f3fa;
+  --text-secondary: #aab1c7;
+  --text-muted: #7b8298;
+
+  --accent: #8186ff;
+  --accent-hover: #9a9eff;
+  --accent-soft: #16172c;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #38bdf8;
+
+  --media-bg: #000000;
+}
+
+[data-theme="light"] {
+  --surface-0: #f6f7fb;
+  --surface-1: #fbfcff;
+  --surface-2: #ffffff;
+  --surface-3: #eef0f7;
+  --surface-4: #e2e6f0;
+  --border-subtle: #dfe3ee;
+  --border-strong: #c4cadb;
+
+  --text-primary: #14161f;
+  --text-secondary: #4b5164;
+  --text-muted: #6b7185;
+
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-soft: #eceafe;
+  --success: #047857;
+  --warning: #a15c07;
+  --danger: #c81e1e;
+  --info: #0369a1;
+
+  --media-bg: #e6e9f2;
+  --shadow-card:
+    0 1px 2px rgba(16, 20, 40, 0.06), 0 8px 24px -14px rgba(16, 20, 40, 0.24);
+  --switch-thumb: #ffffff;
+  --switch-thumb-border: rgba(20, 22, 31, 0.22);
+}
+
+/*
+  `system` is resolved to a concrete theme in JavaScript, so this only covers
+  the moment before that happens — and the case where something else writes the
+  unresolved id. Cheap insurance against a white-on-white first paint.
+*/
+@media (prefers-color-scheme: light) {
+  [data-theme="system"] {
+    --surface-0: #f6f7fb;
+    --surface-1: #fbfcff;
+    --surface-2: #ffffff;
+    --surface-3: #eef0f7;
+    --surface-4: #e2e6f0;
+    --border-subtle: #dfe3ee;
+    --border-strong: #c4cadb;
+
+    --text-primary: #14161f;
+    --text-secondary: #4b5164;
+    --text-muted: #6b7185;
+
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --accent-soft: #eceafe;
+
+    --media-bg: #e6e9f2;
+    --switch-thumb-border: rgba(20, 22, 31, 0.22);
+  }
+}
+
+/* Compact trades breathing room for lines on screen, and nothing else. */
+[data-density="compact"] {
+  --text-base: 14px;
+  --leading-base: 1.5;
+  --row-gap: 0.5rem;
+}
+
+/* Shadows are a preference, so "none" has to mean none — including the
+   elevated surfaces that ask for one through a utility class. */
+[data-shadow="none"] .shadow-card {
+  box-shadow: none;
+}
+
+@theme inline {
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+  --color-edge: var(--border-subtle);
+  --color-edge-strong: var(--border-strong);
+
+  --color-ink: var(--text-primary);
+  --color-ink-dim: var(--text-secondary);
+  --color-ink-mute: var(--text-muted);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--success);
+  --color-warn: var(--warning);
+  --color-bad: var(--danger);
+  --color-info: var(--info);
+  /* `bg-good` was written in two components against a token that never
+     existed, so a healthy connection painted a transparent dot. The alias
+     keeps both spellings working. */
+  --color-good: var(--success);
+  --color-media: var(--media-bg);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--surface-0);
+    color: var(--text-primary);
+    font-family:
+      "Segoe UI Variable Text",
+      "Segoe UI",
+      Inter,
+      system-ui,
+      -apple-system,
+      "Noto Sans Arabic",
+      sans-serif;
+    font-size: var(--text-base);
+    line-height: var(--leading-base);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  [data-platform="ios"] body {
+    font-family:
+      -apple-system, BlinkMacSystemFont, "SF Pro Text", "Noto Sans Arabic",
+      sans-serif;
+    touch-action: manipulation;
+  }
+
+  [data-platform="ios"] main { -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
+  [data-platform="ios"] .ios-tabbar button { transition: transform 150ms ease, color 150ms ease, background-color 150ms ease; }
+  [data-platform="ios"] .ios-tabbar button:active { transform: scale(.97); }
+  html[data-reduce-motion="true"] [data-platform="ios"] .ios-tabbar button:active { transform: none; }
+  @media (prefers-reduced-motion: reduce) {
+    [data-platform="ios"] .ios-tabbar button:active { transform: none; }
+  }
+  [data-platform="ios"] .surface-card { border-radius: 22px; }
+  [data-platform="ios"] .ios-tabbar {
+    inset-inline: 12px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    border-radius: 30px;
+    padding-bottom: 6px;
+    border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+    background: color-mix(in srgb, var(--surface-1) 78%, transparent);
+    box-shadow: 0 8px 32px #0002, inset 0 1px 0 #ffffff20;
+    backdrop-filter: blur(24px) saturate(150%);
+  }
+  .ios-welcome {
+    min-height: 100%; display: flex; flex-direction: column; justify-content: center;
+    padding: max(48px, env(safe-area-inset-top)) 30px 32px;
+    background: radial-gradient(ellipse at 90% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 60%);
+  }
+  .ios-welcome-orbit {
+    width: 78px; height: 78px; display: grid; place-items: center; margin-bottom: 36px;
+    border-radius: 26px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface-1));
+    border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+    box-shadow: 0 12px 40px color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+  .ios-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .13em; color: var(--accent); margin-bottom: 16px; }
+  .ios-welcome h1 { font-size: clamp(32px, 9vw, 44px); line-height: 1.12; letter-spacing: -.035em; font-weight: 700; white-space: pre-line; }
+  .ios-welcome-description { color: var(--ink-dim); line-height: 1.7; font-size: 16px; margin-top: 20px; max-width: 34ch; }
+  .ios-welcome-actions { margin-top: 38px; display: grid; gap: 8px; }
+  .ios-welcome-privacy { display: flex; gap: 10px; align-items: flex-start; margin-top: 30px; color: var(--ink-mute); font-size: 12px; line-height: 1.6; }
+  @media (prefers-reduced-transparency: reduce) { .ios-tabbar { background: var(--surface-1) !important; backdrop-filter: none !important; } }
+  @media (prefers-reduced-motion: reduce) { [data-platform="ios"] * { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+  [data-platform="ios"] input,
+  [data-platform="ios"] select,
+  [data-platform="ios"] textarea {
+    font-size: max(16px, 1em);
+  }
+
+  [dir="rtl"] {
+    font-family: "Segoe UI", "Noto Sans Arabic", Tahoma, sans-serif;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--surface-4);
+    border-radius: 8px;
+    border: 2px solid var(--surface-0);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--border-strong);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+@layer utilities {
+  .surface-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+  }
+
+  .surface-panel {
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+  }
+
+  /* Elevation, as a preference rather than a per-component decision. */
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  /* The bed a photo or a letterboxed video sits on. */
+  .media-surface {
+    background: var(--media-bg);
+  }
+
+  /* Long-form post text: never clip words, keep URLs from overflowing. */
+  .post-text {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Short, purposeful motion only — nothing that fights scrolling. */
+@keyframes ffn-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ffn-rise {
+  animation: ffn-rise 0.22s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>FeedList scroll measurement</title>
+  </head>
+  <body>
+    <!--
+      A measuring rig, not part of the application.
+
+      It exists because the numbers Phase 11 asks for are frame times and live
+      DOM node counts, and neither can be obtained from jsdom: there is no
+      compositor there, so any millisecond figure it produced would describe the
+      test double rather than the feed. This page mounts the real FeedList in a
+      real engine, and `perf/README.md` records how to run it at two commits so
+      the before and after are the same instrument.
+    -->
+    <div id="root"></div>
+    <script type="module" src="/perf/feed-harness.tsx"></script>
+  </body>
+</html>

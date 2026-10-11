@@ -1,0 +1,38 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+dist-ios/
+*.local
+
+# Apple build and signing outputs. The generated Xcode project is recreated by
+# the CI workflow; signing material and exported archives must never be committed.
+src-tauri/gen/apple/
+*.ipa
+*.p8
+*.p12
+*.mobileprovision
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Scratch worktrees used to run parallel work. The branches are real; these
+# checkouts are disposable and must never be committed into the tree they
+# branch from.
+.worktrees/

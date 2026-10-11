@@ -1,0 +1,87 @@
+[package]
+name = "focus-feed-next"
+version = "0.8.3"
+description = "Focus Feed Next - a standalone, focus-oriented desktop reader for X"
+authors = ["Focus Feed Next"]
+license = "MIT"
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+default = []
+# Opt-in development build that can serve fixture content instead of live X
+# data. Never enabled for a release: with this feature off there is no code
+# path at all that can put fabricated posts in front of a user.
+dev-mock = []
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.11.3", features = [] }
+tauri-plugin-log = "2"
+tauri-plugin-ios-reader = { path = "plugins/ios-reader" }
+rusqlite = { version = "0.40.1", features = ["bundled"] }
+chrono = { version = "0.4.45", features = ["serde"] }
+tokio = { version = "1.53.1", features = [
+    "process",
+    "time",
+    "rt",
+    "rt-multi-thread",
+    "macros",
+    "sync",
+    "net",
+    "io-util",
+] }
+
+# The loopback media proxy. WebView2 refuses X's video CDN URLs directly
+# (MEDIA_ERR_SRC_NOT_SUPPORTED), so the bytes are streamed through a
+# 127.0.0.1 server bound to a random port. hyper alone is enough for a single
+# route â€” axum's router would be dependency weight for one path pattern.
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "server"] }
+http-body-util = "0.1"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+# `native-tls` on purpose: it uses the operating system trust store (Schannel
+# on Windows, Security Framework on iOS) rather than bundling a root set that
+# would then need its own update path.
+reqwest = { version = "0.12", default-features = false, features = [
+    "blocking",
+    "json",
+    "stream",
+    "native-tls",
+] }
+# Cryptographically random proxy secret and media ids. `getrandom` is the OS
+# entropy call itself, with no PRNG state to reason about.
+getrandom = "0.2"
+thiserror = "2.0.19"
+dirs = "6.0.0"
+
+# Credentials live in the OS credential store, never in our database or config.
+# `windows-native` is the only backend we need; it pulls in nothing but
+# windows-sys + byteorder and talks to Windows Credential Manager directly.
+# Best-effort wiping of secret buffers once they have been handed to the child
+# process. Not a security guarantee on its own â€” see SECURITY.md.
+zeroize = { version = "1.8", features = ["derive"] }
+
+# Keep the credential backend target-specific. The Windows app uses Credential
+# Manager; an iPhone archive uses Keychain for its paired companion token.
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = [
+    "windows-native",
+] }
+
+[target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = [
+    "apple-native",
+] }
