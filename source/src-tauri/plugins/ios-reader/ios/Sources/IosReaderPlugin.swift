@@ -727,7 +727,7 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
             if args.operation == "Me" {
                 self.emitStage("identity")
                 self.journal.record("request",stage:"identity",detail:["engine":"native"])
-                let job = IdentityTransport(cookies:selection.cookies,csrf:selection.csrf)
+                let job = IdentityTransport(cookies:selection.cookies,csrf:selection.csrf,expectedUserId:identity)
                 self.identityJobs[args.context.id] = job
                 job.observed = { endpoint,status in self.journal.record("response",stage:"identity",status:status,detail:["engine":"native","endpoint":endpoint]) }
                 job.start { response,cookies in
@@ -735,7 +735,7 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
                     guard reply.pending else { return }
                     let status = response["status"] as? Int ?? 0
                     let body = response["body"] ?? [:]
-                    let accepted = (200..<300).contains(status) && IdentityTransport.hasIdentity(body)
+                    let accepted = (200..<300).contains(status) && IdentityTransport.hasIdentity(body,expectedUserId:identity)
                     if accepted || IdentityTransport.definitive(status:status,body:body) {
                         self.installIdentityCookies(cookies,args:args,reply:reply) {
                             self.replies.removeValue(forKey:args.context.id)

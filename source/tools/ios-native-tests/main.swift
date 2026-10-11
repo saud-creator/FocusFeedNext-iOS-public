@@ -63,6 +63,9 @@ check(nativeOK.0["status"] as? Int == 200 && nativeOK.2 == 1,"native identity ve
 check(nativeOK.1.contains{$0.name == "ct0" && $0.value == "fixture-rotated"},"native identity preserves server CSRF rotation")
 let nativeAlternative = nativeIdentity("fixture-fallback")
 check(nativeAlternative.0["status"] as? Int == 200 && nativeAlternative.2 == 2 && IdentityTransport.hasIdentity(nativeAlternative.0["body"]!),"obsolete identity endpoint falls back to authenticated verify_credentials")
+let multiAccount:[String:Any] = ["users":[["user_id":"42","screen_name":"fixture"],["user_id":"43","screen_name":"other"]]]
+check(!IdentityTransport.hasIdentity(multiAccount) && IdentityTransport.hasIdentity(multiAccount,expectedUserId:"42"),"ambiguous account arrays need an explicit active identity or another endpoint")
+check(!IdentityTransport.hasIdentity(["id_str":"43","screen_name":"other"],expectedUserId:"42"),"native identity must match the captured active account")
 let denied = nativeIdentity("fixture-denied")
 check(denied.0["status"] as? Int == 401 && denied.2 == 1,"authentication refusals are not retried or hidden")
 let limited = nativeIdentity("fixture-limited")

@@ -18,13 +18,14 @@ final class IdentityTransport: NSObject, URLSessionDataDelegate {
     private var index = 0
     private var retries = 0
     private let baseURL: URL
+    private let expectedUserId: String?
     private var csrf: String
     private let started = Date()
     private var cookies: [HTTPCookie]
     var observed: ((Int, Int?) -> Void)?
 
-    init(cookies: [HTTPCookie], csrf: String, baseURL: URL = URL(string: "https://x.com")!) {
-        self.cookies = cookies; self.csrf = csrf; self.baseURL = baseURL
+    init(cookies: [HTTPCookie], csrf: String, expectedUserId: String? = nil, baseURL: URL = URL(string: "https://x.com")!) {
+        self.cookies = cookies; self.csrf = csrf; self.expectedUserId = expectedUserId; self.baseURL = baseURL
         super.init()
         let config = URLSessionConfiguration.ephemeral
         config.urlCache = nil; config.requestCachePolicy = .reloadIgnoringLocalCacheData
@@ -72,13 +73,27 @@ final class IdentityTransport: NSObject, URLSessionDataDelegate {
         let errors = (body as? [String: Any])?["errors"] as? [[String: Any]] ?? []
         return status == 401 || status == 429 || errors.contains { [32, 89, 215, 326, 88].contains($0["code"] as? Int ?? 0) }
     }
-    static func hasIdentity(_ body: Any) -> Bool {
+    static func hasIdentity(_ body: Any, expectedUserId: String? = nil) -> Bool {
         let dictionary = body as? [String: Any]
         let rows = dictionary?["users"] as? [[String: Any]] ?? body as? [[String: Any]] ?? (dictionary.map { [$0] } ?? [])
-        return rows.contains { row in
-            let user = row["user"] as? [String: Any] ?? row
-            return user["screen_name"] is String && ["user_id", "id_str", "rest_id", "id"].contains { user[$0] != nil }
+        let users = rows.map { $0["user"] as? [String: Any] ?? $0 }
+        func id(_ user: [String: Any]) -> String? {
+            for key in ["user_id","id_str","rest_id","id"] {
+                if let value = user[key] as? String { return value }
+                if let value = user[key] as? NSNumber { return value.stringValue }
+            }
+            return nil
         }
+        let candidates: [[String: Any]]
+        if let expected = expectedUserId { candidates = users.filter { id($0) == expected } }
+        else {
+            let active = users.filter { $0["is_active"] as? Bool == true }
+            candidates = active.count == 1 ? active : users
+        }
+        guard candidates.count == 1, let user = candidates.first, let value = id(user), !value.isEmpty,
+              value.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }),
+              let username = user["screen_name"] as? String, !username.isEmpty, username.count <= 15 else { return false }
+        return username.utf8.allSatisfy { ($0 >= 65 && $0 <= 90) || ($0 >= 97 && $0 <= 122) || ($0 >= 48 && $0 <= 57) || $0 == 95 }
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard completion != nil else { return }
@@ -101,7 +116,7 @@ final class IdentityTransport: NSObject, URLSessionDataDelegate {
             }
         }
         if error == nil, !oversize, !Self.definitive(status: status, body: body),
-           !(200..<300).contains(status) || !Self.hasIdentity(body), index == 0 {
+           !(200..<300).contains(status) || !Self.hasIdentity(body,expectedUserId:expectedUserId), index == 0 {
             index = 1; send(); return
         }
         var result: [String: Any] = ["status": status, "body": body]
