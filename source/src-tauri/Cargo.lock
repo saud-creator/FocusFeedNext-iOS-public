@@ -439,7 +439,7 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-utils"
-version = "0.8.32"
+version = "0.8.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61803da095bee82a81bb1a452ecc25d3b2f1416d1897eb86430c6159ef717c17"
 
@@ -623,7 +623,7 @@ dependencies = [
 
 [[package]]
 name = "dlopen2"
-version = "0.8.3"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e2c5bd4158e66d1e215c49b837e11d62f3267b30c92f1d171c4d3105e3dc4d4"
 dependencies = [
@@ -1836,7 +1836,7 @@ checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
 name = "litemap"
-version = "0.8.3"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0"
 
@@ -2786,7 +2786,7 @@ dependencies = [
 
 [[package]]
 name = "schemars"
-version = "0.8.32"
+version = "0.8.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fbf2ae1b8bc8e02df939598064d22402220cd5bbcca1c76f7d6a310974d5615"
 dependencies = [
@@ -2825,7 +2825,7 @@ dependencies = [
 
 [[package]]
 name = "schemars_derive"
-version = "0.8.32"
+version = "0.8.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32e265784ad618884abaea0600a9adf15393368d840e0222d101a072f3f7534d"
 dependencies = [
@@ -3305,7 +3305,7 @@ dependencies = [
  "cfg-expr",
  "heck 0.5.0",
  "pkg-config",
- "toml 0.8.3",
+ "toml 0.8.2",
  "version-compare",
 ]
 
@@ -3429,7 +3429,7 @@ dependencies = [
  "glob",
  "heck 0.5.0",
  "json-patch",
- "schemars 0.8.32",
+ "schemars 0.8.22",
  "semver",
  "serde",
  "serde_json",
@@ -3488,7 +3488,7 @@ dependencies = [
  "anyhow",
  "glob",
  "plist",
- "schemars 0.8.32",
+ "schemars 0.8.22",
  "serde",
  "serde_json",
  "tauri-utils",
@@ -3600,7 +3600,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "regex",
- "schemars 0.8.32",
+ "schemars 0.8.22",
  "semver",
  "serde",
  "serde-untagged",
@@ -3797,7 +3797,7 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.8.3"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "185d8ab0dfbb35cf1399a6344d8484209c088f75f8f68230da55d48d95d43e3d"
 dependencies = [
@@ -4919,7 +4919,7 @@ dependencies = [
 
 [[package]]
 name = "yoke-derive"
-version = "0.8.3"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de844c262c8848816172cef550288e7dc6c7b7814b4ee56b3e1553f275f1858e"
 dependencies = [
