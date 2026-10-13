@@ -49,6 +49,9 @@ export const SEEK_STEP = 5;
 export const VOLUME_STEP = 0.1;
 
 export interface FullscreenVideoControlsProps {
+  touchLayout?: boolean;
+  enabled?: boolean;
+  onMenuChange?: (open: boolean) => void;
   playing: boolean;
   /** Playhead position, in seconds. */
   time: number;
@@ -90,6 +93,9 @@ const TARGET =
   "focus-visible:outline-white/70 transition-colors cursor-pointer size-11";
 
 export function FullscreenVideoControls({
+  touchLayout = false,
+  enabled = true,
+  onMenuChange,
   playing,
   time,
   duration,
@@ -114,6 +120,7 @@ export function FullscreenVideoControls({
 }: FullscreenVideoControlsProps) {
   const { t } = useI18n();
   const [menu, setMenu] = useState<"none" | "speed" | "quality">("none");
+  useEffect(() => { onMenuChange?.(menu !== 'none'); }, [menu,onMenuChange]);
 
   const hasDuration = Number.isFinite(duration) && duration > 0;
   const canChooseQuality = hasQualityChoice(qualities);
@@ -153,20 +160,18 @@ export function FullscreenVideoControls({
       onPointerMove={onActivity}
       className={cn(
         "absolute inset-0 z-10 flex flex-col justify-between pointer-events-none",
-        "transition-opacity duration-200 motion-reduce:transition-none",
-        visible ? "opacity-100" : "opacity-0",
       )}
     >
       {/* Top: leaving, said plainly. An icon alone at the corner of a black
           screen is a guess; this one is a labelled button. */}
-      <div className="flex justify-end p-4 sm:p-6 bg-gradient-to-b from-black/70 to-transparent">
+      <div className="flex justify-end pt-[max(12px,env(safe-area-inset-top))] pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] pb-3 bg-gradient-to-b from-black/70 to-transparent">
         <button
           type="button"
           onClick={onExit}
           aria-label={t("post.video.exitFullscreen")}
           data-testid="video-exit-fullscreen"
           className={cn(
-            reachable,
+            "pointer-events-auto touch-manipulation",
             "inline-flex items-center gap-2 rounded-full",
             "bg-black/60 hover:bg-black/80 border border-white/25",
             "px-4 h-11 text-[15px] font-medium text-white cursor-pointer",
@@ -179,16 +184,18 @@ export function FullscreenVideoControls({
       </div>
 
       {/* Bottom: the transport. */}
-      <div
+      {enabled && <div
         role="group"
         aria-label={t("post.video.controls")}
         className={cn(
           reachable,
+          "transition-opacity duration-200 motion-reduce:transition-none",
+          visible ? "opacity-100" : "opacity-0",
           "bg-gradient-to-t from-black/90 via-black/70 to-transparent",
           // Generous padding so nothing sits against the edge of the display,
           // and safe-area insets for a view whose window has none to spare.
-          "px-[max(1.5rem,env(safe-area-inset-left))] pt-14",
-          "pb-[max(1.5rem,env(safe-area-inset-bottom))]",
+          "pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-10",
+          "pb-[max(1rem,env(safe-area-inset-bottom))]",
         )}
       >
         {hasDuration ? (
@@ -256,7 +263,7 @@ export function FullscreenVideoControls({
             <VolumeIcon className="size-5" />
           </button>
 
-          <input
+          {!touchLayout && <input
             type="range"
             min={0}
             max={1}
@@ -269,7 +276,7 @@ export function FullscreenVideoControls({
             aria-label={t("a11y.video.volume")}
             data-testid="video-volume"
             className="h-9 w-24 sm:w-32 cursor-pointer accent-[var(--accent)]"
-          />
+          />}
 
           <span
             data-testid="video-fullscreen-time"
@@ -282,7 +289,8 @@ export function FullscreenVideoControls({
               : formatClock(time)}
           </span>
 
-          <div className="ms-auto flex items-center gap-2">
+          <div className={cn('ms-auto flex items-center gap-2',touchLayout && 'basis-full justify-end')}>
+            {touchLayout && <span className="me-auto text-xs text-white/70">{t('post.video.hardwareVolume')}</span>}
             <button
               type="button"
               onClick={onToggleLoop}
@@ -381,7 +389,7 @@ export function FullscreenVideoControls({
             </div>
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

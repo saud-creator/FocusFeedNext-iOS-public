@@ -2,7 +2,7 @@
 import argparse, hashlib, json, plistlib, struct, zipfile
 from pathlib import Path
 parser = argparse.ArgumentParser()
-parser.add_argument('ipa',type=Path);parser.add_argument('--version',default='0.8.4');parser.add_argument('--output',type=Path)
+parser.add_argument('ipa',type=Path);parser.add_argument('--version',default='0.8.5');parser.add_argument('--output',type=Path)
 args=parser.parse_args()
 with zipfile.ZipFile(args.ipa) as archive:
     assert archive.testzip() is None, 'Archive CRC failure'

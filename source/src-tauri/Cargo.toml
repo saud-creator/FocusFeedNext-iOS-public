@@ -1,6 +1,6 @@
 [package]
 name = "focus-feed-next"
-version = "0.8.4"
+version = "0.8.5"
 description = "Focus Feed Next - a standalone, focus-oriented desktop reader for X"
 authors = ["Focus Feed Next"]
 license = "MIT"
@@ -85,3 +85,8 @@ keyring = { version = "3.6.3", default-features = false, features = [
 keyring = { version = "3.6.3", default-features = false, features = [
     "apple-native",
 ] }
+
+# Linux unit tests use the keyring crate's in-memory mock backend. Production
+# credential backends remain the target-specific Windows and Apple entries.
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+keyring = { version = "3.6.3", default-features = false }

@@ -28,8 +28,8 @@ export default defineConfig({
     },
   },
   build: {
-    // WebView2 on Windows supports modern output.
-    target: 'esnext',
+    // Match the minimum supported iOS WebKit as well as desktop WebView2.
+    target: ['safari16', 'chrome109'],
     chunkSizeWarningLimit: 1200,
   },
 })

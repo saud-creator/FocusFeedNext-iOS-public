@@ -388,6 +388,7 @@ describe("fullscreen controls get out of the way", () => {
   /** Fake timers and userEvent do not mix; the click is direct here. */
   function enterFullscreen() {
     fireEvent.click(screen.getByTestId("video-enter-fullscreen"));
+    fireEvent.play(element());
     return screen.getByTestId("video-fullscreen-controls");
   }
 
@@ -459,6 +460,24 @@ describe("fullscreen controls get out of the way", () => {
       vi.advanceTimersByTime(CONTROLS_IDLE_MS * 3);
     });
     expect(screen.getByTestId("video-controls")).toBeInTheDocument();
+  });
+
+  it('keeps exit reachable while the transport controls fade',()=>{
+    renderWithProviders(<VideoPlayer media={video()} />);
+    enterFullscreen();
+    act(()=>vi.advanceTimersByTime(CONTROLS_IDLE_MS));
+    expect(screen.getByTestId('video-exit-fullscreen')).toHaveClass('pointer-events-auto');
+    fireEvent.click(screen.getByTestId('video-exit-fullscreen'));
+    expect(surface()).toHaveAttribute('data-fullscreen','false');
+  });
+
+  it('wakes hidden controls on a tap without pausing the video',()=>{
+    renderWithProviders(<VideoPlayer media={video()} />);
+    enterFullscreen();
+    act(()=>vi.advanceTimersByTime(CONTROLS_IDLE_MS));
+    fireEvent.click(surface());
+    expect(pause).not.toHaveBeenCalled();
+    expect(screen.getByTestId('video-fullscreen-controls')).toHaveAttribute('data-visible','true');
   });
 });
 

@@ -61,6 +61,8 @@ import { useAppStore } from "@/stores/useAppStore";
 import { usePlatform } from '@/lib/platform';
 import { useEffectivePolicy } from '@/lib/runtime';
 import { useNativeOverlay } from '@/lib/nativeOverlay';
+import { enterNativeVideoFullscreen, leaveNativeVideoFullscreen, onNativeVideoFullscreen } from '@/components/media/nativeVideoFullscreen';
+import { InlineVideoSettings } from '@/components/media/InlineVideoSettings';
 import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
 
@@ -72,31 +74,10 @@ const SPEEDS = [0.25, 0.5, 1, 1.5, 2];
 
 type Status = "idle" | "loading" | "buffering" | "playing" | "paused" | "error";
 
-/**
- * Custom video player. Deliberately original chrome — not X's controls.
- *
- * ## What 0.1.0 got wrong
- *
- * The old player treated the mock fixture shape as the real one and reported a
- * flat "This video could not be played" for every failure, which made a
- * decodable-source problem, a dead network and an expired link indistinguishable.
- * It also never released a video that scrolled out of view, so a long feed kept
- * every decoder alive at once.
- *
- * This version keeps one source of truth — `qualityOptions`, which is
- * `playableSources` with the provider's labels attached — surfaces the DOM's
- * actual `MediaError` code as a specific sentence, and unmounts the element
- * entirely when the card leaves the viewport.
- *
- * ## Two layouts, one element
- *
- * Fullscreen is not the card scaled up. It has its own chrome
- * (`FullscreenVideoControls`), and the compact bar is not rendered at all while
- * it is up. What is *not* duplicated is the `<video>`: the frame itself is the
- * element handed to the Fullscreen API, so entering and leaving move the same
- * decoder in and out of the top layer instead of mounting a second one, and
- * playback carries across without a reload or a second request.
- */
+/** One decoder shared by inline controls and fullscreen. iPhone uses its
+ * native video presentation when available; other hosts use a full-window
+ * layout with an exit that remains available during errors. Off-screen media
+ * is released, and source changes preserve the playhead and playback intent. */
 export function VideoPlayer({
   media,
   defaultSpeed,
@@ -141,6 +122,9 @@ export function VideoPlayer({
   } | null>(null);
   const [speed, setSpeed] = useState(defaultSpeed ?? prefs.defaultSpeed);
   const [showSpeed, setShowSpeed] = useState(false);
+  const [fullscreenMenuOpen, setFullscreenMenuOpen] = useState(false);
+  const errorProbe = useRef<AbortController | null>(null);
+  const revealTap = useRef(false);
   const [nonce, setNonce] = useState(0);
   // Keep the element mounted in a generous nearby runway so it can fetch
   // metadata before the reader reaches it. A second, tighter observer below
@@ -151,6 +135,10 @@ export function VideoPlayer({
   const [fullscreen, setFullscreen] = useState(false);
   /** Whether the browser granted a real fullscreen, as opposed to our own. */
   const [nativeFullscreen, setNativeFullscreen] = useState(false);
+  const [videoFullscreen, setVideoFullscreen] = useState(false);
+  const videoFullscreenRef = useRef(false);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const resumePlaying = useRef(false);
   useNativeOverlay(fullscreen);
   useEffect(() => { if (!policy.foreground) { ref.current?.pause(); } }, [policy.foreground]);
   /** Keep the player in its card while a browser fullscreen request settles. */
@@ -158,6 +146,7 @@ export function VideoPlayer({
   const nativeRef = useRef(false);
   /** Lets Escape/click exit win over a late request promise. */
   const nativeRequestId = useRef(0);
+  const wantsFullscreen = useRef(false);
   /** The host stays the same so moving it never remounts the video element. */
   const fullscreenHost = useMemo(() => {
     if (typeof document === "undefined") return null;
@@ -208,7 +197,8 @@ export function VideoPlayer({
   // when the card behind it has scrolled away.
   const mounted = policy.foreground && (visible || !policy.cleanup || fullscreen);
   const useBodyFullscreenLayer =
-    fullscreen && !nativeFullscreen && !nativeRequestPending;
+    fullscreen && !videoFullscreen && !nativeFullscreen && !nativeRequestPending;
+  const expandedLayout = fullscreen && !videoFullscreen;
 
   // The feed's <main> is scrollable and carries an entrance animation. A fixed
   // descendant can be clipped or positioned against that scroller, especially
@@ -241,28 +231,30 @@ export function VideoPlayer({
   // Focus after the host has moved, so keyboard controls keep working in the
   // body-level fallback as well as in the native top layer.
   useEffect(() => {
-    if (!fullscreen) return;
+    if (!expandedLayout) return;
     try {
       frameRef.current?.focus();
     } catch {
       // A host can detach the frame during the transition; pointer controls
       // remain available and the fullscreen layout is still valid.
     }
-  }, [fullscreen, nativeFullscreen, useBodyFullscreenLayer]);
+  }, [expandedLayout, nativeFullscreen, useBodyFullscreenLayer]);
   // Reserve the first layout box before metadata arrives. Without this, an
   // initially mounted video can report an intrinsic height of zero and then
   // expand after decode, forcing the virtualizer to remeasure the feed while
   // the reader is moving through it.
   const mediaRatio =
-    media.width && media.height
+    decodedSize ? `${decodedSize.width}/${decodedSize.height}` : media.width && media.height
       ? `${media.width}/${media.height}`
       : VIDEO_FALLBACK_RATIO;
 
-  const { visible: chromeVisible, wake } = useAutoHideControls(fullscreen);
+  const { visible: chromeVisible, wake } = useAutoHideControls(expandedLayout && status === 'playing' && !fullscreenMenuOpen);
+  useEffect(() => () => { errorProbe.current?.abort(); }, [src,nonce]);
 
   useEffect(() => {
     const el = frameRef.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") { setVisible(true); return; }
     const io = new IntersectionObserver(
       ([entry]) => setVisible(entry.isIntersecting),
       // A bounded runway keeps one nearby metadata request useful without
@@ -275,7 +267,8 @@ export function VideoPlayer({
 
   useEffect(() => {
     const el = frameRef.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") { setInViewport(true); return; }
     const io = new IntersectionObserver(
       ([entry]) => {
         // The small fallback keeps the jsdom test seam and older WebView2
@@ -318,6 +311,7 @@ export function VideoPlayer({
       autoplayRequested.current = false;
       autoplaying.current = false;
       releasePlayback(el);
+      el.pause();
     };
   }, [mounted, nonce, isGif, sourceIndex]);
 
@@ -398,6 +392,7 @@ export function VideoPlayer({
     const fallback = classifyMediaError(code);
     setErrorKind(fallback);
     setStatus("error");
+    wake();
 
     // The element reports every proxy failure as the same opaque
     // "source not supported". One HEAD against the same URL tells us whether
@@ -405,12 +400,16 @@ export function VideoPlayer({
     // undecodable — so the message can name the actual cause.
     const url = sources[sourceIndex];
     if (!url || !isProxiedMedia(url)) return;
-    void fetch(url, { method: "HEAD" })
+    errorProbe.current?.abort();
+    const probe = new AbortController(); errorProbe.current = probe;
+    const deadline = window.setTimeout(() => probe.abort(),8000);
+    void fetch(url, { method: "HEAD", signal:probe.signal })
       .then((res) => {
-        if (!res.ok) setErrorKind(classifyProxyFailure(res.status));
+        if (!probe.signal.aborted && !res.ok) setErrorKind(classifyProxyFailure(res.status));
       })
-      .catch(() => setErrorKind("proxyUnavailable"));
-  }, [sourceIndex, sources, policy.videoQuality]);
+      .catch(() => { if (!probe.signal.aborted) setErrorKind("proxyUnavailable"); })
+      .finally(() => window.clearTimeout(deadline));
+  }, [sourceIndex, sources, policy.videoQuality, wake]);
 
   const retry = () => {
     if (retries >= MAX_RETRIES) return;
@@ -429,7 +428,12 @@ export function VideoPlayer({
       userPaused.current = false;
       autoplaying.current = false;
       claimPlayback(el);
-      void el.play().catch(onError);
+      void el.play().catch((error: unknown) => {
+        if (error instanceof DOMException && ['NotAllowedError','AbortError'].includes(error.name)) {
+          releasePlayback(el); setStatus('paused'); return;
+        }
+        onError();
+      });
     } else {
       userPaused.current = true;
       autoplaying.current = false;
@@ -446,7 +450,8 @@ export function VideoPlayer({
           : duration;
       const limit = Number.isFinite(total) && total > 0 ? total : seconds;
       const next = Math.min(limit, Math.max(0, seconds));
-      if (el) el.currentTime = next;
+      if (!Number.isFinite(next)) return;
+      if (el) { try { el.currentTime = next; } catch { return; } }
       setTime(next);
     },
     [duration],
@@ -487,6 +492,8 @@ export function VideoPlayer({
     // The element is keyed on its source, so this replaces it; `resumeAt`,
     // captured on the way out, puts the playhead back where it was.
     autoplayRequested.current = false;
+    resumeAt.current = ref.current?.currentTime ?? resumeAt.current;
+    resumePlaying.current = ref.current ? !ref.current.paused : false;
     setSourceIndex(index);
   }, []);
 
@@ -495,18 +502,56 @@ export function VideoPlayer({
   // ---------------------------------------------------------------------
 
   const exit = useCallback(() => {
+    wantsFullscreen.current = false;
     nativeRequestId.current += 1;
     setFullscreen(false);
     setNativeFullscreen(false);
     setNativeRequestPending(false);
+    setVideoFullscreen(false);
+    const wasVideo = videoFullscreenRef.current;
+    videoFullscreenRef.current = false;
+    if (wasVideo) leaveNativeVideoFullscreen(ref.current);
     const wasNative = nativeRef.current;
     nativeRef.current = false;
     if (wasNative) void leaveFullscreen();
+    const target = returnFocus.current;
+    if (target?.isConnected) window.requestAnimationFrame(() => target.focus({preventScroll:true}));
+  }, []);
+
+  useEffect(() => {
+    const video = ref.current;
+    if (!video || !isIphone) return;
+    const remove = onNativeVideoFullscreen(video, () => {
+      wantsFullscreen.current = true;
+      videoFullscreenRef.current = true;
+      setVideoFullscreen(true); setFullscreen(true); setNativeRequestPending(false);
+    }, exit);
+    return () => {
+      remove();
+      if (videoFullscreenRef.current) {
+        videoFullscreenRef.current = false; wantsFullscreen.current = false;
+        leaveNativeVideoFullscreen(video); setVideoFullscreen(false); setFullscreen(false);
+      }
+    };
+  }, [isIphone, mounted, nonce, src, exit]);
+
+  useEffect(() => () => {
+    wantsFullscreen.current = false;
+    nativeRequestId.current += 1;
+    if (nativeRef.current) void leaveFullscreen();
   }, []);
 
   const enter = useCallback(() => {
+    wantsFullscreen.current = true;
     const requestId = ++nativeRequestId.current;
     const frame = frameRef.current;
+    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setShowSpeed(false);
+    if (isIphone && enterNativeVideoFullscreen(ref.current)) {
+      videoFullscreenRef.current = true;
+      setVideoFullscreen(true); setNativeRequestPending(false); setFullscreen(true);
+      return;
+    }
     // The DOM Fullscreen API is not safe in the shipped WebView2 shell on
     // some Windows builds: the host can terminate the renderer while the
     // request is being promoted to the native top layer, before JavaScript
@@ -521,7 +566,7 @@ export function VideoPlayer({
       // original click gesture. The stable host then waits for the result
       // before choosing native or body-level CSS fullscreen.
       void enterFullscreen(frame).then((granted) => {
-        if (nativeRequestId.current !== requestId) return;
+        if (nativeRequestId.current !== requestId) { if (granted && isNativelyFullscreen(frame)) void leaveFullscreen(); return; }
         nativeRef.current = granted;
         setNativeFullscreen(granted);
         setNativeRequestPending(false);
@@ -536,12 +581,13 @@ export function VideoPlayer({
       // A host can detach the frame during the transition; fullscreen itself
       // is still valid and the controls remain reachable by pointer.
     }
-  }, []);
+  }, [isIphone]);
 
   const toggleFullscreen = useCallback(() => {
     if (fullscreen) exit();
     else enter();
   }, [fullscreen, enter, exit]);
+  useEffect(()=>{if (!sources.length && fullscreen) exit();},[sources.length,fullscreen,exit]);
 
   // The browser's own exits — Escape, the window leaving fullscreen, another
   // element taking it — arrive here and nowhere else.
@@ -549,6 +595,7 @@ export function VideoPlayer({
     () =>
       onFullscreenChange(() => {
         const isFs = isNativelyFullscreen(frameRef.current);
+        if (isFs && !wantsFullscreen.current) { void leaveFullscreen(); return; }
         if (isFs) {
           nativeRef.current = true;
           setNativeFullscreen(true);
@@ -577,6 +624,8 @@ export function VideoPlayer({
     // A chord belongs to the application, not to the player.
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     wake();
+    if (e.key !== 'Escape' && e.target !== e.currentTarget && e.target instanceof Element &&
+        e.target.closest('button,input,select,textarea,[role="menuitemradio"]')) return;
 
     const take = () => {
       e.preventDefault();
@@ -677,16 +726,17 @@ export function VideoPlayer({
       tabIndex={-1}
       onKeyDown={onKeyDown}
       onPointerMove={fullscreen ? wake : undefined}
+      onPointerDown={(event)=>{revealTap.current=expandedLayout && event.pointerType !== 'mouse' && !chromeVisible; if(revealTap.current) wake();}}
       // The whole frame is the play/pause target, not the <video> alone: the
       // controls, the buffering badge and the letterbox bars all sit over the
       // picture, and a reader aiming at "the video" hits one of them as often
       // as not. Everything that is itself a control stops the click here (see
       // the handlers below) so it never means two things at once.
-      onClick={prefs.videoClickToggle ? toggle : undefined}
+      onClick={expandedLayout ? () => { if (!chromeVisible || revealTap.current) { revealTap.current=false; wake(); return; } wake(); if (prefs.videoClickToggle) toggle(); } : prefs.videoClickToggle ? toggle : undefined}
       className={cn(
         "relative overflow-hidden bg-black group outline-none",
         prefs.videoClickToggle && "cursor-pointer",
-        fullscreen
+        expandedLayout
           ? // Native fullscreen already fills the display; the fixed inset is
             // for the case where the request was refused, so the layout the
             // reader asked for still arrives.
@@ -694,13 +744,13 @@ export function VideoPlayer({
               "flex items-center justify-center",
               nativeFullscreen
                 ? "h-full w-full"
-                : "fixed inset-0 z-[100] h-screen w-screen",
+                : "video-fullscreen-surface fixed inset-0 z-[200]",
               !chromeVisible && "cursor-none",
             )
           : "w-full rounded-xl border border-edge",
       )}
       style={
-        !fullscreen ? { aspectRatio: mediaRatio, maxHeight: 520 } : undefined
+        !expandedLayout ? { aspectRatio: mediaRatio, maxHeight: isIphone ? 'min(65svh, 520px)' : 520 } : undefined
       }
       {...(fullscreen
         ? { role: "region", "aria-label": t("a11y.video.fullscreenPlayer") }
@@ -751,13 +801,15 @@ export function VideoPlayer({
             if (isGif) return;
             rememberVolume(e.currentTarget.volume);
             rememberMuted(e.currentTarget.muted);
+            setMuted(e.currentTarget.muted);
+            if (!isIphone) setVolume(e.currentTarget.volume);
           }}
           onPause={(e) => {
             releasePlayback(e.currentTarget);
             setStatus("paused");
           }}
           onTimeUpdate={(e) => {
-            setTime(e.currentTarget.currentTime);
+            setTime(Number.isFinite(e.currentTarget.currentTime) ? e.currentTarget.currentTime : 0);
             setBuffered(bufferedAhead(e.currentTarget));
           }}
           onProgress={(e) => setBuffered(bufferedAhead(e.currentTarget))}
@@ -767,7 +819,7 @@ export function VideoPlayer({
             if (el.videoWidth > 0 && el.videoHeight > 0) {
               setDecodedSize({ width: el.videoWidth, height: el.videoHeight });
             }
-            setStatus("paused");
+            setStatus(el.paused ? "paused" : "playing");
             // Continue where the previous element left off. Only ever a seek
             // within the source already being fetched, never a second load.
             const at = resumeAt.current;
@@ -775,8 +827,12 @@ export function VideoPlayer({
               at > 0.5 &&
               (!Number.isFinite(el.duration) || at < el.duration)
             ) {
-              el.currentTime = at;
-              setTime(at);
+              try { el.currentTime = at; setTime(at); } catch { /* A not-yet-seekable source keeps its current position. */ }
+            }
+            if (resumePlaying.current) {
+              resumePlaying.current = false;
+              claimPlayback(el);
+              void el.play().catch(() => { releasePlayback(el); setStatus('paused'); });
             }
           }}
           onError={onError}
@@ -846,8 +902,11 @@ export function VideoPlayer({
       {/* One layout or the other, never both: the compact bar is not rendered
           at all in fullscreen, so there is nothing left of the card's chrome to
           stretch across the display. */}
-      {status !== "error" && mounted && fullscreen ? (
+      {expandedLayout ? (
         <FullscreenVideoControls
+          touchLayout={isIphone}
+          enabled={status !== 'error' && mounted}
+          onMenuChange={setFullscreenMenuOpen}
           playing={playing}
           time={time}
           duration={duration}
@@ -900,7 +959,7 @@ export function VideoPlayer({
             />
           ) : null}
           <div className="flex flex-wrap items-center gap-1 mt-1 text-white/90">
-            {hasDuration && <button type="button" aria-label={t('post.video.back10')} onClick={() => seekTo((ref.current?.currentTime ?? time)-10)} className="inline-flex items-center justify-center"><RotateCcw className="size-4" /></button>}
+            {hasDuration && !isIphone && <button type="button" aria-label={t('post.video.back10')} onClick={() => seekTo((ref.current?.currentTime ?? time)-10)} className="inline-flex items-center justify-center"><RotateCcw className="size-4" /></button>}
             <button
               type="button"
               onClick={toggle}
@@ -915,7 +974,7 @@ export function VideoPlayer({
                 <Play className="size-4" />
               )}
             </button>
-            {hasDuration && <button type="button" aria-label={t('post.video.forward10')} onClick={() => seekTo((ref.current?.currentTime ?? time)+10)} className="inline-flex items-center justify-center"><RotateCw className="size-4" /></button>}
+            {hasDuration && !isIphone && <button type="button" aria-label={t('post.video.forward10')} onClick={() => seekTo((ref.current?.currentTime ?? time)+10)} className="inline-flex items-center justify-center"><RotateCw className="size-4" /></button>}
             <button
               type="button"
               onClick={toggleMute}
@@ -935,6 +994,7 @@ export function VideoPlayer({
             </span>
 
             <div className="ms-auto flex items-center gap-2">
+              {isIphone ? <InlineVideoSettings speed={speed} speeds={SPEEDS} qualities={qualities} qualityIndex={sourceIndex} loop={loop} onSpeed={setSpeed} onQuality={chooseQuality} onLoop={toggleLoop} /> : <>
               <button
                 type="button"
                 onClick={toggleLoop}
@@ -977,6 +1037,7 @@ export function VideoPlayer({
                   </div>
                 ) : null}
               </div>
+              </>}
               <button
                 type="button"
                 onClick={enter}

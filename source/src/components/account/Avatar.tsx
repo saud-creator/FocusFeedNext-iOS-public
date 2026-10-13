@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -62,15 +62,19 @@ export function Avatar({
   className?: string;
   style?: CSSProperties;
 }) {
-  return author.avatarUrl ? (
+  const [failedSource, setFailedSource] = useState<string | null>(null);
+  const source = author.avatarUrl?.trim();
+  return source && source !== failedSource ? (
     <img
-      src={author.avatarUrl}
+      key={source}
+      src={source}
       alt=""
       width={size}
       height={size}
       loading="lazy"
       decoding="async"
       draggable={false}
+      onError={() => setFailedSource(source)}
       className={cn(
         "rounded-full object-cover shrink-0 bg-surface-3",
         className,

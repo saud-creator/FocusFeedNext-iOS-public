@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 if [[ "$(uname -s)" != Darwin ]]; then
-  echo 'An iOS device build requires macOS and Xcode. Windows cannot compile this IPA.' >&2
+  echo 'An iOS device build requires macOS and Xcode. This environment cannot compile an iPhone executable.' >&2
   exit 1
 fi
 xcrun --sdk iphoneos --show-sdk-path >/dev/null
@@ -57,7 +57,7 @@ trap 'rm -rf "$staging"' EXIT
 mkdir -p "$staging/Payload"
 ditto "$app" "$staging/Payload/$(basename "$app")"
 packaged_app="$staging/Payload/$(basename "$app")"
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion 804.$build_number" "$packaged_app/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion 805.$build_number" "$packaged_app/Info.plist"
 executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$packaged_app/Info.plist")
 lipo "$packaged_app/$executable" -verify_arch arm64
 /usr/libexec/PlistBuddy -c 'Print :CFBundleSupportedPlatforms' "$packaged_app/Info.plist" | grep -q iPhoneOS

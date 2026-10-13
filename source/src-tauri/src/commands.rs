@@ -222,15 +222,7 @@ impl AppState {
     /// player reads the empty source as "local proxy unavailable".
     pub fn proxy_media(&self, posts: &mut [Post]) {
         let guard = self.proxy.lock().unwrap();
-        let Some(proxy) = guard.as_ref() else {
-            for post in posts.iter_mut() {
-                clear_media_urls(&mut post.media);
-                if let Some(quoted) = post.quoted.as_mut() {
-                    clear_media_urls(&mut quoted.media);
-                }
-            }
-            return;
-        };
+        let proxy = guard.as_ref();
         let account = self
             .session
             .account()
@@ -238,17 +230,30 @@ impl AppState {
             .unwrap_or_default();
         for post in posts.iter_mut() {
             let post_id = post.id.clone();
-            rewrite_media_urls(&self.media, proxy, &mut post.media, &post_id, &account);
+            rewrite_author_images(&self.media, proxy, &mut post.author, &account);
+            if let Some(reposter) = post.reposted_by.as_mut() {
+                rewrite_author_images(&self.media, proxy, reposter, &account);
+            }
+            if let Some(proxy) = proxy { rewrite_media_urls(&self.media, proxy, &mut post.media, &post_id, &account); }
+            else { clear_media_urls(&mut post.media); }
             if let Some(quoted) = post.quoted.as_mut() {
-                rewrite_media_urls(
-                    &self.media,
-                    proxy,
-                    &mut quoted.media,
-                    &post_id,
-                    &account,
-                );
+                rewrite_author_images(&self.media, proxy, &mut quoted.author, &account);
+                if let Some(proxy) = proxy { rewrite_media_urls(&self.media, proxy, &mut quoted.media, &post_id, &account); }
+                else { clear_media_urls(&mut quoted.media); }
             }
         }
+    }
+
+    /// Rewrite copies sent over IPC; DB/session/durable identities retain the
+    /// upstream URL so a future process can issue a fresh local registration.
+    pub fn proxy_authors(&self, authors: &mut [Author]) {
+        let guard = self.proxy.lock().unwrap();
+        let account = self.session.account().map(|a| a.username).unwrap_or_default();
+        for author in authors { rewrite_author_images(&self.media, guard.as_ref(), author, &account); }
+    }
+    fn proxy_snapshot(&self, mut snapshot: SessionSnapshot) -> SessionSnapshot {
+        if let Some(author) = snapshot.account.as_mut() { self.proxy_authors(std::slice::from_mut(author)); }
+        snapshot
     }
 
     /// Same, for a whole page.
@@ -407,6 +412,18 @@ fn clear_media_urls(media: &mut [PostMedia]) {
         item.url.clear();
         item.preview_url = None;
         item.variants.clear();
+    }
+}
+
+fn rewrite_author_images(registry: &MediaRegistry, proxy: Option<&MediaProxy>, author: &mut Author, account: &str) {
+    for source in [&mut author.avatar_url, &mut author.banner_url] {
+        *source = source.as_deref().and_then(|url| {
+            // Account images are public images, not video or arbitrary URLs.
+            let valid = crate::media_proxy::validate_media_url(url)?;
+            if !valid.starts_with("https://pbs.twimg.com/") { return None; }
+            let proxy = proxy?;
+            registry.register(valid, &author.id, account).map(|id| proxy.url_for(&id))
+        });
     }
 }
 
@@ -819,7 +836,7 @@ pub async fn sign_in_ios(state: Sh<'_>) -> Result<SessionSnapshot, AppError> {
     st.session.set_checking(false);
     st.write_in_flight.store(false, Ordering::SeqCst);
     let snapshot = outcome.map_err(|_| AppError::new(ErrorCode::ProviderUnavailable, "Sign-in could not complete. Try again."))??;
-    Ok(snapshot)
+    Ok(st.proxy_snapshot(snapshot))
 }
 
 #[tauri::command]
@@ -865,7 +882,7 @@ pub async fn connect_x_account(
         AppError::new(ErrorCode::ProviderUnavailable, e.to_string())
     })?;
     st.write_in_flight.store(false, Ordering::SeqCst);
-    let snapshot = outcome?;
+    let snapshot = st.proxy_snapshot(outcome?);
     // Connecting from Settings has the same foreground-feed race as the
     // launch path. Give the newly opened feed a short head start before the
     // background Following/Bookmarks traversals begin.
@@ -906,7 +923,7 @@ pub async fn connect_iphone_companion(
         AppError::new(ErrorCode::ProviderUnavailable, error.to_string())
     })?;
     st.write_in_flight.store(false, Ordering::SeqCst);
-    let snapshot = outcome?;
+    let snapshot = st.proxy_snapshot(outcome?);
     schedule_preload(st);
     Ok(snapshot)
 }
@@ -1040,6 +1057,7 @@ pub async fn check_session(state: Sh<'_>, force: bool) -> Result<SessionSnapshot
         tauri::async_runtime::spawn_blocking(move || check_session_blocking(&worker_state, force))
             .await
             .map_err(|e| AppError::new(ErrorCode::ProviderUnavailable, e.to_string()))??;
+    let snapshot = st.proxy_snapshot(snapshot);
     if snapshot.state == crate::session::SessionState::Connected {
         // Let the first visible feed request win the startup bandwidth race.
         // The preload is still automatic, but it is deliberately scheduled
@@ -1187,7 +1205,7 @@ fn check_session_inner(st: &AppState) -> AppResult<SessionSnapshot> {
 /// Cheap read of the current session state. Never performs I/O.
 #[tauri::command]
 pub fn session_status(state: Sh<'_>) -> Result<SessionSnapshot, AppError> {
-    Ok(state.session.snapshot_cached())
+    Ok(state.proxy_snapshot(state.session.snapshot_cached()))
 }
 
 /// Forget the connected account: delete the credentials and every cached row
@@ -1720,12 +1738,16 @@ pub fn pin_account(state: Sh<'_>, author_id: String, pinned: bool) -> Result<(),
 
 #[tauri::command]
 pub fn get_pinned_accounts(state: Sh<'_>) -> Result<Vec<Author>, AppError> {
-    state.db.pinned_accounts()
+    let mut authors = state.db.pinned_accounts()?;
+    state.proxy_authors(&mut authors);
+    Ok(authors)
 }
 
 #[tauri::command]
 pub fn get_known_accounts(state: Sh<'_>) -> Result<Vec<Author>, AppError> {
-    state.db.all_authors()
+    let mut authors = state.db.all_authors()?;
+    state.proxy_authors(&mut authors);
+    Ok(authors)
 }
 
 /// How many accounts to ask for when the caller does not say.
@@ -1776,11 +1798,12 @@ pub async fn get_following_accounts(
     .map_err(|e| AppError::new(ErrorCode::ProviderUnavailable, e.to_string()))?;
     state.ensure_account_epoch(epoch)?;
     match live {
-        Ok(list) => {
+        Ok(mut list) => {
             state.note_success();
             // Recorded as a *partial* batch: 30 accounts say nothing about the
             // ones beyond them, so nothing is pruned on the strength of it. The
             // full list is the traversal's job.
+            state.proxy_authors(&mut list);
             Ok(list)
         }
         Err(e) => {
@@ -1835,8 +1858,10 @@ pub struct FollowingSnapshot {
 /// and the progress events tell the interface when to read again.
 #[tauri::command]
 pub fn get_following_snapshot(state: Sh<'_>) -> Result<FollowingSnapshot, AppError> {
+    let mut accounts = state.db.following_accounts()?;
+    state.proxy_authors(&mut accounts);
     Ok(FollowingSnapshot {
-        accounts: state.db.following_accounts()?,
+        accounts,
         complete: state.db.get_setting(FOLLOWING_COMPLETE)?.as_deref() == Some("1"),
         syncing: state.workers.following.is_running(),
     })
@@ -2184,7 +2209,9 @@ pub fn get_group_candidates(
     group_id: String,
 ) -> Result<Vec<crate::database::GroupCandidate>, AppError> {
     let (_, group_id) = active_list_scope(state.inner(), &group_id)?;
-    state.db.group_candidates(&group_id)
+    let mut candidates = state.db.group_candidates(&group_id)?;
+    for candidate in &mut candidates { state.proxy_authors(std::slice::from_mut(&mut candidate.author)); }
+    Ok(candidates)
 }
 
 /// One account's profile, for the internal profile page.
@@ -2208,8 +2235,9 @@ pub async fn get_user_profile(state: Sh<'_>, username: String) -> Result<Author,
     .map_err(|e| AppError::new(ErrorCode::ProviderUnavailable, e.to_string()))?;
     state.ensure_account_epoch(epoch)?;
     match result {
-        Ok(author) => {
+        Ok(mut author) => {
             state.note_success();
+            state.proxy_authors(std::slice::from_mut(&mut author));
             Ok(author)
         }
         Err(e) => {
@@ -2565,7 +2593,9 @@ pub fn get_dashboard(state: Sh<'_>) -> Result<DashboardStats, AppError> {
 /// an invented placeholder when nothing is connected.
 #[tauri::command]
 pub fn get_current_user(state: Sh<'_>) -> Result<Option<Author>, AppError> {
-    Ok(state.session.account())
+    let mut author = state.session.account();
+    if let Some(author) = author.as_mut() { state.proxy_authors(std::slice::from_mut(author)); }
+    Ok(author)
 }
 
 /// Every setting the interface can read, from both stores.
@@ -4256,6 +4286,60 @@ mod tests {
         )];
         st.proxy_media(&mut posts);
         assert!(posts[0].media[0].url.is_empty());
+    }
+
+    #[test]
+    fn unavailable_image_proxy_clears_account_images_for_the_renderer() {
+        let st = state_with(Arc::new(MemoryStore::new()));
+        let mut author = Author::from_handle("reader");
+        author.avatar_url = Some("https://pbs.twimg.com/profile_images/1/avatar.jpg".into());
+        author.banner_url = Some("https://pbs.twimg.com/profile_banners/1/banner.jpg".into());
+        st.proxy_authors(std::slice::from_mut(&mut author));
+        assert!(author.avatar_url.is_none());
+        assert!(author.banner_url.is_none());
+    }
+
+    #[tokio::test]
+    async fn post_profile_quote_and_reposter_images_use_the_local_proxy() {
+        let st = state_with(Arc::new(MemoryStore::new()));
+        let proxy = MediaProxy::start(st.media.clone()).await.unwrap();
+        let st = st.with_proxy(proxy);
+        let mut author = Author::from_handle("reader");
+        author.avatar_url = Some("https://pbs.twimg.com/profile_images/1/avatar.jpg".into());
+        author.banner_url = Some("https://pbs.twimg.com/profile_banners/1/banner.jpg".into());
+        st.db.upsert_author(&author).unwrap();
+        let mut post = post_with_media(MediaKind::Image,"https://pbs.twimg.com/media/photo.jpg");
+        post.author = author.clone();
+        post.reposted_by = Some(author.clone());
+        post.quoted = Some(Box::new(QuotedPost { id:"2".into(),author:author.clone(),text:"quote".into(),created_at:None,media:vec![],url:None }));
+        st.proxy_media(std::slice::from_mut(&mut post));
+        for author in [&post.author,post.reposted_by.as_ref().unwrap(),&post.quoted.as_ref().unwrap().author] {
+            for image in [&author.avatar_url,&author.banner_url] {
+                let source = image.as_ref().unwrap();
+                assert!(source.starts_with("http://127.0.0.1:"));
+                let id = source.rsplit('/').next().unwrap();
+                assert!(st.media.lookup(id).unwrap().url.starts_with("https://pbs.twimg.com/"));
+            }
+        }
+        assert_eq!(st.db.all_authors().unwrap()[0].avatar_url,author.avatar_url);
+    }
+
+    #[tokio::test]
+    async fn renderer_identity_proxy_does_not_replace_the_session_source() {
+        let st = state_with(Arc::new(MemoryStore::new()));
+        let proxy = MediaProxy::start(st.media.clone()).await.unwrap();
+        let st = st.with_proxy(proxy);
+        let mut author = Author::from_handle("reader");
+        author.avatar_url = Some("https://pbs.twimg.com/profile_images/1/avatar.jpg".into());
+        st.session.set_account(Some(author.clone()));
+        let result = st.proxy_snapshot(st.session.snapshot_cached());
+        assert!(result.account.unwrap().avatar_url.unwrap().starts_with("http://127.0.0.1:"));
+        assert_eq!(st.session.account().unwrap().avatar_url,author.avatar_url);
+        let mut invalid = Author::from_handle("foreign");
+        invalid.avatar_url = Some("https://evil.test/avatar.jpg".into());
+        invalid.banner_url = Some("https://video.twimg.com/movie.mp4".into());
+        st.proxy_authors(std::slice::from_mut(&mut invalid));
+        assert!(invalid.avatar_url.is_none() && invalid.banner_url.is_none());
     }
 
     #[test]

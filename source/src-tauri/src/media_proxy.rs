@@ -76,7 +76,7 @@ pub const ALLOWED_ORIGINS: &[&str] = &[
 
 /// Upper bound on live registrations. Feeds are long; without a cap the map
 /// would grow for the lifetime of the session.
-const MAX_REGISTRY_ENTRIES: usize = 1024;
+const MAX_REGISTRY_ENTRIES: usize = 4096;
 
 /// A single response may be large enough for a normal X clip but can never
 /// turn the proxy into an unbounded byte pump. Range requests are still
@@ -220,7 +220,8 @@ pub struct MediaRegistry {
 #[derive(Debug, Default)]
 struct RegistryInner {
     entries: HashMap<String, MediaEntry>,
-    /// Insertion order, for evicting the oldest once the cap is reached.
+    by_url: HashMap<String, String>,
+    /// Least recently used first, including live range requests and refreshes.
     order: Vec<String>,
 }
 
@@ -253,21 +254,22 @@ impl MediaRegistry {
 
         // The same URL in the same generation keeps its id, so re-rendering a
         // card does not leak registrations or restart a download.
-        if let Some((id, _)) = guard
-            .entries
-            .iter()
-            .find(|(_, e)| e.url == url && e.generation == generation)
-        {
-            return Some(id.clone());
+        if let Some(id) = guard.by_url.get(&url).cloned() {
+            if guard.entries.get(&id).is_some_and(|e| e.generation == generation) {
+                guard.order.retain(|old| old != &id);
+                guard.order.push(id.clone());
+                return Some(id);
+            }
         }
 
         let id = random_token(16);
         if guard.order.len() >= MAX_REGISTRY_ENTRIES {
             if let Some(oldest) = guard.order.first().cloned() {
                 guard.order.remove(0);
-                guard.entries.remove(&oldest);
+                if let Some(entry) = guard.entries.remove(&oldest) { guard.by_url.remove(&entry.url); }
             }
         }
+        guard.by_url.insert(url.clone(),id.clone());
         guard.entries.insert(
             id.clone(),
             MediaEntry {
@@ -284,12 +286,15 @@ impl MediaRegistry {
     /// Look up an id, refusing entries from a superseded generation.
     pub fn lookup(&self, id: &str) -> Option<MediaEntry> {
         let current = self.generation();
-        let guard = self.inner.lock().ok()?;
-        guard
+        let mut guard = self.inner.lock().ok()?;
+        let entry = guard
             .entries
             .get(id)
             .filter(|e| e.generation == current)
-            .cloned()
+            .cloned()?;
+        guard.order.retain(|old| old != id);
+        guard.order.push(id.to_owned());
+        Some(entry)
     }
 
     /// Register a URL that bypasses host validation, for pointing tests at a
@@ -315,7 +320,7 @@ impl MediaRegistry {
     /// id cannot be replayed.
     pub fn remove(&self, id: &str) {
         if let Ok(mut guard) = self.inner.lock() {
-            guard.entries.remove(id);
+            if let Some(entry) = guard.entries.remove(id) { guard.by_url.remove(&entry.url); }
             guard.order.retain(|x| x != id);
         }
     }
@@ -328,6 +333,7 @@ impl MediaRegistry {
         self.generation.fetch_add(1, Ordering::SeqCst);
         if let Ok(mut guard) = self.inner.lock() {
             guard.entries.clear();
+            guard.by_url.clear();
             guard.order.clear();
         }
     }
@@ -953,6 +959,23 @@ mod tests {
                 .unwrap();
         }
         assert!(reg.len() <= MAX_REGISTRY_ENTRIES, "len {}", reg.len());
+    }
+
+    #[test]
+    fn active_video_ranges_survive_account_image_churn() {
+        let registry = MediaRegistry::new();
+        let video = registry.register("https://video.twimg.com/active.mp4","1","me").unwrap();
+        let stale = registry.register("https://pbs.twimg.com/profile_images/stale.jpg","2","me").unwrap();
+        for i in 0..MAX_REGISTRY_ENTRIES + 20 {
+            assert!(registry.lookup(&video).is_some());
+            registry.register(&format!("https://pbs.twimg.com/profile_images/{i}.jpg"),"2","me").unwrap();
+        }
+        assert!(registry.lookup(&video).is_some());
+        assert!(registry.lookup(&stale).is_none());
+        assert_eq!(registry.len(),MAX_REGISTRY_ENTRIES);
+        registry.invalidate_all();
+        assert!(registry.lookup(&video).is_none());
+        assert!(registry.inner.lock().unwrap().by_url.is_empty());
     }
 
     // -----------------------------------------------------------------------

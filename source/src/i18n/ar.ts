@@ -126,6 +126,8 @@ export const ar: Catalog = {
   'ios.signin': 'تسجيل الدخول عبر تويتر',
   'ios.signingIn': 'جارٍ ربط حسابك…',
   'ios.signin.hint': 'استخدم بريد X أو اسم المستخدم. بعد الدخول يُربط حسابك تلقائيًا. اضغط متابعة فقط إذا بقيت الصفحة مفتوحة.',
+  'post.video.hardwareVolume': 'استخدم أزرار الصوت',
+  'post.video.settings': 'إعدادات الفيديو',
   'ios.signout': 'تسجيل الخروج',
   'ios.welcome.eyebrow': 'محتواك. على راحتك.',
   'ios.welcome.title': 'ضجيج أقل.\nتركيز أكثر.',

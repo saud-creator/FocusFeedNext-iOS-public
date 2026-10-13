@@ -132,6 +132,8 @@ export const en: Catalog = {
   'ios.signin': 'Sign in with Twitter',
   'ios.signingIn': 'Connecting your account…',
   'ios.signin.hint': 'Use your X email or username. After signing in, your account connects automatically. Tap Continue only if the page stays open.',
+  'post.video.hardwareVolume': 'Use the volume buttons',
+  'post.video.settings': 'Video settings',
   'ios.signout': 'Sign out',
   'ios.welcome.eyebrow': 'YOUR FEED. YOUR PACE.',
   'ios.welcome.title': 'A little less noise.\nA lot more focus.',

@@ -1,0 +1,139 @@
+
+> focusfeednext@0.8.5 check
+> npm run lint && npm run build && npm test
+
+
+> focusfeednext@0.8.5 lint
+> oxlint
+
+perf/feed-harness.tsx:113:10: warning react(only-export-components): Fast refresh only works when a file has exports. Move your component(s) to a separate file.
+src/components/session/SessionDot.tsx:43:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/components/session/SessionDot.tsx:47:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/pages/FeedScreen.tsx:61:92: warning react-hooks(exhaustive-deps): React Hook useEffect has a missing dependency: 'f' help: Either include it or remove the dependency array.
+src/components/session/ConnectionControls.tsx:18:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/pages/Profile.tsx:42:14: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/pages/Profile.tsx:51:14: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/pages/Profile.tsx:65:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/pages/Profile.tsx:87:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/pages/Profile.tsx:107:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/components/post/PostCard.tsx:36:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/components/post/PostText.tsx:30:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/components/feed/FeedList.tsx:78:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/components/ui/button.tsx:52:10: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/i18n/index.tsx:25:10: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/i18n/index.tsx:26:10: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/i18n/index.tsx:27:10: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/i18n/index.tsx:30:14: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/i18n/index.tsx:61:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/i18n/index.tsx:86:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/i18n/index.tsx:100:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/i18n/index.tsx:229:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/i18n/index.tsx:260:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/i18n/index.tsx:264:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/components/account/AccountIdentity.tsx:14:10: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/components/account/AccountIdentity.tsx:14:27: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/components/account/AccountIdentity.tsx:14:41: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/components/account/AccountIdentity.tsx:14:54: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/components/account/AccountIdentity.tsx:26:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/components/account/Avatar.tsx:20:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/components/account/Avatar.tsx:31:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/components/account/Avatar.tsx:36:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/components/account/Avatar.tsx:42:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src/components/state/index.tsx:70:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:5: warning eslint(no-unused-vars): Variable 'FfnReader' is declared but never used. Unused variables should start with a '_'. help: Consider removing this declaration.
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:627: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:785: warning eslint(constructor-super): Expected to call `super()`. help: Add a `super()` call to the constructor
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:805: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:1235: warning eslint(constructor-super): Expected to call `super()`. help: Add a `super()` call to the constructor
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:1254: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:1930: warning eslint(constructor-super): Expected to call `super()`. help: Add a `super()` call to the constructor
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:1945: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:2335: warning eslint(constructor-super): Expected to call `super()`. help: Add a `super()` call to the constructor
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:2352: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:2975: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:3119: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:3862: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:4068: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:4561: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:4784: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:6473: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:8237: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:8331: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:8435: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:8546: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:8729: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:9335: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:9419: warning eslint(constructor-super): Expected to call `super()`. help: Add a `super()` call to the constructor
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:9434: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:9723: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:9763: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:9770: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:10196: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:10299: warning eslint(constructor-super): Expected to call `super()`. help: Add a `super()` call to the constructor
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:10328: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:10507: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:10575: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:13106: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:13510: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:13614: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:13938: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:14106: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:14334: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:15098: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:15188: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:15519: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:17096: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:17222: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:17771: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src-tauri/plugins/ios-reader/ios/Sources/Reader.js:1:17875: warning eslint(no-unused-expressions): Expected expression to be used help: Consider using this expression or removing it
+src/components/layout/MobileNavigation.tsx:63:12: warning react-hooks(exhaustive-deps): React Hook useEffect has a missing dependency: 'primary' help: Either include it or remove the dependency array.
+src/lib/platform.tsx:69:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.
+
+> focusfeednext@0.8.5 build
+> node tools/build-ios-native.mjs && tsc -b && vite build
+
+vite v8.1.5 building client environment for production...
+[2Ktransforming...✓ 1982 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                             1.67 kB │ gzip:  0.60 kB
+dist/assets/index-qOvCWKhN.css             58.39 kB │ gzip: 10.99 kB
+dist/assets/search-B5MR8s88.js              0.16 kB │ gzip:  0.16 kB
+dist/assets/users-Ysr5tKt9.js               0.30 kB │ gzip:  0.22 kB
+dist/assets/trash-2-BErWLjF1.js             0.32 kB │ gzip:  0.21 kB
+dist/assets/key-round-BVi6eEih.js           0.34 kB │ gzip:  0.25 kB
+dist/assets/FocusFeed-pxxcDXWb.js           0.48 kB │ gzip:  0.32 kB
+dist/assets/Originals-ugFUH8-G.js           0.48 kB │ gzip:  0.31 kB
+dist/assets/rolldown-runtime-Bh1tDfsg.js    0.56 kB │ gzip:  0.36 kB
+dist/assets/event-ZPlB3lRH.js               1.03 kB │ gzip:  0.53 kB
+dist/assets/Avatar-BKconep7.js              1.14 kB │ gzip:  0.68 kB
+dist/assets/card-ClceJuuC.js                1.73 kB │ gzip:  0.80 kB
+dist/assets/LocalSearch-DFYMqR-A.js         2.93 kB │ gzip:  1.35 kB
+dist/assets/AccountIdentity-BhilMRYR.js     3.17 kB │ gzip:  1.23 kB
+dist/assets/Bookmarks-BDozC4L3.js           5.14 kB │ gzip:  1.94 kB
+dist/assets/useMutation-BN52L9cL.js         5.58 kB │ gzip:  1.79 kB
+dist/assets/IosConnection-BftRZ8cX.js       8.49 kB │ gzip:  2.82 kB
+dist/assets/Diagnostics-prGhcCdo.js         8.88 kB │ gzip:  3.02 kB
+dist/assets/Profile-BIiqyusN.js             9.48 kB │ gzip:  3.59 kB
+dist/assets/FollowingManager-d_SbgXCB.js    9.55 kB │ gzip:  3.71 kB
+dist/assets/Groups-KVByv-SA.js             11.57 kB │ gzip:  3.63 kB
+dist/assets/useFeed-CN2gMUvQ.js            12.17 kB │ gzip:  4.69 kB
+dist/assets/Settings-6W4OqpiG.js           41.99 kB │ gzip: 11.17 kB
+dist/assets/FeedList-Dk7kBuY3.js          114.04 kB │ gzip: 34.79 kB
+dist/assets/index-DUS_d6WC.js             213.93 kB │ gzip: 67.58 kB
+dist/assets/PageHeader-CzhUTdPZ.js        297.74 kB │ gzip: 91.77 kB
+
+✓ built in 592ms
+
+> focusfeednext@0.8.5 test
+> vitest run
+
+
+ RUN  v4.1.10 /workspace/FocusFeedNext-source
+
+
+ Test Files  46 passed (46)
+      Tests  610 passed (610)
+   Start at  13:17:20
+   Duration  59.96s (transform 1.78s, setup 2.90s, import 8.73s, tests 17.81s, environment 24.88s)
+

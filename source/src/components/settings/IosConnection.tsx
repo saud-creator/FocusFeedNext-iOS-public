@@ -9,6 +9,7 @@ import { resetFeedSessionState } from '@/hooks/useFeed';
 import { acceptConnectedSession, acceptSessionSnapshot } from '@/hooks/useStartupSequence';
 import { useAccountActionStore } from '@/components/account/accountActions';
 import { useAppStore } from '@/stores/useAppStore';
+import { Avatar } from '@/components/account/Avatar';
 
 function useIosAccount() {
   const qc = useQueryClient();
@@ -107,7 +108,7 @@ export function IosConnection() {
       <p className="text-sm text-ink-dim">{t('ios.account.description')}</p>
       <p className="text-xs text-ink-mute">{t('ios.signin.hint')}</p>
       {session?.account ? <div className="flex items-center gap-3">
-        {session.account.avatarUrl && <img src={session.account.avatarUrl} alt="" className="size-12 rounded-full" width={48} height={48} />}
+        <Avatar author={session.account} size={48} />
         <div><p className="font-semibold">{session.account.displayName}</p><p className="text-sm text-ink-mute" dir="ltr">@{session.account.username}</p></div>
       </div> : null}
       <div className="flex flex-wrap gap-2">

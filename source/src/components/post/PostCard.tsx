@@ -8,6 +8,7 @@ import { MediaGallery } from "./MediaGallery";
 import { QuotedPostCard } from "./QuotedPostCard";
 import { PostActions } from "./PostActions";
 import { ReadStateIndicator } from "./ReadStateIndicator";
+import { usePlatform } from '@/lib/platform';
 
 export interface PostCardProps {
   post: Post;
@@ -87,6 +88,7 @@ function PostCardImpl({
   const ref = useRef<HTMLElement>(null);
   const timer = useRef<number | null>(null);
   const postUrl = canonicalPostUrl(post);
+  const {isIphone}=usePlatform();
 
   // A post becomes read after being sufficiently visible for a dwell period —
   // never merely because it was downloaded.
@@ -130,27 +132,27 @@ function PostCardImpl({
       // the mark in the header is the entire treatment (see ReadStateIndicator).
       data-read={read ? "true" : "false"}
       className={cn(
-        "surface-card p-4 transition-colors",
+        "surface-card post-card p-3 sm:p-4 transition-colors",
         // Hover is the only state this element expresses, so hovering a read
         // card and hovering an unread one look identical — as they should.
         "hover:border-edge-strong",
       )}
     >
-      <div className="flex gap-3">
+      <div className={cn('post-card-layout',isIphone ? 'grid grid-cols-[40px_minmax(0,1fr)] gap-x-3 gap-y-2 sm:flex sm:gap-3' : 'flex gap-3')}>
         <button
           type="button"
           onClick={() => onOpenProfile?.(post.author.username)}
           // self-start is required: as a flex child the button would stretch to
           // the full card height, and Chromium vertically centres a button's
           // content, leaving the avatar floating beside the media.
-          className="shrink-0 cursor-pointer self-start"
+          className="post-card-avatar shrink-0 cursor-pointer self-start"
           aria-label={`Open ${post.author.displayName}'s profile`}
         >
           <Avatar author={post.author} size={40} />
         </button>
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-2">
+        <div className="post-card-content min-w-0 flex-1">
+          <div className="post-card-header flex items-start gap-2">
             <AuthorHeader
               author={post.author}
               createdAt={post.createdAt}

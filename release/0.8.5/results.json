@@ -1,0 +1,35 @@
+[
+  {
+    "width": 320,
+    "height": 568,
+    "scrollWidth": 320,
+    "textSize": 16,
+    "mediaWidth": 270,
+    "cardWidth": 296,
+    "mp4Playback": true,
+    "qualityChangeResumed": true,
+    "fullscreenErrorExit": true
+  },
+  {
+    "width": 390,
+    "height": 844,
+    "scrollWidth": 390,
+    "textSize": 16,
+    "mediaWidth": 340,
+    "cardWidth": 366,
+    "mp4Playback": true,
+    "qualityChangeResumed": true,
+    "fullscreenErrorExit": true
+  },
+  {
+    "width": 430,
+    "height": 932,
+    "scrollWidth": 430,
+    "textSize": 16,
+    "mediaWidth": 380,
+    "cardWidth": 406,
+    "mp4Playback": true,
+    "qualityChangeResumed": true,
+    "fullscreenErrorExit": true
+  }
+]

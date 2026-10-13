@@ -21,7 +21,7 @@ import { useEffectivePolicy } from '@/lib/runtime';
  * the window rather than a laptop-sized guess, with a pixel term to stop it
  * becoming absurd on a very tall monitor.
  */
-const SINGLE_MAX_HEIGHT = "min(70vh, 620px)";
+const SINGLE_MAX_HEIGHT = "min(65svh, 560px)";
 
 /** A predictable first measurement when the provider omitted media bounds. */
 const DEFAULT_MEDIA_RATIO = 16 / 9;
@@ -102,6 +102,7 @@ export function MediaGallery({
   defaultSpeed?: number;
 }) {
   const { t } = useI18n();
+  const { isIphone } = usePlatform();
   const [lightboxAt, setLightboxAt] = useState<number | null>(null);
 
   if (!media || media.length === 0) return null;
@@ -134,7 +135,7 @@ export function MediaGallery({
           style={
             single
               ? undefined
-              : { gridTemplateRows: `repeat(${rows}, ${GRID_ROW_HEIGHT}px)` }
+              : { gridTemplateRows: `repeat(${rows}, ${isIphone ? 'clamp(120px, 35vw, 180px)' : `${GRID_ROW_HEIGHT}px`})` }
           }
         >
           {images.map((m, i) => {

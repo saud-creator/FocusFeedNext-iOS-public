@@ -7,6 +7,7 @@ await build({
   root,
   logLevel: 'warn',
   build: {
+    target: 'safari16',
     outDir: 'src-tauri/plugins/ios-reader/ios/Sources',
     emptyOutDir: false,
     minify: true,
