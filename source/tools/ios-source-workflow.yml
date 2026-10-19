@@ -1,0 +1,53 @@
+# Browser-upload fallback: repository root contains FocusFeedNext-source.zip.
+name: Build unsigned iPhone IPA
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unsigned-ipa:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract source snapshot
+        run: |
+          unzip -q FocusFeedNext-source.zip -d source
+          cp build-ios-unsigned.sh source/tools/build-ios-unsigned.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Select iOS 26 SDK when installed
+        run: |
+          selected=$(find /Applications -maxdepth 1 -name 'Xcode_26*.app' | sort -V | tail -n 1)
+          if [[ -n "$selected" ]]; then
+            sudo xcode-select -s "$selected/Contents/Developer"
+          fi
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+      - name: Install dependencies
+        working-directory: source
+        run: |
+          npm ci
+          if ! command -v pod >/dev/null 2>&1; then
+            brew install cocoapods
+          fi
+      - name: Build unsigned device IPA
+        working-directory: source
+        run: bash tools/build-ios-unsigned.sh 2
+      - name: Save unsigned IPA and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: FocusFeedNext-unsigned-iPhone
+          path: |
+            source/dist-ios/FocusFeedNext-unsigned.ipa
+            source/dist-ios/FocusFeedNext-unsigned.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - name: Save build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-iPhone-build-log
+          path: source/dist-ios/build.log
+          if-no-files-found: ignore

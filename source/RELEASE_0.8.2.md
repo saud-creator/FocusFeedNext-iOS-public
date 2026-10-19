@@ -1,0 +1,13 @@
+# FocusFeedNext 0.8.2 — authenticated transport bootstrap repair
+
+The physical-iPhone screenshots from 0.8.1 show captured login credentials followed by `transport_initialization`, before the account identity request. The old bridge required a hidden web view to navigate to X's homepage with page resources blocked; navigation or content-rule initialization failure prevented verification. The screenshots do not contain the underlying NSError and cannot establish which particular WebKit error occurred.
+
+The transport now loads a fixed, empty, app-owned HTML document with X's HTTPS base URL. It verifies the security origin before running the private engine, rejects subsequent navigation, and retains a separate temporary login browser and explicit cookie handoff. There is no provider document, challenge script, stylesheet, or media in the transport page. Content rules remain defense in depth; their compilation is no longer an authentication prerequisite. GraphQL metadata is fetched and parsed as data only when required; the REST identity check has no mandatory homepage download.
+
+The login controller now presents over the reader instead of removing it from the window. UIKit's former full-screen presentation detached the underlying reader and its transport during verification. Retaining that hierarchy keeps the transport attached while the login UI remains visible. The presented controller is an accessibility modal.
+
+Navigation callbacks and origin checks are scoped to the current transport epoch. Late callbacks cannot fail a replacement transport. Safe faults distinguish navigation, origin verification, process termination, and engine execution; only fixed native domains and numeric error codes cross the bridge. Native alerts no longer describe an engine initialization failure as proof that the phone is offline. Previous background/resume, candidate-account isolation, cookie rotation, and Keychain rollback behavior remain in place.
+
+Regression coverage exercises the production document bootstrap in an attached one-pixel WebKit view, its exact HTTPS origin, navigation policy, a real same-origin authenticated fixture fetch without routing shims, and the existing production-engine/session fixtures. Fixture-only tests do not modify a live X account. Device compilation and archive verification do not establish successful live sign-in on the owner's physical iPhone; that remains the acceptance gate for this repair.
+
+This is an unsigned arm64 iPhone IPA, build 802.1, retaining bundle identity `com.focusfeed.next`. Prior releases and existing user data are retained. See the delivered verification report for exact test results, source identity, CI evidence, and checksums.

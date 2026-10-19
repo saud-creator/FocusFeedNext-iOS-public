@@ -1,0 +1,34 @@
+Focus Feed Next - exhaust every bookmark
+
+The provider's generic timeline guard is useful for ordinary reads, but the
+Bookmarks endpoint has its own terminal cursor. Applying the generic
+max-count guard makes a complete account look truncated at the provider's
+configured safety value.
+
+This patch is applied by tools/twitter-cli/apply_patch.py to the pinned
+twitter-cli installation. It changes only the Bookmarks operation:
+
+--- a/twitter_cli/client.py
++++ b/twitter_cli/client.py
+@@
+-        return self._fetch_timeline("Bookmarks", count, get_instructions)
++        return self._fetch_timeline(
++            "Bookmarks",
++            count,
++            get_instructions,
++            respect_max_count=False,
++        )
+@@
+-    def _fetch_timeline(..., return_cursor=False):
++    def _fetch_timeline(..., return_cursor=False, respect_max_count=True):
+@@
+-    # Enforce max count cap
+-    count = min(count, self._max_count)
++    if respect_max_count:
++        count = min(count, self._max_count)
+
+The app passes u32::MAX for bookmarks. The provider continues its internal
+cursor until the endpoint returns no next cursor; ordinary feeds retain the
+provider's normal safety cap. The application still paints the first screen
+from its local cache immediately and performs the exhaustive bookmark sync in
+the background.

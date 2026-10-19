@@ -1,0 +1,49 @@
+{
+  "ok": true,
+  "schema_version": "1",
+  "data": [
+    {
+      "id": "1896003344556677889",
+      "text": "Recorded a 40 second demo of the reader handling a 3000 item backlog. No spinner, no jank.\n\nSource in the quoted post.",
+      "author": {
+        "id": "1550123456789012345",
+        "name": "Fake Dev",
+        "screenName": "fake_dev_zz",
+        "profileImageUrl": "https://pbs.twimg.com/profile_images/1550123456789012345/aBcDeFgH_normal.jpg",
+        "verified": true
+      },
+      "metrics": {
+        "likes": 55,
+        "retweets": 3,
+        "replies": 1,
+        "quotes": 0,
+        "views": 3921,
+        "bookmarks": 12
+      },
+      "createdAt": "Wed Mar 04 11:22:33 +0000 2026",
+      "createdAtLocal": "2026-03-04 14:22",
+      "createdAtISO": "2026-03-04T11:22:33+00:00",
+      "media": [
+        {
+          "type": "video",
+          "url": "https://video.twimg.com/ext_tw_video/1896003344556677889/pu/vid/avc1/1280x720/fakeVideoId.mp4",
+          "width": 1280,
+          "height": 720
+        }
+      ],
+      "urls": [],
+      "isRetweet": false,
+      "retweetedBy": null,
+      "lang": "en",
+      "score": null,
+      "quotedTweet": {
+        "id": "1895117788990011223",
+        "text": "Pushed v0.3 of the backlog store. Single writer, append only, mmap reads.",
+        "author": {
+          "screenName": "fake_two_bb",
+          "name": "Fake Author Two"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,418 @@
+{
+  "repository": "saud-creator/FocusFeedNext-iOS",
+  "imported_on": "2026-10-19",
+  "method": "Pinned source snapshots through GitHub connector; upstream history not fetched",
+  "archives": [
+    {
+      "branch": "main",
+      "commit": "466a1e30ad59c96c480cd6f39865ea8a2bdad152",
+      "bytes": 4165655,
+      "git_blob_sha1": "a80140d911200fe9ea1ff5efed9c213e9664b159",
+      "sha256": "20de60aafe3dccb3d54c128d644e07c6d77e1a84f3d31ab0be9983e89fe0ac9b",
+      "files": 259,
+      "package_version": "0.8.0",
+      "crc": "passed"
+    },
+    {
+      "branch": "codex/ios-0.8.5-stability",
+      "commit": "8ea9e1b5de404ce52909a9533fbbd51d12179a10",
+      "bytes": 4238339,
+      "git_blob_sha1": "bd82dc1ad54c6c269bc419ff66fbad363ea63846",
+      "sha256": "14cd68ec4885a9691cbc47acba9ba3b96019227201be319c2f83042e619a4091",
+      "files": 279,
+      "package_version": "0.8.5",
+      "crc": "passed"
+    }
+  ],
+  "unchanged_files": 215,
+  "added_files": 20,
+  "modified_files": 44,
+  "removed_files": 0,
+  "active_source_differences_after_local_build": [],
+  "changes": [
+    {
+      "path": ".gitignore",
+      "status": "modified",
+      "main_sha256": "5c191a71f07dcb1ed176eb6a79d74458114df2853ff3835f7a7275b5cc781997",
+      "ios_sha256": "ac9eacbe7c98f8643eda6cb17c4bd3f35fff3dea5ea08b7fad5061ff0cb86027"
+    },
+    {
+      "path": "RELEASE_0.8.1.md",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "9abab732b2b472c2e283afd1bebe3aefc0e224b474545840c897117a5c13dc31"
+    },
+    {
+      "path": "RELEASE_0.8.2.md",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "ddc8ba377c87d309a94658bc459dbe955ce9510a53ec7e279986dfea51bb35f3"
+    },
+    {
+      "path": "package-lock.json",
+      "status": "modified",
+      "main_sha256": "e99e4aa5f965fac4eaa6f4da45509fe2c7f5a788d5be3334c94e8afc4c2b934d",
+      "ios_sha256": "eacadb8ccaae71b595edcf7fb2f7bed568405cb30f52c114759087aedd5815fc"
+    },
+    {
+      "path": "package.json",
+      "status": "modified",
+      "main_sha256": "caee5734652e639007bbcbb9f8d29207d94e570a0e690dc684ebd6ad1afded57",
+      "ios_sha256": "1247867246eb482ce66bd425799a1aa81dc5072e76d8ffceff565c1281ea71ca"
+    },
+    {
+      "path": "src-tauri/Cargo.lock",
+      "status": "modified",
+      "main_sha256": "6b916f52310f4e06ac4f8cf5c0a24e4a5b7d04e0676c6dcefec9789ed2357522",
+      "ios_sha256": "8d3a5d2c7fb1f455943185ce20c767367bda9be9a30e100968cddc95a92a584f"
+    },
+    {
+      "path": "src-tauri/Cargo.toml",
+      "status": "modified",
+      "main_sha256": "2ac7b36d350e744966dbbd409d559cdee78431ec2623afd600f604f2ea48516d",
+      "ios_sha256": "98b0cd25e5237aacb2e34449f022a97479d2a0ebde64ad30730864407f4d599c"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/Cargo.lock",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "ce898bbb55365496418155632d58eadb6d68ffefbc41137ed7173271e9778c81"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/ios/Sources/ConnectionFault.swift",
+      "status": "modified",
+      "main_sha256": "3f15a0037d0e2cb5458aae280d3e7d51263d82c084be0892241eaeba33701724",
+      "ios_sha256": "1e28cd7bf774b2dc21d32a1ffcb536c0761fef8a990a40c325083389ea13d90c"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/ios/Sources/ConnectionJournal.swift",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "96faa4ae44edb9c01c812ec8c4463e7787898047c884539a4ae60f1e5225d095"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/ios/Sources/IdentityTransport.swift",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "b48678fc68bebcd1a4b47ed89d72cb7d1ba664a6b86fe9793c0bb979ec7f5bde"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/ios/Sources/IosReaderPlugin.swift",
+      "status": "modified",
+      "main_sha256": "3f0164d558601ad29eb9382cf9b08e1be1baf7970a10020cae6c092af9a2810c",
+      "ios_sha256": "af8eeb9ca1b5d04f2c0237f833bb8ade348f93dcd65400d44d28c38ec64ddd42"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/ios/Sources/LoginCookies.swift",
+      "status": "modified",
+      "main_sha256": "68401d234192ecd4c647ae450c43b4faadba9a62dd5d41bb5e6ae19f85c1d7cb",
+      "ios_sha256": "97ec8d4ab35aa5e5bd8d83d552593cbe74d952de562394304d41c0a540b55496"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/ios/Sources/LoginHandoff.swift",
+      "status": "modified",
+      "main_sha256": "6635eb1eeea5d6b8e7dd60a8172d59c39d3eb3d22d373a601b16eee527454d5e",
+      "ios_sha256": "5faec11db28968a29feabbc9c5f311b63a059b1dbde9535be7469c25830a2966"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/ios/Sources/ProviderHTTPTransport.swift",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "58975d0f8462b14efdc91d411f9524455dcb2e04a598773097e8920ae71bb34f"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/ios/Sources/Reader.js",
+      "status": "modified",
+      "main_sha256": "cd78ae9a0f02e3a3621bc1c6049c786b1bdac70802b4e9f925dac890e02574b1",
+      "ios_sha256": "fae174162e36b0d02f3e161e129a2d39af2bfec3cf2cac0afabfeb0a4d78e60a"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/ios/Sources/ReaderScript.swift",
+      "status": "modified",
+      "main_sha256": "14e3b07df9c1eea28c4d6424eae15b1bee4d40e49447cd41c49478a9d679de5b",
+      "ios_sha256": "6c527715ee67806fa0d42449498a7bd13a886cdf50786c4500659557056147b5"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/ios/Sources/TransportDocument.swift",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "73f1cd923ed999da82dfed42f65fd19de21b62871b1a2258ca7bdda71b1d4d28"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/src/fault.rs",
+      "status": "modified",
+      "main_sha256": "74f1171ae8d8d8fd9f71a74aac111b2174272ebd5492ffc9d2614b62bf2ba583",
+      "ios_sha256": "cbc5cfd628c0c73610039d6237ec0d58a52c76b2dc0f93a0032aacf8f58edcd1"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/transaction/reader.ts",
+      "status": "modified",
+      "main_sha256": "23c1f80518405c4e1bfdf330527c80972f5472449b897b32aa0b4ba5405021ae",
+      "ios_sha256": "a4f28c427f7e7348c1b3a2fabcd58b7bca3bca8719f45733aeaa0b5b5eae1e9d"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/transaction/scheduler.ts",
+      "status": "modified",
+      "main_sha256": "541ba178405dd682b046aa218b982675ba0384da1cc3c7b9b265ae42c0b8fbfe",
+      "ios_sha256": "8586163d95bea9dbb0ccc3ad725b0b113492946b9fd0dcf4a6997c0d4cfd29bc"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/transaction/transaction.ts",
+      "status": "modified",
+      "main_sha256": "5a538cdaeb0fdf3a95fd58d2a42647de3cfd28c151855a6dbd80dc9088713285",
+      "ios_sha256": "ec5244d50095d7de3512011602b30658e9066afb339f136279cbfdd01d6173be"
+    },
+    {
+      "path": "src-tauri/plugins/ios-reader/transaction/transport.ts",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "ffd74615faf430f59c8703740dc85cb49ed23d7919569acaea8129c71101c6aa"
+    },
+    {
+      "path": "src-tauri/src/commands.rs",
+      "status": "modified",
+      "main_sha256": "7de2e30c5c3b69be9ad1e10f1b971f6b0f4c0290c5fa42b7d1c20f574bcc9951",
+      "ios_sha256": "f080effd0006496e9c1ebe5e13d391120e0a29e2ed594913b419abee63f0d56d"
+    },
+    {
+      "path": "src-tauri/src/lib.rs",
+      "status": "modified",
+      "main_sha256": "918c2463946f3cfd7956ab27f590addfaae09d6c5b8dfa0adffa0038d9d014ff",
+      "ios_sha256": "8eebca6a8982d32a6f2e56d0e18cfbb438db8d534d527e9d6d7ef86df5aaf214"
+    },
+    {
+      "path": "src-tauri/src/media_proxy.rs",
+      "status": "modified",
+      "main_sha256": "7cd00d2f37e7f43ce72f342eb3b75e42fccc4fb4bbe340dba9c97a8f57293ffb",
+      "ios_sha256": "e43db83963ce7a33f8ef516ede5e81fd7cae56f4bca4928094017506abdad08c"
+    },
+    {
+      "path": "src-tauri/src/providers/native_ios.rs",
+      "status": "modified",
+      "main_sha256": "17a9c3c9f0a62cdf2e0aa2d24bb98ae8e1d0cf5bbe5170505f85cdfad3ac29ae",
+      "ios_sha256": "951783781f28834f2c9d8b747832bb01cbaed0e2ce48eac4e9c9927a4d3062ef"
+    },
+    {
+      "path": "src-tauri/tauri.conf.json",
+      "status": "modified",
+      "main_sha256": "9bf8c89e6d1e994228a8f955e5a6640cb1b67b3adb8ecb501e41629b4c197130",
+      "ios_sha256": "19d07722ae9fdecaf7053b34efcc07f1d5b30aa21f44ebb15d1e38133eef0763"
+    },
+    {
+      "path": "src/components/account/Avatar.test.tsx",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "00d3b28fe2dadb66c11501585454ce48196e9c67f51028a445b3d54ad934091a"
+    },
+    {
+      "path": "src/components/account/Avatar.tsx",
+      "status": "modified",
+      "main_sha256": "3f810640170af88c1a85b915df7164b45e0b1450e49ddc01801b8e0adb97073c",
+      "ios_sha256": "403c1ab66c1a4d51be3c4317e4a0314637eb7d4f7c0167b830c560eca5894777"
+    },
+    {
+      "path": "src/components/media/FullscreenVideoControls.tsx",
+      "status": "modified",
+      "main_sha256": "e676c850ba4ea93f839381babbe80e9f9ca8ee27c2843ae56bb21bcb2c9c69bf",
+      "ios_sha256": "57e75469586ffc32626c8ce809a60b06c8eddac8ba85d33376c8fcdec47d2979"
+    },
+    {
+      "path": "src/components/media/InlineVideoSettings.tsx",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "15356b0f2b4660af328ffd2ad4c42d192275d3cd3f1bfebff974b36985f19fbd"
+    },
+    {
+      "path": "src/components/media/nativeVideoFullscreen.ts",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "970fe1fb85979e30edee959af573d36729495a6d09791c6e84850a78ea64bf69"
+    },
+    {
+      "path": "src/components/post/MediaGallery.tsx",
+      "status": "modified",
+      "main_sha256": "c5ccd2b7148fb0de3e9fa386d0f26d062e259c76ac950953307b13f29ebc9cc5",
+      "ios_sha256": "67f005ff59fe1c4715f493df53dd37ba69a5214487b94c7f184cc006b8895d63"
+    },
+    {
+      "path": "src/components/post/PostCard.tsx",
+      "status": "modified",
+      "main_sha256": "a908432c7a626f2a41ba34db7d817219293219d3f6e64006dd925562005c867c",
+      "ios_sha256": "8fadd1d06f0c079324f00b126f6155842cea529ccafdf529b8b032f932726467"
+    },
+    {
+      "path": "src/components/post/VideoPlayer.iphone.test.tsx",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "d7a5c7ce38f808a9fdf8c8eac695a3fcfd6005fe5858be19a3a9080ccd26c01a"
+    },
+    {
+      "path": "src/components/post/VideoPlayer.test.tsx",
+      "status": "modified",
+      "main_sha256": "d623c8795f285b7e20c8e468defac0992d88fbcebf01c0140f6174b014bd5945",
+      "ios_sha256": "eafdfc9bbfff4d8c2fc911a6468239e06fd46bc8a08def35ca7f89121c093e98"
+    },
+    {
+      "path": "src/components/post/VideoPlayer.tsx",
+      "status": "modified",
+      "main_sha256": "0691d34ebc6f7bffde20e372d8fbfccb7726892dced13fc77e2bec550a1f0976",
+      "ios_sha256": "134e406dcd547f2d755a6bd3e35212596de59bb3c8a97864e773c8a49330dcac"
+    },
+    {
+      "path": "src/components/settings/IosConnection.test.tsx",
+      "status": "modified",
+      "main_sha256": "e0836fbe91068cf3a6ea37b7e6b2e5bffe5c9911a1d477c608d5e2806d71119b",
+      "ios_sha256": "9541b0f3c605197b7e953d1d59ce30fe2bc5fa0cccaefdf9670fd74a8813374a"
+    },
+    {
+      "path": "src/components/settings/IosConnection.tsx",
+      "status": "modified",
+      "main_sha256": "13dc3524a6ce4c19135b4b1f8d2b1a1e98aa3514cbcea8627ce21bfd1fdb4949",
+      "ios_sha256": "5d5394d017b59b4ad56144fd4764681ed93265f1a389b29ec21a182fbb75af4e"
+    },
+    {
+      "path": "src/hooks/useFeed.ts",
+      "status": "modified",
+      "main_sha256": "1416014514c8df34d65ec155317a7f20e3931003627078a8bcc3e2386f988594",
+      "ios_sha256": "87af03408230fef4b5448334926cc9bae5926ebeebf6ede06d9d5f8c0b104c2b"
+    },
+    {
+      "path": "src/i18n/ar.ts",
+      "status": "modified",
+      "main_sha256": "4a18c51b9511abedbc92776433982e1d6b90a1cda8d143d825ca56b1dc47351b",
+      "ios_sha256": "6736fd9eec54b3b7906fd4ba258dc9d030bdaa3ffde0664e0f218a90ab1f964b"
+    },
+    {
+      "path": "src/i18n/en.ts",
+      "status": "modified",
+      "main_sha256": "f8995154ff4589435ad6ab4debf3115a1c74edfbe7e6b538d182a1f24670c7b5",
+      "ios_sha256": "0daa586d4fecebed7bb9161b84c67692f41e212467e99bb0639f19e4d4a7479a"
+    },
+    {
+      "path": "src/index.css",
+      "status": "modified",
+      "main_sha256": "a57f28e20eb9e21afa0b4c41dee39b413c538aeaf28002193a269f476224f29a",
+      "ios_sha256": "252424780c4019417c62cc5cffa7f4a9b9b9dfe922366333cde0aefc52148f49"
+    },
+    {
+      "path": "src/lib/api.ts",
+      "status": "modified",
+      "main_sha256": "07fab5dd18fd50fe0a7ab11377fe633a1da04418572a9bbe5665557f8227e2d6",
+      "ios_sha256": "1e3bff3a2b3728bda4db663d281361d1977d16ff41173af7da3b3dfb24e51012"
+    },
+    {
+      "path": "src/lib/nativeReader.test.ts",
+      "status": "modified",
+      "main_sha256": "d30ce6440362cbe78c5517f87ef1892fb729226f334366f2bc40e076e2b016d8",
+      "ios_sha256": "bf718f4bb2a54aa1e0c23320bc1d72c98ee8074e5b75e076e2b963fdd42ccf28"
+    },
+    {
+      "path": "src/lib/nativeTransport.test.ts",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "4e450bd9016265e87c4f2371eb3358eb3ebe3412232af5febcfd5c963956dd25"
+    },
+    {
+      "path": "src/lib/requestScheduler.test.ts",
+      "status": "modified",
+      "main_sha256": "fd8bcf9ce2d1e9eddb14aeeeea55cc1b40e10f2182382624b2bf6a70c773cab0",
+      "ios_sha256": "c374c728ac2fd4f2f5a8a9bb6d2008de980d4dc6b7716d6546d8b5db430112c0"
+    },
+    {
+      "path": "src/pages/FeedScreen.test.tsx",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "549e91d165535dd18913a0e49f962a3c4024352f021ac0787571e72577f6cd92"
+    },
+    {
+      "path": "src/pages/FeedScreen.tsx",
+      "status": "modified",
+      "main_sha256": "7239218c815741679237e361c3fd8b74d4c0072b783ec77164d651b6e57ad6f5",
+      "ios_sha256": "e145b597668141ca9348a1aa3d5c07dff0b468dbbf8d3a1d19231e696c0a1565"
+    },
+    {
+      "path": "tools/browser-fixtures/index.html",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "ec8672c3347adf154fdbe9e2226be98c7afbf3d424392ba9a57ad23264075316"
+    },
+    {
+      "path": "tools/browser-fixtures/main.tsx",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "26c5b79acc1cea6fdb68e111065fbba4d8ab7ef1602b69cf56d56060a72498a2"
+    },
+    {
+      "path": "tools/browser-fixtures/portrait.mp4",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "2b6aa3f6fabdffda73b7f1389b3694632e7f98f314f9f4b993f17b5c69d7255b"
+    },
+    {
+      "path": "tools/browser-fixtures/small.mp4",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "2e2339baa867912e16e480d6819b1ecd441cbe7f4ea4cd8512a62e357d0bf392"
+    },
+    {
+      "path": "tools/build-ios-native.mjs",
+      "status": "modified",
+      "main_sha256": "90230cfbf238eee60e2b63f9daf189a97eeee9c3a7f48483a177e8e2d69ebcc2",
+      "ios_sha256": "1a6ad87aed445962cd6bdb852e9adf79650f014312738c794dcf9002b62791f8"
+    },
+    {
+      "path": "tools/build-ios-unsigned.sh",
+      "status": "modified",
+      "main_sha256": "bca8dd941c64a20c4722b81b07e6a23c98581dbe49ebe3c1668ac63bc73b01a7",
+      "ios_sha256": "6049d7659a1780fcbb39b710af719094418983864836798f369d9cd1cf93a05a"
+    },
+    {
+      "path": "tools/check-iphone-layout.mjs",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "0b3daa2fc3a347655b36389f9f3e3986af7ac1ee74a5d54b668290b9915185b4"
+    },
+    {
+      "path": "tools/ios-native-tests/main.swift",
+      "status": "modified",
+      "main_sha256": "a42bc3af6f6d0c995c0c6fd02bd82c0061ebb984924f49bc6198bc65c343849a",
+      "ios_sha256": "0538bed07ce1b445525639fa3639984ee7d0f3661ab8bc202465f452568f717f"
+    },
+    {
+      "path": "tools/ios-native-tests/server.py",
+      "status": "modified",
+      "main_sha256": "81c178656d27efa56751d87714cc00f96950162d9f0ef7505d029b4533dbd52d",
+      "ios_sha256": "2fdc97f3a03523ccc00a68e9c4369e821afcec0b6ca7b4ed40150c2b372e507c"
+    },
+    {
+      "path": "tools/ios-native-tests/timeline.json",
+      "status": "added",
+      "main_sha256": null,
+      "ios_sha256": "508baef8e0e51da8134803131f85211f0266ede04b3a44d1001b25cc2563d4d6"
+    },
+    {
+      "path": "tools/package-ios-source.ps1",
+      "status": "modified",
+      "main_sha256": "107bef5b7cea63bf05ac0b6e73bf36c62deadd768dcde97b3de4678b01e98676",
+      "ios_sha256": "c5fdbc6fd9971b91a41006d386fe4eafd954b949459772cc86585f7b415e21a9"
+    },
+    {
+      "path": "tools/test-ios-native.sh",
+      "status": "modified",
+      "main_sha256": "b4d10c911582775e2cedab72173738f2d41412e0cf0d4b689a1e6a7c40e08f7b",
+      "ios_sha256": "7b15c46d82397156a3c1f833fb40423378c58254bdecb5fd2605538653e0afd2"
+    },
+    {
+      "path": "tools/verify-ipa.py",
+      "status": "modified",
+      "main_sha256": "342c43972b373919308766691a2c0b3500ba3dbf47cf7a669121654f945ac592",
+      "ios_sha256": "6ae6c63e7d107259118746dbad1ad607ffe0a2e8636c18759ca477a1f914411c"
+    },
+    {
+      "path": "vite.config.ts",
+      "status": "modified",
+      "main_sha256": "d141d4c156a39daad11e3ab0c0c2e3e87f6fe46f54b32fa203a842a4dfe21d3e",
+      "ios_sha256": "8fff0ee4a0df0ef470bae586ae76af89cc7e8a074997776b356785dfe2d12abe"
+    }
+  ]
+}

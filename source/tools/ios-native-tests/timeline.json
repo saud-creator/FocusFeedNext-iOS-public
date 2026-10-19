@@ -1,0 +1,65 @@
+{
+  "data": {
+    "home": {
+      "home_timeline_urt": {
+        "instructions": [
+          {
+            "type": "TimelineAddEntries",
+            "entries": [
+              {
+                "entryId": "tweet-99",
+                "content": {
+                  "itemContent": {
+                    "tweet_results": {
+                      "result": {
+                        "__typename": "Tweet",
+                        "rest_id": "99",
+                        "core": {
+                          "user_results": {
+                            "result": {
+                              "__typename": "User",
+                              "rest_id": "42",
+                              "core": {
+                                "screen_name": "fixture",
+                                "name": "Fixture"
+                              },
+                              "legacy": {
+                                "profile_image_url_https": "https://pbs.twimg.com/profile_images/fixture/avatar.jpg"
+                              }
+                            }
+                          }
+                        },
+                        "legacy": {
+                          "id_str": "99",
+                          "full_text": "Fixture live post",
+                          "created_at": "Sun Oct 11 09:00:00 +0000 2026",
+                          "lang": "en",
+                          "entities": {
+                            "urls": []
+                          },
+                          "extended_entities": {
+                            "media": []
+                          }
+                        },
+                        "views": {
+                          "count": "12"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "entryId": "cursor-bottom",
+                "content": {
+                  "cursorType": "Bottom",
+                  "value": "fixture-next"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

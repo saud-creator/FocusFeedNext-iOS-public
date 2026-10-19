@@ -1,0 +1,119 @@
+Focus Feed Next — preserve every MP4 variant
+
+Upstream keeps only the highest-bitrate MP4 and discards the rest, so a
+consumer cannot offer a quality choice at all: by the time the JSON is written,
+the alternatives are gone.
+
+Three surgical changes, all additive:
+
+  models.py         TweetMedia gains `variants`, `poster_url`, `duration_ms`,
+                    each defaulted, so every existing construction still works.
+  parser.py         Fills them from `video_info`, which already has everything
+                    needed — no extra request, no new field from X.
+  serialization.py  Emits them, and reads them back, only when present.
+
+The existing `url` field keeps its exact previous meaning — the highest-bitrate
+MP4 — so an unpatched consumer sees no change at all.
+
+Resolution comes from the variant URL path (`.../1280x720/...`), which is how X
+encodes it; it is parsed defensively and left absent rather than guessed.
+`duration_ms` and `poster_url` are emitted only when X genuinely sent them.
+
+--- a/twitter_cli/models.py
++++ b/twitter_cli/models.py
+@@
+ class TweetMedia:
+     type: str  # "photo" | "video" | "animated_gif"
+     url: str
+     width: Optional[int] = None
+     height: Optional[int] = None
++    # Focus Feed Next: every playable MP4, not only the largest.
++    variants: List["MediaVariant"] = field(default_factory=list)
++    poster_url: Optional[str] = None
++    duration_ms: Optional[int] = None
++
++
++@dataclass
++class MediaVariant:
++    """One playable rendition of a video."""
++
++    url: str
++    content_type: str
++    bitrate: Optional[int] = None
++    width: Optional[int] = None
++    height: Optional[int] = None
+
+--- a/twitter_cli/parser.py
++++ b/twitter_cli/parser.py
+@@
+         elif media_type in {"video", "animated_gif"}:
+             variants = media_item.get("video_info", {}).get("variants", [])
+             mp4_variants = [v for v in variants if v.get("content_type") == "video/mp4"]
+             mp4_variants.sort(key=lambda v: v.get("bitrate", 0), reverse=True)
++            parsed = [
++                MediaVariant(
++                    url=v.get("url", ""),
++                    content_type=v.get("content_type", ""),
++                    bitrate=v.get("bitrate"),
++                    width=_variant_size(v.get("url", ""))[0],
++                    height=_variant_size(v.get("url", ""))[1],
++                )
++                for v in mp4_variants
++                if v.get("url")
++            ]
++            video_info = media_item.get("video_info", {})
++            duration = video_info.get("duration_millis")
+             media.append(
+                 TweetMedia(
+                     type=media_type,
+                     url=mp4_variants[0]["url"] if mp4_variants else media_item.get("media_url_https", ""),
+                     width=_deep_get(media_item, "original_info", "width"),
+                     height=_deep_get(media_item, "original_info", "height"),
++                    variants=parsed,
++                    poster_url=media_item.get("media_url_https") or None,
++                    duration_ms=int(duration) if isinstance(duration, int) else None,
+                 )
+             )
+     return media
++
++
++def _variant_size(url):
++    # type: (str) -> tuple
++    """Read `.../1280x720/...` out of a variant URL.
++
++    X encodes the rendition size in the path. Nothing is inferred when the
++    segment is absent: a guessed resolution on a quality menu is worse than no
++    label, because the reader would act on it.
++    """
++    for part in url.split("/"):
++        if "x" not in part:
++            continue
++        left, _, right = part.partition("x")
++        if left.isdigit() and right.isdigit():
++            return int(left), int(right)
++    return None, None
+
+--- a/twitter_cli/serialization.py
++++ b/twitter_cli/serialization.py
+@@
+         "media": [
+             {
+                 "type": media.type,
+                 "url": media.url,
+                 "width": media.width,
+                 "height": media.height,
++                "posterUrl": media.poster_url,
++                "durationMs": media.duration_ms,
++                "variants": [
++                    {
++                        "url": v.url,
++                        "contentType": v.content_type,
++                        "bitrate": v.bitrate,
++                        "width": v.width,
++                        "height": v.height,
++                    }
++                    for v in media.variants
++                ],
+             }
+             for media in tweet.media
+         ],

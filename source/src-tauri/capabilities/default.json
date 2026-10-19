@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Core window permissions, and nothing else. The opener capability is deliberately absent: no part of the interface opens a browser any more, and a capability the app cannot use is attack surface with no upside — the same reasoning that keeps ALLOWED_OPS short.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default"
+  ]
+}

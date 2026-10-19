@@ -1,0 +1,69 @@
+{
+  "ok": true,
+  "schema_version": "1",
+  "data": [
+    {
+      "id": "1897452310098765432",
+      "text": "Shipped the offline reader today. Two weeks of yak-shaving on the cache layer, but it finally survives a cold start 🐦",
+      "author": {
+        "id": "1550123456789012345",
+        "name": "Fake Dev",
+        "screenName": "fake_dev_zz",
+        "profileImageUrl": "https://pbs.twimg.com/profile_images/1550123456789012345/aBcDeFgH_normal.jpg",
+        "verified": true
+      },
+      "metrics": {
+        "likes": 128,
+        "retweets": 14,
+        "replies": 9,
+        "quotes": 2,
+        "views": 20431,
+        "bookmarks": 6
+      },
+      "createdAt": "Sat Mar 07 05:51:02 +0000 2026",
+      "createdAtLocal": "2026-03-07 08:51",
+      "createdAtISO": "2026-03-07T05:51:02+00:00",
+      "media": [
+        {
+          "type": "photo",
+          "url": "https://pbs.twimg.com/media/GmFakeIdAAAaBcD.jpg",
+          "width": 1600,
+          "height": 900
+        }
+      ],
+      "urls": ["https://example.invalid/release-notes"],
+      "isRetweet": false,
+      "retweetedBy": null,
+      "lang": "en",
+      "score": null
+    },
+    {
+      "id": "1897401122334455667",
+      "text": "تذكير: قارئ التدفق الذي يجلب البيانات مع كل ضغطة مفتاح ليس قارئًا، بل أداة حجب خدمة تدفع ثمنها.",
+      "author": {
+        "id": "1440987654321098765",
+        "name": "Fake Author Two",
+        "screenName": "fake_two_bb",
+        "profileImageUrl": "https://pbs.twimg.com/profile_images/1440987654321098765/zZyYxXwW_normal.jpg",
+        "verified": false
+      },
+      "metrics": {
+        "likes": 4102,
+        "retweets": 918,
+        "replies": 76,
+        "quotes": 41,
+        "views": 512338,
+        "bookmarks": 233
+      },
+      "createdAt": "Fri Mar 06 19:04:47 +0000 2026",
+      "createdAtLocal": "2026-03-06 22:04",
+      "createdAtISO": "2026-03-06T19:04:47+00:00",
+      "media": [],
+      "urls": [],
+      "isRetweet": true,
+      "retweetedBy": "fake_relay_qq",
+      "lang": "ar",
+      "score": null
+    }
+  ]
+}

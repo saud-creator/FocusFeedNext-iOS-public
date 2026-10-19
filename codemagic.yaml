@@ -1,61 +1,88 @@
 workflows:
   focusfeednext-ios-unsigned:
-    name: FocusFeedNext iOS - unsigned IPA
+    name: FocusFeedNext iOS - tested unsigned IPA
     instance_type: mac_mini_m2
     max_build_duration: 90
-    # No triggering section: manual builds only.
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+      cancel_previous_builds: true
     cache:
       cache_paths:
         - $HOME/.npm
         - $HOME/.cargo/registry
         - $HOME/.cargo/git
     environment:
-      xcode: latest
+      xcode: 27.1
       node: 24
     scripts:
-      - name: Check macOS build tools
+      - name: Check Apple toolchain
         script: |
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
-          node --version
-          npm --version
-
-      - name: Repair Homebrew iOS dependency
-        script: |
-          # Codemagic image can have ca-certificates already linked while
-          # Homebrew tries to link it again during libimobiledevice reinstall.
-          brew unlink ca-certificates || true
-          brew reinstall libimobiledevice
-          brew list --versions libimobiledevice
-          brew list --versions ca-certificates
-
-      - name: Extract FocusFeedNext source
-        script: |
-          unzip -q FocusFeedNext-source.zip -d source
-          mkdir -p source/tools
-          cp build-ios-unsigned.sh source/tools/build-ios-unsigned.sh
           test -f source/package-lock.json
-
-      - name: Install Rust and Node dependencies
+          test -f source/tools/test-ios-simulator.sh
+      - name: Install locked dependencies
         script: |
           export PATH="$HOME/.cargo/bin:$PATH"
           if ! command -v rustup >/dev/null 2>&1; then
             curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs -o /tmp/rustup-init.sh
             sh /tmp/rustup-init.sh -y --profile minimal
           fi
-          export PATH="$HOME/.cargo/bin:$PATH"
-          rustup --version
+          if ! command -v pod >/dev/null 2>&1; then brew install cocoapods; fi
           cd source
-          npm ci --prefer-offline --no-audit --no-fund
-
-      - name: Build unsigned iPhone IPA
+          npm ci --no-audit --no-fund
+          node tools/verify-release.mjs dist-ios/build-metadata.json
+      - name: Frontend regression tests
+        script: |
+          cd source
+          npm run lint
+          npm run build
+          npm test -- --reporter=default --reporter=junit --outputFile=dist-ios/frontend-tests.xml
+        test_report: source/dist-ios/frontend-tests.xml
+      - name: Shared Rust tests
         script: |
           export PATH="$HOME/.cargo/bin:$PATH"
           cd source
-          bash tools/build-ios-unsigned.sh 2
-
+          set -o pipefail
+          cargo test --manifest-path src-tauri/Cargo.toml --lib --locked 2>&1 | tee dist-ios/rust-tests.log
+      - name: Native transport fixtures
+        script: |
+          cd source
+          bash tools/test-ios-native.sh
+      - name: Browser media and layout regression tests
+        script: |
+          cd source
+          npx playwright install chromium webkit
+          npm run dev -- --host 127.0.0.1 > dist-ios/vite.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in {1..60}; do if curl -fsS http://127.0.0.1:5173 >/dev/null; then break; fi; sleep 1; done
+          node tools/check-iphone-layout.mjs
+      - name: iOS 27 simulator UI tests
+        script: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cd source
+          bash tools/test-ios-simulator.sh
+      - name: Build verified unsigned iPhone IPA
+        script: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cd source
+          bash tools/build-ios-unsigned.sh "$BUILD_NUMBER"
+          version=$(node -p "require('./package.json').version")
+          python3 tools/verify-ipa.py dist-ios/FocusFeedNext-unsigned.ipa --version "$version" --output dist-ios/ipa-verification.json
     artifacts:
       - source/dist-ios/*.ipa
       - source/dist-ios/*.sha256
-      - source/dist-ios/build.log
+      - source/dist-ios/*.json
+      - source/dist-ios/*.xml
+      - source/dist-ios/*.log
+      - source/dist-ios/native-tests/**
+      - source/dist-ios/browser-checks/**
+      - source/dist-ios/SimulatorTests.xcresult/**
       - /tmp/xcodebuild_logs/*.log
+
