@@ -18,6 +18,8 @@ for project in Path('src-tauri/gen/apple').glob('*.xcodeproj/project.pbxproj'):
     project.write_text(text)
 PY
 set +e
+export SDKROOT="$(xcrun --sdk iphonesimulator --show-sdk-path)"
+export IPHONEOS_DEPLOYMENT_TARGET=16.0
 npm run tauri -- ios build --debug --ci --target aarch64-sim > "$origin/dist-ios/simulator-build.log" 2>&1
 status=$?
 set -e
