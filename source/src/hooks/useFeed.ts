@@ -126,7 +126,7 @@ const refreshedFor = new Map<string, number>();
 const sourceCursors = new Map<string, string | null>();
 const INITIAL_CACHE_LIMIT = 80;
 /** A continuation is larger than the first page so rapid scrolling has runway. */
-const CONTINUATION_PAGE_SIZE = 60;
+const CONTINUATION_PAGE_SIZE = 40;
 
 /** Generic feed hydration is always bounded. Bookmarks use `useBookmarkFeed`
  * and its keyset page command instead of this timeline hook. */
@@ -356,7 +356,7 @@ export function useFeed(feed: string, filters: FeedFilters) {
   }, []);
 
   const refresh = useMutation({
-    mutationFn: () => api.refreshFeed(feed, filters, 30, cacheLimitRef.current),
+    mutationFn: () => api.refreshFeed(feed, filters, 20, cacheLimitRef.current),
     onMutate: () => {
       setRefreshError(null);
       setRefreshFailure(null);

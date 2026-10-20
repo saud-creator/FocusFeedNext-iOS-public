@@ -8,6 +8,7 @@ import { APP_VERSION, BUILD_NUMBER, SOURCE_COMMIT } from './vite.version.ts'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   define: {
+    __FFN_UI_TEST__: process.env.FFN_UI_TEST === '1',
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(APP_VERSION),
     'import.meta.env.VITE_BUILD_NUMBER': JSON.stringify(BUILD_NUMBER),
     'import.meta.env.VITE_SOURCE_COMMIT': JSON.stringify(SOURCE_COMMIT),

@@ -1,7 +1,7 @@
 import { Megaphone, Repeat2 } from "lucide-react";
 import type { Author } from "@/lib/api";
-import { useT } from "@/i18n";
-import { absoluteTime, relativeTime } from "@/lib/utils";
+import { useI18n } from "@/i18n";
+import {usePlatform} from '@/lib/platform';
 import { Tip } from "@/components/ui/primitives";
 import {
   AccountIdentity,
@@ -30,7 +30,8 @@ export function AuthorHeader({
   isPromoted?: boolean;
   onOpenProfile?: (username: string) => void;
 }) {
-  const t = useT();
+  const {t,formatRelative,formatDateTime} = useI18n();
+  const {isIphone}=usePlatform();
   return (
     <div className="min-w-0 flex-1">
       {isRepost && repostedBy ? (
@@ -42,25 +43,27 @@ export function AuthorHeader({
         </div>
       ) : null}
 
-      <div className="flex items-center gap-1.5 flex-wrap">
+      <div className={isIphone ? 'flex items-center gap-1.5 min-w-0' : 'flex items-center gap-1.5 flex-wrap'}>
         {/* No avatar here: the card renders one beside this block, and two
             would be two tab stops onto the same profile. */}
         <AccountIdentity
           account={author}
           showAvatar={false}
+          layout={isIphone ? 'stacked':'inline'}
+          className={isIphone ? 'flex-1' : undefined}
           onOpenProfile={onOpenProfile}
         />
-        <span className="text-ink-mute text-[13px]" aria-hidden>
+        {!isIphone && <span className="text-ink-mute text-[13px]" aria-hidden>
           ·
-        </span>
-        <Tip label={absoluteTime(createdAt)}>
+        </span>}
+        <Tip label={formatDateTime(createdAt)}>
           <time
             className="text-ink-mute text-[13px] shrink-0"
             dateTime={createdAt}
           >
             {timestampStyle === "absolute"
-              ? absoluteTime(createdAt)
-              : relativeTime(createdAt)}
+              ? formatDateTime(createdAt)
+              : formatRelative(createdAt)}
           </time>
         </Tip>
         {isPromoted ? (

@@ -10,6 +10,22 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args): pass
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path.startswith('/fixtures/'):
+            source_root=Path(__file__).resolve().parents[2]
+            fixtures={'/fixtures/image.png':('image/png',source_root/'src-tauri/icons/128x128.png'),'/fixtures/video.mp4':('video/mp4',source_root/'tools/browser-fixtures/small.mp4')}
+            if parsed.path not in fixtures:
+                self.send_response(503);self.send_header('Content-Length','0');self.end_headers();return
+            mime,path=fixtures[parsed.path];content=path.read_bytes();total=len(content)
+            start,end=0,total-1;status=200
+            import re
+            match=re.fullmatch(r'bytes=(\d+)-(\d*)',self.headers.get('Range',''))
+            if match:
+                start=int(match[1]);end=min(int(match[2]) if match[2] else end,end);status=206
+                if start>end:
+                    self.send_response(416);self.send_header('Content-Range',f'bytes */{total}');self.end_headers();return
+            self.send_response(status);self.send_header('Content-Type',mime);self.send_header('Accept-Ranges','bytes');self.send_header('Content-Length',str(end-start+1))
+            if status==206:self.send_header('Content-Range',f'bytes {start}-{end}/{total}')
+            self.end_headers();self.wfile.write(content[start:end+1]);return
         if parsed.path.startswith('/i/api/1.1/account/'):
             token = self.headers.get('Cookie','')
             native_reads[token] = native_reads.get(token,0) + 1

@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { CloudOff, RefreshCw } from "lucide-react";
 import type { FeedFilters } from "@/lib/api";
-import { relativeTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge, ErrorState } from "@/components/ui/primitives";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -20,6 +19,7 @@ import { useAppStore } from '@/stores/useAppStore';
 import { useEffectivePolicy } from '@/lib/runtime';
 import { usePlatform } from '@/lib/platform';
 import { ConnectionError, ConnectionReport } from '@/components/settings/IosConnection';
+import {useSlowOperation} from '@/hooks/useSlowOperation';
 
 /**
  * Shared feed screen used by Following, Focus Feed, Bookmarks and Lists.
@@ -49,9 +49,10 @@ export function FeedScreen({
   refreshOnMount?: boolean;
 }) {
   const f = useFeed(feed, filters);
+  const slow=useSlowOperation(f.isRefreshing || f.isLoadingMore);
   const actions = usePostActions();
   const openProfile = useOpenProfile();
-  const { t } = useI18n();
+  const { t, formatRelative } = useI18n();
   const { phase, readyToken } = useSessionReady();
   const interval = useAppStore(s => s.prefs.autoRefreshMinutes);
   const policy = useEffectivePolicy();
@@ -91,7 +92,7 @@ export function FeedScreen({
           <span className="flex items-center gap-2">
             {subtitle ? <span>{subtitle}</span> : null}
             {f.lastSync ? (
-              <span>· updated {relativeTime(f.lastSync)} ago</span>
+              <span>· {t('feed.updated', {time:formatRelative(f.lastSync)})}</span>
             ) : null}
             {f.fromCache && f.posts.length > 0 ? (
               <Badge tone="neutral">
@@ -127,6 +128,7 @@ export function FeedScreen({
           />
         ) : null}
 
+        {slow && <p role="status" className="mb-3 text-sm text-ink-dim">{t('feed.slow')}</p>}
         {f.refreshError ? (
           <div className="mb-4">
             <ErrorState

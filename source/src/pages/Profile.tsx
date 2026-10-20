@@ -19,6 +19,7 @@ import { FollowButton } from "@/components/account/FollowButton";
 import { CreatorSubscription } from '@/components/account/CreatorSubscription';
 import { messageOf } from "@/components/account/accountActions";
 import { useRememberedScroll } from "@/components/account/useRememberedScroll";
+import {useSlowOperation} from '@/hooks/useSlowOperation';
 
 /** How many of an account's posts to ask for per step. */
 const PAGE = 30;
@@ -144,6 +145,9 @@ export function ProfilePage() {
   /** One profile request at a time, including the first observer callback. */
   const postsInFlight = useRef<number | null>(null);
   const wanted = useRef(PAGE);
+  const cursor = useRef<string | null>(null);
+  const capabilities=useQuery({queryKey:['providerCapabilities'],queryFn:api.providerCapabilities,retry:false});
+  const cursorSupported=capabilities.data?.userPostsCursor ?? false;
   const hide = useCallback(
     async (id: string) => {
       await actions.hide(id);
@@ -166,6 +170,7 @@ export function ProfilePage() {
   });
 
   const account: Author | undefined = profile.data;
+  const slow=useSlowOperation(loadingPosts || profile.isPending);
   const anchor = useRememberedScroll(
     scrollKey("profile", handle),
     Boolean(account),
@@ -180,18 +185,23 @@ export function ProfilePage() {
       setLoadingPosts(true);
       setPostsError(null);
       try {
-        const response = await api.refreshFeed(
+        const previousCursor=cursor.current;
+        const response = cursorSupported && previousCursor ? await api.loadFeedPage(`user:${handle}`,previousCursor,defaultFilters,40,want) : await api.refreshFeed(
           `user:${handle}`,
           defaultFilters,
-          want,
-          want,
+          cursorSupported ? 20 : want,
+          cursorSupported ? 20 : want,
         );
         const batch = response.posts;
         if (mine !== seq.current) return; // cancelled, or a newer request won
         setPosts((prev) => mergePosts(prev, batch));
-        // No cursor exists for a user's posts, so "there is no more" is read
-        // off a short answer rather than off a missing next page.
-        setExhausted(batch.length < want);
+        // Native iOS continues the provider cursor. The desktop CLI retains
+        // its existing cumulative-prefix fallback.
+        cursor.current=response.nextCursor ?? null;
+        if(cursorSupported && previousCursor && cursor.current===previousCursor) {
+          cursor.current=null;setPostsError(t('profile.paginationStopped'));
+        }
+        setExhausted(cursorSupported ? cursor.current===null : batch.length < want);
         setLoadingPosts(false);
       } catch (e) {
         if (mine !== seq.current) return;
@@ -201,7 +211,7 @@ export function ProfilePage() {
         if (postsInFlight.current === mine) postsInFlight.current = null;
       }
     },
-    [handle],
+    [handle,cursorSupported,t],
   );
 
   // Posts start loading as soon as the account id is known — after the shell
@@ -211,10 +221,11 @@ export function ProfilePage() {
     setExhausted(false);
     setPostsError(null);
     wanted.current = PAGE;
+    cursor.current=null;
     seq.current++;
     postsInFlight.current = null;
-    if (account?.id) void load(PAGE);
-  }, [account?.id, load]);
+    if (account?.id && capabilities.isFetched) void load(cursorSupported ? 20 : PAGE);
+  }, [account?.id, load, capabilities.isFetched, cursorSupported]);
 
   const cancel = () => {
     seq.current++; // anything in flight is now ignored
@@ -222,14 +233,14 @@ export function ProfilePage() {
     setLoadingPosts(false);
   };
 
-  // Profile endpoints do not expose a cursor, so each continuation asks for a
-  // longer prefix. Trigger that continuation before the reader reaches the
+  // Continue native cursors, or request a longer prefix from the desktop CLI.
+  // Trigger that continuation before the reader reaches the
   // end of the virtualized window; the visible button below remains the
   // explicit fallback for readers who prefer manual loading.
   const loadNextPage = useCallback(() => {
     if (!account?.id || loadingPosts || exhausted) return;
-    void load(wanted.current + PAGE);
-  }, [account?.id, exhausted, load, loadingPosts]);
+    void load(wanted.current + (cursorSupported ? 40 : PAGE));
+  }, [account?.id, exhausted, load, loadingPosts,cursorSupported]);
 
   const visible = useMemo(
     () => filterProfilePosts(posts, filters),
@@ -483,6 +494,7 @@ export function ProfilePage() {
         ) : null}
 
         <div className="mt-3">
+          {slow && <p role="status" className="mb-3 text-sm text-ink-mute">{t('feed.slow')}</p>}
           <FeedList
             posts={visible}
             readIds={readIds}
@@ -512,9 +524,7 @@ export function ProfilePage() {
               <Button
                 variant="secondary"
                 disabled={loadingPosts}
-                onClick={() =>
-                  account?.id ? void load(wanted.current + PAGE) : undefined
-                }
+                onClick={loadNextPage}
               >
                 {loadingPosts
                   ? t("profile.loadingPosts")

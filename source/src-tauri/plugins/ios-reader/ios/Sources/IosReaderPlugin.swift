@@ -3,6 +3,19 @@ import UIKit
 import WebKit
 import Security
 
+/// Re-measure navigation when UIKit lays out a rotated or resized scene.
+private final class ReaderTabBar: UITabBar {
+    var geometryChanged: (() -> Void)?
+    private var previousBounds = CGRect.null
+    private var previousSafeBottom: CGFloat = -1
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard bounds != previousBounds || safeAreaInsets.bottom != previousSafeBottom else { return }
+        previousBounds=bounds;previousSafeBottom=safeAreaInsets.bottom
+        DispatchQueue.main.async { [weak self] in self?.geometryChanged?() }
+    }
+}
+
 private struct RequestArgs: Decodable {
     let operation: String
     let variables: [String: AnyCodable]
@@ -25,10 +38,12 @@ private struct AnyCodable: Decodable {
     }
 }
 private struct ChromeArgs: Decodable {
+    let revision: UInt64?
     let labels: [String]
     let accessibilityLabels: [String]?
     let selected: String
     let dark: Bool
+    let followSystem: Bool?
     let visible: Bool
     let routes: [String]
     let accent: String
@@ -104,8 +119,10 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
     private var loginHandoff = LoginHandoff()
     private var loginController: UINavigationController?
     private var pendingCookies: [HTTPCookie] = []
-    private var chrome: UIVisualEffectView?
+    private var chrome: UITabBar?
+    private var chromeState = ReaderChromeState()
     private var tabBar: UITabBar?
+    private let mediaPresenter = NativeMediaPresenter()
     private var readyCallbacks: [String: (UInt64, () -> Void)] = [:]
     private var loading = false
     private var activeToken = ""
@@ -140,9 +157,10 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
         browser.navigationDelegate = self
         compileTransportRules()
         deviceRuntime = DeviceRuntime()
+        deviceRuntime?.currentScene = { [weak webview] in webview?.window?.windowScene }
         deviceRuntime?.changed = { [weak self] snapshot in
             guard let self = self else { return }
-            if snapshot["foreground"] as? Bool == false { self.journal.record("background",stage:"login"); self.cancelTransportReads(all:true) }
+            if snapshot["foreground"] as? Bool == false { self.journal.record("background",stage:"login"); self.cancelTransportReads(all:true);self.mediaPresenter.pause() }
             if snapshot["active"] as? Bool == true {
                 self.journal.record("resume",stage:"login")
                 if self.loginNeedsReload && !self.loginCompleting { self.loginNeedsReload = false; (self.loginPopup ?? self.loginBrowser)?.reload() }
@@ -286,7 +304,7 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
         loginPopup?.stopLoading(); loginPopup = nil
         loginBrowser?.stopLoading(); loginBrowser = nil
         loginController?.dismiss(animated: true); loginController = nil
-        loginNeedsReload = false; pendingCookies = []; activeToken = ""; needsReload = true; loading = false; browser.stopLoading(); chrome?.isHidden = false
+        loginNeedsReload = false; pendingCookies = []; activeToken = ""; needsReload = true; loading = false; browser.stopLoading(); updateChromeVisibility()
         invoke?.resolve(ConnectionFault.value(code, "login", retryable: code != "cancelled"))
     }
     @objc func waitForLoginActive(_ invoke: Invoke) { DispatchQueue.main.async {
@@ -595,7 +613,7 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
         self.loginBrowser?.configuration.websiteDataStore.httpCookieStore.remove(self)
         self.loginBrowser?.stopLoading(); self.loginPopup?.stopLoading()
         self.loginBrowser = nil; self.loginPopup = nil; self.pendingCookies = []
-        let controller = self.loginController; self.loginController = nil; self.chrome?.isHidden = false
+        let controller = self.loginController; self.loginController = nil; self.updateChromeVisibility()
         if let controller = controller { controller.dismiss(animated:true) { invoke.resolve() } }
         else { invoke.resolve() }
     } }
@@ -920,52 +938,37 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
         let args = try invoke.parseArgs(ChromeArgs.self)
         DispatchQueue.main.async {
             guard args.labels.count == 5, args.routes.count == 5, let webview = self.reader, let parent = webview.superview else { rejectNative(invoke, "Reader chrome is not ready."); return }
+            guard self.chromeState.update(visible:args.visible,revision:args.revision) else {invoke.resolve(["native":true]);return}
             self.routes = args.routes
             self.nativeHaptics = args.haptics
             if self.chrome == nil {
-                let effect: UIVisualEffect
-                #if compiler(>=6.2)
-                if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
-                    effect = UIGlassEffect(style: .regular)
-                } else { effect = UIBlurEffect(style: .systemMaterial) }
-                #else
-                effect = UIBlurEffect(style: .systemMaterial)
-                #endif
-                let bar = UIVisualEffectView(effect: effect)
-                bar.translatesAutoresizingMaskIntoConstraints = false
-                bar.layer.cornerRadius = 30
-                bar.clipsToBounds = true
-                let tabs = UITabBar()
+                let tabs = ReaderTabBar()
+                tabs.geometryChanged = { [weak self] in self?.refreshGlass() }
                 tabs.translatesAutoresizingMaskIntoConstraints = false
                 tabs.delegate = self
-                tabs.itemPositioning = .fill
                 tabs.showsLargeContentViewer = true
                 tabs.addInteraction(UILargeContentViewerInteraction())
-                bar.contentView.addSubview(tabs)
-                parent.addSubview(bar)
-                let height = bar.heightAnchor.constraint(equalToConstant: 64)
+                parent.addSubview(tabs)
+                let height = tabs.heightAnchor.constraint(equalToConstant: 49)
                 self.chromeHeight = height
                 NSLayoutConstraint.activate([
-                    bar.leadingAnchor.constraint(equalTo: webview.leadingAnchor, constant: 12),
-                    bar.trailingAnchor.constraint(equalTo: webview.trailingAnchor, constant: -12),
-                    bar.bottomAnchor.constraint(equalTo: parent.safeAreaLayoutGuide.bottomAnchor, constant: -6),
-                    height,
-                    tabs.leadingAnchor.constraint(equalTo: bar.contentView.leadingAnchor),
-                    tabs.trailingAnchor.constraint(equalTo: bar.contentView.trailingAnchor),
-                    tabs.topAnchor.constraint(equalTo: bar.contentView.topAnchor, constant: 4),
-                    tabs.bottomAnchor.constraint(equalTo: bar.contentView.bottomAnchor, constant: -4)
+                    tabs.leadingAnchor.constraint(equalTo: webview.leadingAnchor),
+                    tabs.trailingAnchor.constraint(equalTo: webview.trailingAnchor),
+                    tabs.bottomAnchor.constraint(equalTo: parent.bottomAnchor), height
                 ])
                 self.tabBar = tabs
-                self.chrome = bar
+                self.chrome = tabs
             }
             self.chrome?.overrideUserInterfaceStyle = args.dark ? .dark : .light
+            webview.window?.overrideUserInterfaceStyle = args.followSystem == true ? .unspecified : args.dark ? .dark : .light
+            webview.window?.rootViewController?.setNeedsStatusBarAppearanceUpdate()
             self.chrome?.semanticContentAttribute = args.rtl ? .forceRightToLeft : .forceLeftToRight
-            self.chrome?.contentView.subviews.forEach { $0.semanticContentAttribute = args.rtl ? .forceRightToLeft : .forceLeftToRight }
-            self.chrome?.isHidden = !args.visible
+            self.chrome?.subviews.forEach { $0.semanticContentAttribute = args.rtl ? .forceRightToLeft : .forceLeftToRight }
+            self.updateChromeVisibility()
             self.chrome?.backgroundColor = UIAccessibility.isReduceTransparencyEnabled ? .secondarySystemBackground : .clear
             let accent = self.color(args.accent) ?? .systemBlue
             let appearance = UITabBarAppearance()
-            appearance.configureWithTransparentBackground()
+            appearance.configureWithDefaultBackground()
             appearance.shadowColor = .clear
             for layout in [appearance.stackedLayoutAppearance, appearance.inlineLayoutAppearance, appearance.compactInlineLayoutAppearance] {
                 layout.normal.iconColor = .secondaryLabel
@@ -989,6 +992,19 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
             invoke.resolve(["native": true])
         }
     }
+    @objc func presentMedia(_ invoke: Invoke) throws {
+        let args=try invoke.parseArgs(NativeMediaArgs.self)
+        DispatchQueue.main.async {
+            guard let root=self.reader?.window?.rootViewController, root.presentedViewController == nil else {rejectNative(invoke,"The media viewer is not ready.");return}
+            self.chrome?.isHidden=true;self.refreshGlass()
+            if !self.mediaPresenter.present(args,from:root,done:{result in self.updateChromeVisibility();invoke.resolve(result)}) {self.updateChromeVisibility();rejectNative(invoke,"Another media viewer is already open.")}
+        }
+    }
+    @objc func dismissMedia(_ invoke: Invoke) {
+        struct Args:Decodable {let revision:UInt64?}
+        let args=try? invoke.parseArgs(Args.self)
+        DispatchQueue.main.async {self.mediaPresenter.dismiss(revision:args?.revision);invoke.resolve()}
+    }
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
         guard routes.indices.contains(item.tag) else { return }
         if nativeHaptics { UISelectionFeedbackGenerator().selectionChanged() }
@@ -1007,22 +1023,29 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
         return UIColor(red:CGFloat((rgb >> 16) & 255)/255,green:CGFloat((rgb >> 8) & 255)/255,blue:CGFloat(rgb & 255)/255,alpha:1)
     }
     private func refreshGlass() {
-        guard let chrome = chrome else { return }
-        let height = max(64, (tabBar?.sizeThatFits(CGSize(width: chrome.bounds.width, height: 0)).height ?? 49) + 8)
-        chromeHeight?.constant = height
-        chrome.layoutIfNeeded()
-        reader?.evaluateJavaScript("document.documentElement.style.setProperty('--native-tab-height','\(height + 12)px');")
-        if UIAccessibility.isReduceTransparencyEnabled { chrome.effect = nil; chrome.backgroundColor = .secondarySystemBackground }
-        else {
-            chrome.backgroundColor = .clear
-            #if compiler(>=6.2)
-            if #available(iOS 26.0, *) { chrome.effect = UIGlassEffect(style:.regular) }
-            else { chrome.effect = UIBlurEffect(style:.systemMaterial) }
-            #else
-            chrome.effect = UIBlurEffect(style:.systemMaterial)
-            #endif
+        guard let chrome = chrome, let reader = reader else { return }
+        let safeBottom = reader.window?.safeAreaInsets.bottom ?? 0
+        let fitted = chrome.sizeThatFits(CGSize(width: reader.bounds.width, height: 0)).height
+        let height=max(49 + safeBottom, fitted)
+        if chromeHeight?.constant != height {chromeHeight?.constant=height}
+        chrome.superview?.layoutIfNeeded()
+        let frame = chrome.convert(chrome.bounds, to:reader)
+        let occupied = chrome.isHidden ? 0 : max(0, reader.bounds.maxY - frame.minY)
+        reader.evaluateJavaScript("document.documentElement.style.setProperty('--native-tab-height','\(occupied)px');")
+    }
+    private func updateChromeVisibility() {
+        chrome?.isHidden = !chromeState.visible(loginOpen:loginController != nil,mediaOpen:mediaPresenter.isPresented)
+        refreshGlass()
+    }
+    @objc func setChromeVisible(_ invoke: Invoke) {
+        struct Args: Decodable { let visible: Bool; let revision: UInt64? }
+        guard let args = try? invoke.parseArgs(Args.self) else { rejectNative(invoke,"Invalid navigation visibility.");return }
+        DispatchQueue.main.async {
+            guard self.chromeState.update(visible:args.visible,revision:args.revision) else {invoke.resolve();return}
+            self.updateChromeVisibility();invoke.resolve()
         }
     }
 }
+
 @_cdecl("init_plugin_ios_reader")
 func initPlugin() -> Plugin { IosReaderPlugin() }

@@ -138,14 +138,14 @@ function PostCardImpl({
         "hover:border-edge-strong",
       )}
     >
-      <div className={cn('post-card-layout',isIphone ? 'grid grid-cols-[40px_minmax(0,1fr)] gap-x-3 gap-y-2 sm:flex sm:gap-3' : 'flex gap-3')}>
+      <div className={cn('post-card-layout',isIphone ? 'grid grid-cols-[40px_minmax(0,1fr)] gap-x-3 gap-y-2' : 'flex gap-3')}>
         <button
           type="button"
           onClick={() => onOpenProfile?.(post.author.username)}
           // self-start is required: as a flex child the button would stretch to
           // the full card height, and Chromium vertically centres a button's
           // content, leaving the avatar floating beside the media.
-          className="post-card-avatar shrink-0 cursor-pointer self-start"
+          className={cn("post-card-avatar shrink-0 cursor-pointer self-start",isIphone && "grid min-h-11 min-w-11 place-items-center")}
           aria-label={`Open ${post.author.displayName}'s profile`}
         >
           <Avatar author={post.author} size={40} />
@@ -187,7 +187,7 @@ function PostCardImpl({
             className="mt-1.5"
           />
 
-          <MediaGallery media={post.media} defaultSpeed={defaultSpeed} />
+          <MediaGallery media={post.media} defaultSpeed={defaultSpeed} postId={post.id} />
 
           {post.quoted ? (
             <QuotedPostCard

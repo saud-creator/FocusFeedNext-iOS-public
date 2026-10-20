@@ -6,6 +6,10 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import type { RuntimeSnapshot } from './runtime';
+let chromeRevision=Date.now()*1000;
+const nextChromeRevision=()=>chromeRevision=Math.max(chromeRevision+1,Date.now()*1000);
+let mediaRevision=Date.now()*1000;
+const nextMediaRevision=()=>mediaRevision=Math.max(mediaRevision+1,Date.now()*1000);
 
 export type MediaKind = "image" | "video" | "gif";
 
@@ -260,6 +264,9 @@ export interface FollowingSnapshot {
   complete: boolean;
   /** True while a traversal is running. */
   syncing: boolean;
+  state?: 'idle' | 'loading' | 'complete' | 'failed' | 'cancelled';
+  lastError?: string | null;
+  lastProgressAt?: string | null;
 }
 
 /**
@@ -418,9 +425,14 @@ export const api = {
   connect: (authToken: string, ct0: string) =>
     invoke<SessionSnapshot>("connect_x_account", { authToken, ct0 }),
   signInIos: () => invoke<SessionSnapshot>("sign_in_ios"),
+  uiTestFixture: () => invoke<{scenario:string;image:string;video:string;failedImage:string}|null>("get_ui_test_fixture"),
+  setIosChromeVisible: (visible: boolean) => invoke<void>("set_ios_chrome_visible", {visible,revision:nextChromeRevision()}),
+  presentIosMedia: (items: {url:string;kind:'image'|'video';alt?:string|null}[], index:number, options: {position?:number;playing?:boolean;speed?:number;muted?:boolean;loopPlayback?:boolean;retryLabel?:string;locale?:string} = {}) =>
+    invoke<{index:number;position:number;playing:boolean}>("present_ios_media",{items,index,...options,revision:nextMediaRevision()}),
+  dismissIosMedia: () => invoke<void>("dismiss_ios_media",{revision:nextMediaRevision()}),
   shareConnectionReport: () => invoke<void>("share_connection_report"),
-  configureIosChrome: (labels: string[], selected: string, dark: boolean, visible = true, routes?: string[], accent = '', haptics = true, rtl = document.documentElement.dir === 'rtl', accessibilityLabels?: string[]) =>
-    invoke<boolean>("configure_ios_chrome", { labels, selected, dark, visible, routes, accent, haptics, rtl, accessibilityLabels }),
+  configureIosChrome: (labels: string[], selected: string, dark: boolean, visible = true, routes?: string[], accent = '', haptics = true, rtl = document.documentElement.dir === 'rtl', accessibilityLabels?: string[], followSystem = false) =>
+    invoke<boolean>("configure_ios_chrome", { labels, selected, dark, visible, routes, accent, haptics, rtl, accessibilityLabels,followSystem,revision:nextChromeRevision() }),
   connectIphoneCompanion: (address: string, code: string) =>
     invoke<SessionSnapshot>("connect_iphone_companion", { address, code }),
   /** `force` skips the conservative re-check interval the backend enforces. */

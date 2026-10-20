@@ -66,3 +66,16 @@ and are not substituted for local evidence.
 Windows cannot compile the Apple native target. The newer branch did not
 contain a newly built 0.8.5 IPA. Real iPhone login, cellular loading, native
 fullscreen and lifecycle behavior remain device acceptance gates.
+
+## Main publication update, 19 October 2026
+
+The user authorized direct-main publication. Commit 8115405 imported the
+editable 0.8.5 tree with the original upstream main head 466a1e3 as parent.
+Follow-up build corrections are ordinary descendants (49d4030, 404f708).
+No unrelated local snapshot commits were pushed and no force update was used.
+Codemagic main push builds and the webhook are now active. The earlier manual
+import notes above remain a historical record of the initial workspace state.
+
+## iOS 27 runner corrections, 20 October 2026
+
+Build #6 exported the native launch crash and screenshots. The app terminated in UIKit scene lifecycle validation before rendering. Commit 2b88b56 adds the static Tao scene manifest and the upstream Tao #1245 ownership fix, with crate provenance retained. This is separate from the 0.8.6 app repair candidate. Both the simulator and final IPA checks retain the iOS 16 deployment minimum.

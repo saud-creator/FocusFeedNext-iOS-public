@@ -2,7 +2,7 @@
 import argparse, hashlib, json, plistlib, struct, zipfile
 from pathlib import Path
 parser = argparse.ArgumentParser()
-parser.add_argument('ipa',type=Path);parser.add_argument('--version',default='0.8.5');parser.add_argument('--output',type=Path)
+parser.add_argument('ipa',type=Path);parser.add_argument('--version',default=json.loads(Path(__file__).resolve().parents[1].joinpath('package.json').read_text())['version']);parser.add_argument('--output',type=Path)
 args=parser.parse_args()
 with zipfile.ZipFile(args.ipa) as archive:
     assert archive.testzip() is None, 'Archive CRC failure'
@@ -14,6 +14,12 @@ with zipfile.ZipFile(args.ipa) as archive:
     assert info['CFBundleIdentifier']=='com.focusfeed.next', 'Unexpected app identity'
     assert info['CFBundleShortVersionString']==args.version, 'Unexpected version'
     assert info['CFBundleSupportedPlatforms']==['iPhoneOS'], 'Not an iPhone device build'
+    assert info.get('MinimumOSVersion')=='16.0', 'Expected the iOS 16 deployment minimum'
+    ats=info.get('NSAppTransportSecurity',{})
+    assert ats.get('NSExceptionDomains',{}).get('127.0.0.1',{}).get('NSExceptionAllowsInsecureHTTPLoads') is True, 'Missing media proxy loopback transport exception'
+    assert not any(ats.get(key) for key in ('NSAllowsArbitraryLoads','NSAllowsArbitraryLoadsForMedia','NSAllowsArbitraryLoadsInWebContent')), 'External transport protections must remain enabled'
+    assert b'FFN_UI_TEST_SCENARIO' not in archive.read(root+info['CFBundleExecutable']), 'Test fixture backend present in release'
+    assert not any('FixtureApp' in name for name in names), 'Test fixture renderer present in release'
     assert info.get('CADisableMinimumFrameDurationOnPhone') is True, 'Missing ProMotion opt-in'
     scenes=info.get('UIApplicationSceneManifest',{})
     assert scenes.get('UIApplicationSupportsMultipleScenes') is True, 'Tao scene lifecycle is not enabled'

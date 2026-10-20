@@ -21,7 +21,7 @@ PY
 set +e
 export SDKROOT="$(xcrun --sdk iphonesimulator --show-sdk-path)"
 export IPHONEOS_DEPLOYMENT_TARGET=16.0
-npm run tauri -- ios build --debug --ci --target aarch64-sim > "$origin/dist-ios/simulator-build.log" 2>&1
+FFN_UI_TEST=1 npm run tauri -- ios build --debug --ci --target aarch64-sim --features dev-mock > "$origin/dist-ios/simulator-build.log" 2>&1
 status=$?
 set -e
 if ! find src-tauri/gen/apple -type d -name '*.app' -print -quit | grep -q .; then
@@ -32,6 +32,9 @@ ruby tools/configure-ios-uitests.rb
 xcrun simctl boot "$device" || true
 xcrun simctl bootstatus "$device" -b
 project=$(find src-tauri/gen/apple -maxdepth 1 -name '*.xcodeproj' -print -quit)
+python3 tools/ios-native-tests/server.py &
+fixture_pid=$!
+trap 'kill "$fixture_pid" 2>/dev/null || true' EXIT
 set +e
 xcodebuild test -project "$project" -scheme FocusFeedUITests -destination "platform=iOS Simulator,id=$device" -collect-test-diagnostics never -resultBundlePath "$origin/dist-ios/SimulatorTests.xcresult" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | tee "$origin/dist-ios/simulator-tests.log"
 test_status=${PIPESTATUS[0]}

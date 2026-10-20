@@ -36,6 +36,14 @@ export function MobileNavigation({ unread }: { unread: number }) {
   const haptics = useAppStore(state => state.prefs.haptics);
   const [fullscreen, setFullscreen] = useState(isOverlayActive);
 
+  useEffect(() => () => {
+    document.documentElement.style.setProperty('--reader-bottom-inset','0px');
+    if (isTauri()) void api.setIosChromeVisible(false).catch(()=>{});
+  }, []);
+  useEffect(() => {
+    document.documentElement.style.setProperty('--reader-bottom-inset', fullscreen ? '0px' : nativeChrome ? 'var(--native-tab-height,0px)' : 'calc(4.5rem + env(safe-area-inset-bottom))');
+  }, [nativeChrome, fullscreen]);
+
   useEffect(() => setMoreOpen(false), [route]);
 
   const available: MobileItem[] = [
@@ -61,7 +69,7 @@ export function MobileNavigation({ unread }: { unread: number }) {
       const dark = theme === 'dark' || theme === 'oled' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       void api.configureIosChrome([
         ...primary.map(item => t(`nav.short.${item.id}`)), t('nav.mobile.more'),
-      ], route, dark, !fullscreen, [...tabs, 'more'], accent, haptics, document.documentElement.dir === 'rtl', [...primary.map(item=>item.label),t('nav.mobile.more')]).then(native => { if (!cancelled) setNativeChrome(native); }).catch(() => { if (!cancelled) setNativeChrome(false); });
+      ], route, dark, !fullscreen, [...tabs, 'more'], accent, haptics, document.documentElement.dir === 'rtl', [...primary.map(item=>item.label),t('nav.mobile.more')], theme==='system').then(native => { if (!cancelled) setNativeChrome(native); }).catch(() => { if (!cancelled) setNativeChrome(false); });
     };
     configure();
     const scheme = window.matchMedia('(prefers-color-scheme: dark)');
@@ -108,7 +116,7 @@ export function MobileNavigation({ unread }: { unread: number }) {
               </div>
               <button
                 type="button"
-                className="grid size-9 place-items-center rounded-full text-ink-dim active:bg-surface-3"
+                className="grid size-11 place-items-center rounded-full text-ink-dim active:bg-surface-3"
                 aria-label={t("nav.mobile.closeMore")}
                 onClick={() => setMoreOpen(false)}
               >

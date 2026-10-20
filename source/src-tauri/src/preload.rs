@@ -176,6 +176,11 @@ pub struct Slot {
 }
 
 impl Slot {
+    pub fn claim_owned(self: &std::sync::Arc<Self>) -> Option<OwnedSlotGuard> {
+        self.running.compare_exchange(false,true,Ordering::SeqCst,Ordering::SeqCst).ok()?;
+        self.cancel.store(false,Ordering::SeqCst);
+        Some(OwnedSlotGuard(std::sync::Arc::clone(self)))
+    }
     /// Take the slot, or `None` when a worker already holds it.
     ///
     /// `compare_exchange`, not read-then-write: startup preload, a manual
@@ -208,6 +213,10 @@ impl Slot {
 /// Releases the slot on drop, including on a panic or an early return.
 pub struct SlotGuard<'a>(&'a Slot);
 
+pub struct OwnedSlotGuard(std::sync::Arc<Slot>);
+impl OwnedSlotGuard { pub fn cancelled(&self) -> bool {self.0.cancelled()} }
+impl Drop for OwnedSlotGuard {fn drop(&mut self) {self.0.running.store(false,Ordering::SeqCst);}}
+
 impl SlotGuard<'_> {
     pub fn cancelled(&self) -> bool {
         self.0.cancelled()
@@ -223,7 +232,7 @@ impl Drop for SlotGuard<'_> {
 /// The two background slots this release has.
 #[derive(Debug, Default)]
 pub struct Workers {
-    pub following: Slot,
+    pub following: std::sync::Arc<Slot>,
     pub bookmarks: Slot,
     epoch: std::sync::atomic::AtomicU64,
 }
@@ -288,6 +297,28 @@ pub fn traverse_following(
     cancel: &dyn Fn() -> bool,
     mut on_batch: impl FnMut(&[Author], bool) -> AppResult<()>,
 ) -> AppResult<Traversal> {
+    if provider.capabilities().following_cursor {
+        let mut cursor = None; let mut cursors = std::collections::HashSet::new();
+        let mut authors = std::collections::HashSet::new(); let mut loaded = 0; let mut empty_pages=0;
+        loop {
+            if cancel() { return Ok(Traversal { loaded, exhaustive:false, cancelled:true }); }
+            let page = provider.get_following_accounts_page(handle, if cursor.is_none() {30} else {60}, cursor)?;
+            if cancel() { return Ok(Traversal { loaded, exhaustive:false, cancelled:true }); }
+            let batch: Vec<_> = page.accounts.into_iter().filter(|a| authors.insert(a.id.clone())).collect();
+            loaded += batch.len();
+            let done = page.cursor.is_none();
+            empty_pages=if batch.is_empty() && !done {empty_pages+1}else{0};
+            if empty_pages>=2 {
+                return Err(AppError::new(ErrorCode::SchemaChanged,"Account loading made no progress. Loaded accounts remain available; try again."));
+            }
+            on_batch(&batch, done)?;
+            if done { return Ok(Traversal {loaded,exhaustive:true,cancelled:false}); }
+            cursor = page.cursor;
+            if !cursors.insert(cursor.clone().unwrap()) {
+                return Err(AppError::new(ErrorCode::SchemaChanged,"Twitter repeated an account page. Loaded accounts remain available; retry the list."));
+            }
+        }
+    }
     let mut want = initial_request_size(known_total);
     let mut loaded = 0usize;
     loop {
@@ -360,9 +391,28 @@ mod tests {
     struct Counted {
         total: usize,
         calls: Mutex<Vec<u32>>,
+        cursor_mode: bool,
+        repeated: bool,
+        stalled_after: Option<usize>,
     }
 
     impl XDataProvider for Counted {
+        fn capabilities(&self) -> crate::providers::ProviderCapabilities {
+            crate::providers::ProviderCapabilities { following_cursor:self.cursor_mode, ..crate::providers::ProviderCapabilities::none() }
+        }
+        fn get_following_accounts_page(&self, _u:&str, max:u32, cursor:Option<String>) -> AppResult<crate::models::AccountPage> {
+            self.calls.lock().unwrap().push(max);
+            let calls=self.calls.lock().unwrap().len();
+            if self.stalled_after.is_some_and(|after| calls>after) {
+                return Ok(crate::models::AccountPage {accounts:Vec::new(),cursor:Some(format!("stalled-{calls}"))});
+            }
+            let start=cursor.and_then(|c| c.parse::<usize>().ok()).unwrap_or(0);
+            let end=(start+max as usize).min(self.total);
+            Ok(crate::models::AccountPage {
+                accounts:(start..end).map(|i| Author{id:format!("id{i}"),username:format!("u{i}"),..Default::default()}).collect(),
+                cursor:if self.repeated {Some("0".into())} else if end<self.total {Some(end.to_string())} else {None},
+            })
+        }
         fn name(&self) -> &'static str {
             "counted"
         }
@@ -414,10 +464,41 @@ mod tests {
         Counted {
             total,
             calls: Mutex::new(Vec::new()),
+            cursor_mode:false,
+            repeated:false,
+            stalled_after:None,
         }
     }
 
     const NEVER: &dyn Fn() -> bool = &|| false;
+
+    #[test]
+    fn native_cursor_pages_are_delivered_before_the_whole_list_finishes() {
+        let mut provider=counted(95);provider.cursor_mode=true;
+        let mut delivered=0;let mut progress=Vec::new();
+        let result=traverse_following(&provider,"me",None,NEVER,|batch,_|{delivered+=batch.len();progress.push(delivered);Ok(())}).unwrap();
+        assert_eq!(progress,vec![30,90,95]);assert_eq!(*provider.calls.lock().unwrap(),vec![30,60,60]);
+        assert!(result.exhaustive);assert_eq!(result.loaded,95);
+    }
+    #[test]
+    fn repeated_account_cursors_fail_after_preserving_the_received_pages() {
+        let mut provider=counted(95);provider.cursor_mode=true;provider.repeated=true;
+        let mut delivered=0;
+        assert!(traverse_following(&provider,"me",None,NEVER,|batch,_|{delivered+=batch.len();Ok(())}).is_err());
+        assert_eq!(delivered,60);assert_eq!(provider.calls.lock().unwrap().len(),2);
+    }
+
+    #[test]
+    fn changing_cursors_without_new_accounts_cannot_keep_loading_forever() {
+        for completed_pages in [0,1] {
+            let mut provider=counted(95);provider.cursor_mode=true;provider.stalled_after=Some(completed_pages);
+            let mut delivered=0;
+            let error=traverse_following(&provider,"me",None,NEVER,|batch,_|{delivered+=batch.len();Ok(())}).unwrap_err();
+            assert_eq!(error.code,ErrorCode::SchemaChanged);
+            assert_eq!(delivered,if completed_pages==0 {0}else{30});
+            assert_eq!(provider.calls.lock().unwrap().len(),completed_pages+2);
+        }
+    }
 
     #[test]
     fn a_short_list_finishes_in_one_request() {

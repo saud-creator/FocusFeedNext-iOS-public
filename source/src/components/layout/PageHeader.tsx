@@ -31,7 +31,7 @@ export function PageHeader({
             {title}
           </h1>
           {subtitle ? (
-            <div className="text-[12.5px] text-ink-mute mt-0.5 truncate">
+            <div className="text-[12.5px] text-ink-mute mt-0.5 leading-snug break-words">
               {subtitle}
             </div>
           ) : null}

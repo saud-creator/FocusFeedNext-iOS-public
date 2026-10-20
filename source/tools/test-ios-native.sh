@@ -10,6 +10,7 @@ for attempt in {1..20}; do
   sleep 0.1
 done
 swiftc src-tauri/plugins/ios-reader/ios/Sources/SessionTransaction.swift \
+  src-tauri/plugins/ios-reader/ios/Sources/ReaderChrome.swift \
   src-tauri/plugins/ios-reader/ios/Sources/TransportRules.swift \
   src-tauri/plugins/ios-reader/ios/Sources/TransportDocument.swift \
   src-tauri/plugins/ios-reader/ios/Sources/LoginCookies.swift \

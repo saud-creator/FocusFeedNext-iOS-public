@@ -4,7 +4,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import type { PostMedia } from "@/lib/api";
+import { api, isTauri, type PostMedia } from "@/lib/api";
 import { Lightbox } from "@/components/media/Lightbox";
 import { isVideoLike } from "@/lib/media";
 import { useI18n } from "@/i18n";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { VideoPlayer } from "./VideoPlayer";
 import { usePlatform } from '@/lib/platform';
 import { useEffectivePolicy } from '@/lib/runtime';
+import { useNativeMedia } from '@/lib/nativeMedia';
 
 /**
  * The tallest a single image may render.
@@ -38,9 +39,13 @@ const GRID_ROW_HEIGHT = 200;
 function LazyFeedImage({
   media,
   style,
+  onError,
+  onLoad,
 }: {
   media: PostMedia;
   style: CSSProperties;
+  onError?: () => void;
+  onLoad?: (width:number,height:number) => void;
 }) {
   const frame = useRef<HTMLImageElement>(null);
   const [nearby, setNearby] = useState(false);
@@ -77,8 +82,33 @@ function LazyFeedImage({
       draggable={false}
       style={style}
       data-media-lazy="true"
+      onError={onError}
+      onLoad={event=>onLoad?.(event.currentTarget.naturalWidth,event.currentTarget.naturalHeight)}
     />
   );
+}
+
+function ImageTile({media, onOpen, onRecover, adaptive, single, spanFull}: {media:PostMedia;onOpen:()=>void;onRecover:()=>Promise<void>;adaptive:boolean;single:boolean;spanFull:boolean}) {
+  const {t}=useI18n();
+  const [status,setStatus]=useState<'loading'|'loaded'|'failed'>('loading');
+  const [attempt,setAttempt]=useState(0);
+  const [retrying,setRetrying]=useState(false);
+  const [intrinsicRatio,setIntrinsicRatio]=useState<number|null>(null);
+  const ratio=intrinsicRatio ?? (media.width && media.height ? media.width/media.height : DEFAULT_MEDIA_RATIO);
+  if(status==='failed' || !media.url) return <div className="rounded-lg border border-edge bg-surface-2 p-4 text-center text-sm text-ink-dim" role="group" aria-label={t('post.media.imageFailed')}>
+    <p>{t('post.media.imageFailed')}</p>
+    {media.url && <button type="button" disabled={retrying} className="mt-2 min-h-11 px-3 text-accent" onClick={()=>{
+      setRetrying(true);
+      void onRecover().finally(()=>{setRetrying(false);setAttempt(n=>n+1);setStatus('loading');});
+    }}>{t('post.media.retryImage')}</button>}
+  </div>;
+  return <button type="button" onClick={onOpen}
+    className={cn('relative block w-full overflow-hidden rounded-lg border border-edge bg-surface-3 cursor-zoom-in self-start',spanFull && !adaptive && 'row-span-2')}
+    style={single || adaptive ? {aspectRatio:String(ratio),maxHeight:adaptive ? undefined : SINGLE_MAX_HEIGHT} : {height:'100%'}}
+    aria-busy={status==='loading'}
+    aria-label={media.alt ? t('post.media.openImageAlt',{alt:media.alt}) : t('post.media.openImage')}>
+    <LazyFeedImage key={`${media.url}:${attempt}`} media={media} onLoad={(width,height)=>{if(width>0 && height>0)setIntrinsicRatio(width/height);setStatus('loaded');}} onError={()=>setStatus('failed')} style={{width:'100%',height:'100%',objectFit:'contain',visibility:status==='loaded'?'visible':'hidden'}}/>
+  </button>;
 }
 
 /**
@@ -97,30 +127,51 @@ function LazyFeedImage({
 export function MediaGallery({
   media,
   defaultSpeed,
+  postId,
 }: {
   media: PostMedia[];
   defaultSpeed?: number;
+  postId?: string;
 }) {
-  const { t } = useI18n();
   const { isIphone } = usePlatform();
+  const {t,locale}=useI18n();
+  const nativeMedia=useNativeMedia();
   const [lightboxAt, setLightboxAt] = useState<number | null>(null);
+  const [recovered,setRecovered]=useState<{original:PostMedia[];items:PostMedia[]}|null>(null);
+  const owner=useRef(true);
+  useEffect(()=>{owner.current=true;return()=>{owner.current=false;};},[]);
+  const recover=async()=>{
+    if(!postId || !isTauri())return;
+    // Re-read only the session cache to renew evicted proxy registrations.
+    // No timeline traversal or account write is triggered by media recovery.
+    const fresh=await api.post(postId).catch(()=>null);
+    if(owner.current && fresh) setRecovered({original:media,items:fresh.media});
+  };
+  const displayed=recovered?.original===media ? recovered.items : media;
 
   if (!media || media.length === 0) return null;
 
   // GIFs belong with the videos: X serves animated GIFs as MP4, so pointing an
   // <img> at one renders nothing at all. `isVideoLike` is the single place that
   // decision is made.
-  const videos = media.filter(isVideoLike);
-  const images = media.filter((m) => !isVideoLike(m));
+  const videos = displayed.filter(isVideoLike);
+  const images = displayed.filter((m) => !isVideoLike(m));
 
   const single = images.length === 1;
   // Two images sit side by side in one row; three or four stack into two.
   const rows = images.length <= 2 ? 1 : 2;
+  const openImage = async (index:number) => {
+    if(isIphone && isTauri()) {
+      try { await nativeMedia.present(images.map(m=>({url:m.url,kind:'image',alt:m.alt})),index,{retryLabel:t('post.media.retryImage'),locale});return; }
+      catch { /* The safe-area-aware web viewer remains a recovery path. */ }
+    }
+    setLightboxAt(index);
+  };
 
   return (
     <div className="mt-3 space-y-2">
       {videos.map((v, i) => (
-        <VideoPlayer key={`v-${i}`} media={v} defaultSpeed={defaultSpeed} />
+        <VideoPlayer key={`v-${i}`} media={v} defaultSpeed={defaultSpeed} onRecover={recover} />
       ))}
 
       {images.length > 0 ? (
@@ -133,56 +184,12 @@ export function MediaGallery({
           // A grid gets fixed rows so the cells stay aligned; the images inside
           // them do not, which is what keeps the tidiness from costing shape.
           style={
-            single
+            single || isIphone
               ? undefined
               : { gridTemplateRows: `repeat(${rows}, ${isIphone ? 'clamp(120px, 35vw, 180px)' : `${GRID_ROW_HEIGHT}px`})` }
           }
         >
-          {images.map((m, i) => {
-            const ratio =
-              m.width && m.height ? m.width / m.height : DEFAULT_MEDIA_RATIO;
-            // With three images the first takes the full-height column, the
-            // one asymmetry that still reads as a deliberate layout.
-            const spanFull = images.length === 3 && i === 0;
-            return (
-              <button
-                key={`i-${i}`}
-                type="button"
-                onClick={() => setLightboxAt(i)}
-                className={cn(
-                  "relative block w-full overflow-hidden bg-surface-3 cursor-zoom-in",
-                  "border border-edge rounded-lg",
-                  spanFull && "row-span-2",
-                )}
-                style={
-                  single
-                    ? {
-                        // Keep the card's first virtual measurement stable
-                        // even when the image has not decoded yet. The frame
-                        // uses the provider ratio when available and a modest
-                        // landscape fallback when it is not.
-                        aspectRatio: String(ratio),
-                        maxHeight: SINGLE_MAX_HEIGHT,
-                      }
-                    : undefined
-                }
-                aria-label={
-                  m.alt
-                    ? t("post.media.openImageAlt", { alt: m.alt })
-                    : t("post.media.openImage")
-                }
-              >
-                <LazyFeedImage
-                  media={m}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "contain",
-                  }}
-                />
-              </button>
-            );
-          })}
+          {images.map((m, i) => <ImageTile key={`${m.url}:${i}`} media={m} single={single} adaptive={isIphone} spanFull={images.length===3 && i===0} onRecover={recover} onOpen={()=>void openImage(i)}/>)}
         </div>
       ) : null}
 

@@ -162,6 +162,9 @@ pub trait XDataProvider: Send + Sync {
     /// Accounts followed by `username`. The handle is required: the backend has
     /// no notion of "the current user" for this operation.
     fn get_following_accounts(&self, username: &str, max: u32) -> AppResult<Vec<Author>>;
+    fn get_following_accounts_page(&self, _username: &str, _max: u32, _cursor: Option<String>) -> AppResult<AccountPage> {
+        Err(AppError::new(ErrorCode::BlockedOperation, "This provider does not support account cursors."))
+    }
     fn get_bookmarks(&self, max: u32) -> AppResult<FeedPage>;
     fn get_bookmarks_page(&self, max: u32, _cursor: Option<String>) -> AppResult<FeedPage> {
         self.get_bookmarks(max)

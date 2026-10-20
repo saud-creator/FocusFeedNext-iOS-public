@@ -35,7 +35,7 @@ export function handleKey(username: string): string {
 /** What to show when there is no avatar image: the first two characters. */
 export function accountInitials(account: AccountRef): string {
   const source = account.displayName?.trim() || cleanHandle(account.username);
-  return source.slice(0, 2).toLocaleUpperCase() || "?";
+  return Array.from(source).slice(0, 2).join('').toLocaleUpperCase() || "?";
 }
 
 /** The name to address an account by, falling back to its handle. */
@@ -63,8 +63,11 @@ export function Avatar({
   style?: CSSProperties;
 }) {
   const [failedSource, setFailedSource] = useState<string | null>(null);
+  const [loadedSource,setLoadedSource]=useState<string|null>(null);
   const source = author.avatarUrl?.trim();
   return source && source !== failedSource ? (
+    <div aria-hidden className={cn("relative rounded-full shrink-0 overflow-hidden bg-surface-4 text-ink-dim grid place-items-center font-semibold",className)} style={{width:size,height:size,fontSize:size*0.36,...style}}>
+      <span style={{visibility:loadedSource===source?'hidden':'visible'}}>{accountInitials(author)}</span>
     <img
       key={source}
       src={source}
@@ -75,12 +78,13 @@ export function Avatar({
       decoding="async"
       draggable={false}
       onError={() => setFailedSource(source)}
+      onLoad={()=>setLoadedSource(source)}
       className={cn(
-        "rounded-full object-cover shrink-0 bg-surface-3",
-        className,
+        "absolute inset-0 rounded-full object-cover",
       )}
-      style={{ width: size, height: size, ...style }}
+      style={{ width: size, height: size, visibility:loadedSource===source?'visible':'hidden' }}
     />
+    </div>
   ) : (
     <div
       aria-hidden

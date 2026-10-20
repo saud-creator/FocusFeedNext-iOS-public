@@ -28,6 +28,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
       ...actual.api,
       userProfile: vi.fn(),
       refreshFeed: vi.fn(),
+      loadFeedPage: vi.fn(),
       followingSnapshot: vi.fn(),
       unfollowAllowed: vi.fn(),
       providerCapabilities: vi.fn(),
@@ -254,6 +255,19 @@ describe("ProfilePage — the identity shell", () => {
 });
 
 describe("ProfilePage — posts", () => {
+  it("continues native profile cursors without downloading the first page again", async () => {
+    providerCapabilities.mockResolvedValue({feedCursor:true,listCursor:true,followingCursor:true,userPostsCursor:true,promotedFlag:true,unfollow:true,follow:true,mute:false,block:false,unbookmark:false});
+    refreshFeed.mockResolvedValueOnce({...feedOf([makePost({id:'native-first'})]),nextCursor:'native-cursor'});
+    vi.mocked(api.loadFeedPage).mockResolvedValueOnce({...feedOf([makePost({id:'native-second'})]),nextCursor:null});
+    const user=userEvent.setup();
+    renderWithProviders(<ProfilePage />);
+    await screen.findByText('1 post loaded');
+    expect(refreshFeed).toHaveBeenCalledWith('user:reem_codes',expect.any(Object),20,20);
+    await user.click(screen.getByRole('button',{name:'Load more'}));
+    expect(await screen.findByText('2 posts loaded')).toBeInTheDocument();
+    expect(api.loadFeedPage).toHaveBeenCalledWith('user:reem_codes','native-cursor',expect.any(Object),40,60);
+    expect(refreshFeed).toHaveBeenCalledTimes(1);
+  });
   it("loads posts after the shell and reports how many arrived", async () => {
     refreshFeed.mockResolvedValue(
       feedOf([makePost({ id: "p1" }), makePost({ id: "p2" })]),

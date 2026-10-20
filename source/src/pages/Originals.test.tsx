@@ -141,8 +141,8 @@ describe("the shared following source", () => {
       "following",
       "cursor-1",
       expect.any(Object),
-      60,
-      140,
+      40,
+      120,
     );
     expect(await screen.findByText("Older page")).toBeInTheDocument();
   });

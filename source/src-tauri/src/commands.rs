@@ -85,6 +85,7 @@ pub struct AppState {
     /// so a worker that starts before the window exists reports into nothing
     /// rather than failing.
     pub events: Mutex<Arc<dyn crate::preload::ProgressSink>>,
+    pub following_progress: Mutex<Option<(u64, crate::preload::Progress, String)>>,
 }
 
 impl AppState {
@@ -122,6 +123,7 @@ impl AppState {
             workers: crate::preload::Workers::default(),
             preload_scheduled: Mutex::new(None),
             events: Mutex::new(Arc::new(crate::preload::NullSink)),
+            following_progress: Mutex::new(None),
         }
     }
 
@@ -161,6 +163,12 @@ impl AppState {
     pub fn emit(&self, event: &str, progress: &crate::preload::Progress) {
         let sink = self.events.lock().unwrap().clone();
         sink.emit(event, progress);
+    }
+
+    fn emit_following(&self, epoch: u64, progress: &crate::preload::Progress) {
+        if !self.workers.is_current(epoch) { return; }
+        *self.following_progress.lock().unwrap() = Some((epoch, progress.clone(), chrono::Utc::now().to_rfc3339()));
+        self.emit(crate::preload::FOLLOWING_PROGRESS, progress);
     }
 
     /// Mark one user-visible provider request as active. The guard makes the
@@ -840,7 +848,47 @@ pub async fn sign_in_ios(state: Sh<'_>) -> Result<SessionSnapshot, AppError> {
 }
 
 #[tauri::command]
-pub async fn configure_ios_chrome(labels: Vec<String>, selected: String, dark: bool, visible: bool, routes: Option<Vec<String>>, accent: Option<String>, haptics: Option<bool>, rtl: Option<bool>, accessibility_labels: Option<Vec<String>>) -> Result<bool, AppError> {
+pub async fn present_ios_media(state: Sh<'_>, items: Vec<serde_json::Value>, index: usize, position: Option<f64>, playing: Option<bool>, speed: Option<f64>, muted: Option<bool>, loop_playback: Option<bool>, retry_label: Option<String>, locale: Option<String>, revision: Option<u64>) -> Result<serde_json::Value, AppError> {
+    if !cfg!(target_os = "ios") { return Err(AppError::new(ErrorCode::BlockedOperation,"Native media requires iOS.")); }
+    let epoch=state.account_epoch();
+    if items.is_empty() || items.len()>16 || index>=items.len() || position.is_some_and(|n| !n.is_finite() || !(0.0..=86400.0).contains(&n)) || speed.is_some_and(|n| !n.is_finite() || !(0.25..=3.0).contains(&n)) {
+        return Err(AppError::new(ErrorCode::BlockedOperation,"Invalid media presentation."));
+    }
+    {
+        let guard=state.proxy.lock().unwrap();
+        let proxy=guard.as_ref().ok_or_else(|| AppError::new(ErrorCode::ProviderUnavailable,"Media proxy unavailable."))?;
+        for item in &items {
+            let url=item["url"].as_str().unwrap_or_default();
+            let id=url.strip_prefix(&(proxy.base_url()+"/")).unwrap_or_default();
+            if !["image","video"].contains(&item["kind"].as_str().unwrap_or_default()) || state.media.lookup(id).is_none() || proxy.url_for(id)!=url || item["alt"].as_str().is_some_and(|v| v.len()>4096) {
+                return Err(AppError::new(ErrorCode::BlockedOperation,"This media is no longer available in the current account."));
+            }
+        }
+    }
+    state.ensure_account_epoch(epoch)?;
+    let result=tauri::async_runtime::spawn_blocking(move || crate::providers::native_ios::native_call::<serde_json::Value>("presentMedia",serde_json::json!({"items":items,"index":index,"position":position,"playing":playing,"speed":speed,"muted":muted,"loop":loop_playback,"retryLabel":retry_label.filter(|v|v.len()<100),"locale":if locale.as_deref()==Some("ar") {"ar"}else{"en"},"revision":revision})))
+        .await.map_err(|_| AppError::new(ErrorCode::ProviderUnavailable,"Media presentation ended."))??;
+    state.ensure_account_epoch(epoch)?;
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn dismiss_ios_media(revision: Option<u64>) -> Result<(), AppError> {
+    if !cfg!(target_os = "ios") { return Ok(()); }
+    tauri::async_runtime::spawn_blocking(move || crate::providers::native_ios::native_call::<serde_json::Value>("dismissMedia",serde_json::json!({"revision":revision})).map(|_| ()))
+        .await.map_err(|_| AppError::new(ErrorCode::ProviderUnavailable,"Media dismissal ended."))?
+}
+
+#[tauri::command]
+pub async fn set_ios_chrome_visible(visible: bool, revision: Option<u64>) -> Result<(), AppError> {
+    if !cfg!(target_os = "ios") { return Ok(()); }
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::providers::native_ios::native_call::<serde_json::Value>("setChromeVisible", serde_json::json!({"visible":visible,"revision":revision})).map(|_| ())
+    }).await.map_err(|_| AppError::new(ErrorCode::ProviderUnavailable,"Navigation could not update."))?
+}
+
+#[tauri::command]
+pub async fn configure_ios_chrome(labels: Vec<String>, selected: String, dark: bool, visible: bool, routes: Option<Vec<String>>, accent: Option<String>, haptics: Option<bool>, rtl: Option<bool>, accessibility_labels: Option<Vec<String>>, revision: Option<u64>, follow_system: Option<bool>) -> Result<bool, AppError> {
     if !cfg!(target_os = "ios") { return Ok(false); }
     if labels.len() != 5 || labels.iter().any(|v| v.len() > 100) { return Err(AppError::new(ErrorCode::BlockedOperation, "Invalid navigation labels.")); }
     let accessibility_labels = accessibility_labels.unwrap_or_else(|| labels.clone());
@@ -853,7 +901,7 @@ pub async fn configure_ios_chrome(labels: Vec<String>, selected: String, dark: b
     let accent = accent.unwrap_or_default();
     crate::preferences::validate(&[("appearance.accent".into(),accent.clone())],false)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let result: serde_json::Value = crate::providers::native_ios::native_call("configureChrome", serde_json::json!({"labels": labels, "accessibilityLabels":accessibility_labels, "selected": selected, "dark": dark, "visible": visible,"routes":routes,"accent":accent,"haptics":haptics.unwrap_or(true),"rtl":rtl.unwrap_or(false)}))?;
+        let result: serde_json::Value = crate::providers::native_ios::native_call("configureChrome", serde_json::json!({"labels": labels, "accessibilityLabels":accessibility_labels, "selected": selected, "dark": dark, "visible": visible,"routes":routes,"accent":accent,"haptics":haptics.unwrap_or(true),"rtl":rtl.unwrap_or(false),"revision":revision,"followSystem":follow_system.unwrap_or(false)}))?;
         Ok(result["native"].as_bool().unwrap_or(false))
     }).await.map_err(|_| AppError::new(ErrorCode::ProviderUnavailable, "Navigation could not initialize."))?
 }
@@ -1561,7 +1609,7 @@ pub async fn load_feed_page(
                     "this feed cannot be paged: the backend has no cursor for it",
                 ));
             }
-            let _priority = crate::providers::native_ios::PriorityGuard::new(2);
+            let _priority = crate::providers::native_ios::PriorityGuard::new(1);
             let page = fetch_feed_page(provider.as_ref(), &feed2, max, sent2.clone())?;
             let _commit = st.account_commit.lock().unwrap();
             st.ensure_account_epoch(epoch)?;
@@ -1623,10 +1671,12 @@ pub fn provider_capabilities(state: Sh<'_>) -> Result<ProviderCapabilities, AppE
 
 #[tauri::command]
 pub fn get_post(state: Sh<'_>, id: String) -> Result<Option<Post>, AppError> {
+    let epoch=state.account_epoch();
     let mut found = state.db.get_post(&id)?;
     if let Some(post) = found.as_mut() {
         state.proxy_media(std::slice::from_mut(post));
     }
+    state.ensure_account_epoch(epoch)?;
     Ok(found)
 }
 
@@ -1850,6 +1900,9 @@ pub struct FollowingSnapshot {
     /// True while a traversal is running, so the interface can show that the
     /// list is still filling in rather than that it is short.
     pub syncing: bool,
+    pub state: String,
+    pub last_error: Option<String>,
+    pub last_progress_at: Option<String>,
 }
 
 /// Everything obtained so far, without touching the network.
@@ -1858,12 +1911,50 @@ pub struct FollowingSnapshot {
 /// and the progress events tell the interface when to read again.
 #[tauri::command]
 pub fn get_following_snapshot(state: Sh<'_>) -> Result<FollowingSnapshot, AppError> {
+    following_snapshot(&state)
+}
+
+/// Release binaries always return None. Only an explicitly enabled debug
+/// simulator build can register the fixed loopback fixtures.
+#[tauri::command]
+pub fn get_ui_test_fixture(state: Sh<'_>) -> Option<serde_json::Value> {
+    #[cfg(all(feature = "dev-mock", debug_assertions, target_os = "ios"))]
+    if let Ok(scenario) = std::env::var("FFN_UI_TEST_SCENARIO") {
+        if !scenario.is_empty() {
+            let proxy = state.proxy.lock().unwrap();
+            let proxy = proxy.as_ref()?;
+            let urls: Vec<String> = ["image.png", "video.mp4", "missing.png"].iter().map(|path| {
+                proxy.url_for(&state.media.register_for_test(&format!("http://127.0.0.1:8769/fixtures/{path}")))
+            }).collect();
+            return Some(serde_json::json!({"scenario":scenario,"image":urls[0],"video":urls[1],"failedImage":urls[2]}));
+        }
+    }
+    let _ = state;
+    None
+}
+
+fn following_snapshot(state: &AppState) -> Result<FollowingSnapshot, AppError> {
     let mut accounts = state.db.following_accounts()?;
     state.proxy_authors(&mut accounts);
+    let progress = state.following_progress.lock().unwrap().clone().filter(|(epoch,_,_)| state.workers.is_current(*epoch));
+    let complete = state.db.get_setting(FOLLOWING_COMPLETE)?.as_deref() == Some("1");
+    let (sync_state,last_error,last_progress_at) = match progress {
+        Some((_,p,time)) if matches!(p.stage, crate::preload::Stage::Starting | crate::preload::Stage::Batch) && !state.workers.following.is_running() =>
+            ("failed".to_owned(),Some("Account loading stopped. Try again.".to_owned()),Some(time)),
+        Some((_,p,time)) => (match p.stage {
+            crate::preload::Stage::Starting | crate::preload::Stage::Batch => "loading",
+            crate::preload::Stage::Complete => "complete", crate::preload::Stage::Failed => "failed",
+            crate::preload::Stage::Cancelled => "cancelled",
+        }.to_owned(), p.message, Some(time)),
+        // Every current worker stores Starting before it can be observed.
+        // A claimed slot without current progress belongs to a cancelled account.
+        None => ((if complete {"complete"} else {"idle"}).into(),None,None),
+    };
     Ok(FollowingSnapshot {
         accounts,
-        complete: state.db.get_setting(FOLLOWING_COMPLETE)?.as_deref() == Some("1"),
-        syncing: state.workers.following.is_running(),
+        complete,
+        syncing: sync_state == "loading",
+        state:sync_state, last_error, last_progress_at,
     })
 }
 
@@ -1887,7 +1978,7 @@ pub fn start_following_sync(state: Sh<'_>) -> Result<bool, AppError> {
 /// Shared by the command and by the startup preload, so the two cannot drift
 /// into starting two workers between them.
 pub fn spawn_following_sync(st: Arc<AppState>) -> bool {
-    use crate::preload::{Progress, FOLLOWING_PROGRESS};
+    use crate::preload::Progress;
 
     let snapshot = st.session.snapshot();
     if snapshot.checking
@@ -1897,18 +1988,20 @@ pub fn spawn_following_sync(st: Arc<AppState>) -> bool {
     {
         return false;
     }
+    // Claim and store initial state before returning. The first snapshot can
+    // now reconcile even when every progress event is missed.
+    let Some(guard) = st.workers.following.claim_owned() else { return false; };
     let epoch = st.workers.epoch();
+    st.emit_following(epoch, &Progress::starting(None));
     std::thread::spawn(move || {
-        let Some(guard) = st.workers.following.claim() else {
-            return;
-        };
+        let _priority = crate::providers::native_ios::PriorityGuard::new(2);
         if !st.workers.is_current(epoch) {
             return;
         }
         let (handle, total, provider) = match st.background_account() {
             Ok(snapshot) => snapshot,
             Err(e) => {
-                st.emit(FOLLOWING_PROGRESS, &Progress::failed(0, &e));
+                st.emit_following(epoch, &Progress::failed(0, &e));
                 return;
             }
         };
@@ -1918,7 +2011,7 @@ pub fn spawn_following_sync(st: Arc<AppState>) -> bool {
         // The account's own profile is the only honest source for a total, and
         // it is already cached from `whoami` — no extra round trip, and no
         // per-account lookups anywhere in this path.
-        st.emit(FOLLOWING_PROGRESS, &Progress::starting(total));
+        st.emit_following(epoch, &Progress::starting(total));
 
         let id = sync_id();
         let cancel = || guard.cancelled();
@@ -1934,24 +2027,22 @@ pub fn spawn_following_sync(st: Arc<AppState>) -> bool {
                 let _commit = st.account_commit.lock().unwrap();
                 st.ensure_account_epoch(epoch)?;
                 st.db.merge_following_accounts(batch, 0, &id, false)?;
-                let p = if done {
-                    Progress::complete(batch.len(), total)
-                } else {
-                    Progress::batch(batch.len(), total)
-                };
-                st.emit(FOLLOWING_PROGRESS, &p);
+                let loaded = st.db.following_count()? as usize;
+                let p = Progress::batch(loaded, total);
+                let _ = done;
+                st.emit_following(epoch, &p);
                 Ok(())
             },
         );
 
         match outcome {
             Ok(t) if t.cancelled || guard.cancelled() || !st.workers.is_current(epoch) => {
-                st.emit(FOLLOWING_PROGRESS, &Progress::cancelled(t.loaded));
+                st.emit_following(epoch, &Progress::cancelled(t.loaded));
             }
             Ok(t) => {
                 let _commit = st.account_commit.lock().unwrap();
                 if st.ensure_account_epoch(epoch).is_err() {
-                    st.emit(FOLLOWING_PROGRESS, &Progress::cancelled(t.loaded));
+                    st.emit_following(epoch, &Progress::cancelled(t.loaded));
                     return;
                 }
                 st.note_success();
@@ -1959,13 +2050,15 @@ pub fn spawn_following_sync(st: Arc<AppState>) -> bool {
                 // stopped by the request ceiling proved nothing about the
                 // accounts beyond it, so its rows stay.
                 if t.exhaustive {
-                    let _ = st.db.prune_following_accounts(&id);
-                    let _ = st.db.set_setting(FOLLOWING_COMPLETE, "1");
+                    if let Err(error)=st.db.prune_following_accounts(&id).and_then(|_|st.db.set_setting(FOLLOWING_COMPLETE,"1")) {
+                        st.emit_following(epoch,&Progress::failed(t.loaded,&error));return;
+                    }
                 }
+                st.emit_following(epoch, &Progress::complete(t.loaded, total));
             }
             Err(e) => {
                 st.note_error(&e);
-                st.emit(FOLLOWING_PROGRESS, &Progress::failed(0, &e));
+                st.emit_following(epoch, &Progress::failed(st.db.following_count().unwrap_or(0) as usize, &e));
             }
         }
     });
@@ -3406,6 +3499,44 @@ mod tests {
             account: Some(Author::from_handle("reader")),
         });
         (st, store)
+    }
+
+    #[test]
+    fn following_terminal_failure_survives_a_missed_event() {
+        let (st, _) = connected_state();
+        st.emit_following(st.workers.epoch(), &crate::preload::Progress::failed(0,
+            &AppError::new(ErrorCode::NetworkUnavailable, "Connection interrupted")));
+        let snapshot = following_snapshot(&st).unwrap();
+        assert_eq!(snapshot.state, "failed");
+        assert!(!snapshot.syncing);
+        assert_eq!(snapshot.last_error.as_deref(), Some("Connection interrupted"));
+        assert!(snapshot.last_progress_at.is_some());
+        st.workers.cancel_all();
+        assert_ne!(following_snapshot(&st).unwrap().state, "failed", "a different account inherited the failure");
+    }
+
+    #[test]
+    fn a_following_worker_that_exits_without_a_terminal_event_is_not_loading() {
+        let (st, _) = connected_state();
+        let guard = st.workers.following.claim().unwrap();
+        st.emit_following(st.workers.epoch(), &crate::preload::Progress::starting(None));
+        assert!(following_snapshot(&st).unwrap().syncing);
+        drop(guard);
+        let snapshot = following_snapshot(&st).unwrap();
+        assert_eq!(snapshot.state, "failed");
+        assert!(!snapshot.syncing);
+    }
+
+    #[test]
+    fn an_old_account_worker_does_not_look_like_current_account_progress() {
+        let (st, _) = connected_state();
+        let _old_worker = st.workers.following.claim().unwrap();
+        st.emit_following(st.workers.epoch(), &crate::preload::Progress::starting(None));
+        st.workers.cancel_all();
+        let snapshot=following_snapshot(&st).unwrap();
+        assert_eq!(snapshot.state,"idle");
+        assert!(!snapshot.syncing);
+        assert!(snapshot.last_progress_at.is_none());
     }
 
     #[test]

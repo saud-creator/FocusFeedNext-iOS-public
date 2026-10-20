@@ -570,7 +570,7 @@ function WindowedCards({
   // still several cards left to paint. This is single-flight and resets after
   // a response, allowing a filtered/short page to advance again if needed.
   const loadAheadRequested = useRef(false);
-  const loadAheadItems = policy.speculative ? Math.max(1,Math.ceil(viewportHeight / (ESTIMATED_CARD + CARD_GAP)) * policy.screensAhead) : 1;
+  const loadAheadItems = policy.speculative ? Math.max(8,Math.ceil(viewportHeight / (ESTIMATED_CARD + CARD_GAP)) * policy.screensAhead) : 1;
   // Overscan is for rendering, not permission to fetch earlier than policy.
   const visibleOffset = virtualizer.scrollOffset ?? fallbackScrollTop;
   const lastRenderedIndex = Math.max(-1, ...[...virtualItems,...fallbackItems].filter(row => {

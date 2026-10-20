@@ -234,6 +234,13 @@ pub struct Post {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AccountPage {
+    pub accounts: Vec<Author>,
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FeedPage {
     pub posts: Vec<Post>,
     #[serde(default)]

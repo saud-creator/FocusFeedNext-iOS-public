@@ -30,6 +30,12 @@ describe("MobileNavigation", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("12")).toBeInTheDocument();
   });
+  it('releases occupied reading space when returning to welcome',()=>{
+    const rendered=renderWithProviders(<MobileNavigation unread={0}/>);
+    expect(document.documentElement.style.getPropertyValue('--reader-bottom-inset')).toContain('safe-area-inset-bottom');
+    rendered.unmount();
+    expect(document.documentElement.style.getPropertyValue('--reader-bottom-inset')).toBe('0px');
+  });
 
   it("keeps secondary destinations in an iPhone bottom sheet", async () => {
     const user = userEvent.setup();

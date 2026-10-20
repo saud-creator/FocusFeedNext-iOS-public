@@ -3,6 +3,12 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { Avatar } from './Avatar';
 
 describe('account picture recovery',()=>{
+  it('keeps initials visible until image loading actually completes',()=>{
+    const view=render(<Avatar author={{username:'reader',avatarUrl:'http://127.0.0.1:8123/media/token/picture'}}/>);
+    expect(screen.getByText('RE')).toBeVisible();
+    fireEvent.load(view.container.querySelector('img')!);
+    expect(screen.getByText('RE')).not.toBeVisible();
+  });
   it('replaces a failed image with readable initials and retries only when its source changes',()=>{
     const author={username:'reader',displayName:'Reader',avatarUrl:'http://127.0.0.1:8123/media/token/first'};
     const view=render(<Avatar author={author} />);

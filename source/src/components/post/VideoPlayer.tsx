@@ -21,6 +21,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import { isTauri, type PostMedia } from "@/lib/api";
+import { useNativeMedia } from '@/lib/nativeMedia';
 import {
   classifyMediaError,
   classifyProxyFailure,
@@ -81,11 +82,14 @@ type Status = "idle" | "loading" | "buffering" | "playing" | "paused" | "error";
 export function VideoPlayer({
   media,
   defaultSpeed,
+  onRecover,
 }: {
   media: PostMedia;
   defaultSpeed?: number;
+  onRecover?: () => Promise<void>;
 }) {
   const { t } = useI18n();
+  const {present:presentNativeMedia}=useNativeMedia();
   const prefs = useAppStore((s) => s.prefs);
   const { isIphone } = usePlatform();
   const policy = useEffectivePolicy(isIphone);
@@ -411,10 +415,11 @@ export function VideoPlayer({
       .finally(() => window.clearTimeout(deadline));
   }, [sourceIndex, sources, policy.videoQuality, wake]);
 
-  const retry = () => {
+  const retry = async () => {
     if (retries >= MAX_RETRIES) return;
     autoplayRequested.current = false;
     setRetries((r) => r + 1);
+    if(onRecover) await onRecover();
     setSourceIndex(resolveQualityIndex(qualities, policy.videoQuality));
     setErrorKind("unknown");
     setStatus("idle");
@@ -547,6 +552,22 @@ export function VideoPlayer({
     const frame = frameRef.current;
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setShowSpeed(false);
+    if (isIphone && isTauri() && src) {
+      const position=ref.current?.currentTime ?? 0;
+      const playing=ref.current ? !ref.current.paused : false;
+      ref.current?.pause();
+      void presentNativeMedia([{url:src,kind:'video',alt:media.alt}],0,{position,playing,speed,muted,loopPlayback:loop}).then(result=>{
+        if(!result || nativeRequestId.current!==requestId) return;
+        wantsFullscreen.current=false;
+        resumeAt.current=result.position;resumePlaying.current=result.playing;
+        setNonce(value=>value+1);
+      }).catch(()=>{
+        if(nativeRequestId.current!==requestId) return;
+        if(enterNativeVideoFullscreen(ref.current)) {videoFullscreenRef.current=true;setVideoFullscreen(true);}
+        setFullscreen(true);
+      });
+      return;
+    }
     if (isIphone && enterNativeVideoFullscreen(ref.current)) {
       videoFullscreenRef.current = true;
       setVideoFullscreen(true); setNativeRequestPending(false); setFullscreen(true);
@@ -581,7 +602,7 @@ export function VideoPlayer({
       // A host can detach the frame during the transition; fullscreen itself
       // is still valid and the controls remain reachable by pointer.
     }
-  }, [isIphone]);
+  }, [isIphone, src, media.alt, speed, muted, loop, presentNativeMedia]);
 
   const toggleFullscreen = useCallback(() => {
     if (fullscreen) exit();
@@ -939,7 +960,7 @@ export function VideoPlayer({
           // screen all live in here, and every one of them would otherwise
           // also toggle playback on the way out through the frame.
           onClick={(e) => e.stopPropagation()}
-          className={cn("absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2.5 group-hover:opacity-100 focus-within:opacity-100 transition-opacity",isIphone ? 'opacity-100 [&_button]:min-h-11 [&_button]:min-w-11' : 'opacity-0')}
+          className={cn("absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2.5 group-hover:opacity-100 focus-within:opacity-100 transition-opacity",isIphone ? 'opacity-100 [&_button]:min-h-11 [&_button]:min-w-11 [&_button]:inline-flex [&_button]:items-center [&_button]:justify-center' : 'opacity-0')}
         >
           {/* A timeline is only shown when the duration is actually known.
               A zero-width scrubber that cannot be dragged is a lie. */}
@@ -955,10 +976,10 @@ export function VideoPlayer({
               // label, so a screen reader announced two different controls as
               // the same thing.
               aria-label={t("a11y.video.seek")}
-              className="w-full accent-[var(--accent)] h-5 cursor-pointer"
+              className={cn("w-full accent-[var(--accent)] cursor-pointer",isIphone ? 'h-11':'h-5')}
             />
           ) : null}
-          <div className="flex flex-wrap items-center gap-1 mt-1 text-white/90">
+          <div className={cn("flex items-center gap-1 mt-1 text-white/90",isIphone ? 'flex-nowrap':'flex-wrap')}>
             {hasDuration && !isIphone && <button type="button" aria-label={t('post.video.back10')} onClick={() => seekTo((ref.current?.currentTime ?? time)-10)} className="inline-flex items-center justify-center"><RotateCcw className="size-4" /></button>}
             <button
               type="button"
@@ -987,10 +1008,9 @@ export function VideoPlayer({
                 <Volume2 className="size-4" />
               )}
             </button>
-            <span className="text-[11.5px] tabular-nums" dir="ltr">
-              {hasDuration
-                ? `${formatClock(time)} / ${formatClock(duration)}`
-                : formatClock(time)}
+            <span className="text-[11.5px] tabular-nums whitespace-nowrap" dir="ltr" aria-label={hasDuration ? `${formatClock(time)} / ${formatClock(duration)}` : formatClock(time)}>
+              {formatClock(time)}
+              {hasDuration && <span className={isIphone ? 'hidden min-[390px]:inline' : undefined}>{` / ${formatClock(duration)}`}</span>}
             </span>
 
             <div className="ms-auto flex items-center gap-2">

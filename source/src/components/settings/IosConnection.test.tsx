@@ -16,13 +16,13 @@ describe('native iPhone sign-in', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Sign-in was cancelled.');
     expect(screen.getByRole('button', { name: 'Sign in with Twitter' })).toBeEnabled();
   });
-  it('localizes a bootstrap failure and exposes its safe stage and retry action',async()=>{
+  it('localizes a bootstrap failure and keeps technical details in diagnostics',async()=>{
     vi.spyOn(api,'sessionStatus').mockResolvedValue({hasCredentials:false,checking:false} as Awaited<ReturnType<typeof api.sessionStatus>>);
     vi.spyOn(api,'signInIos').mockRejectedValue({code:'schema_changed',message:'safe fallback',nativeConnectionFault:{code:'transaction_bootstrap',stage:'bootstrap',requestId:'12',retryable:true}});
     renderWithProviders(<IosWelcome/>);
     await userEvent.click(screen.getByRole('button',{name:'Sign in with Twitter'}));
     expect(await screen.findByRole('alert')).toHaveTextContent('connection metadata could not be read');
-    expect(screen.getByRole('alert')).toHaveTextContent('Request 12');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('Request 12');
     expect(screen.getByRole('button',{name:'Retry sign-in'})).toBeEnabled();
   });
   it('makes a diagnostic file available before any account can sign in',async()=>{
@@ -36,12 +36,12 @@ describe('native iPhone sign-in', () => {
     await userEvent.click(screen.getByRole('button',{name:'Share diagnostic file'}));
     expect(share).toHaveBeenCalledExactlyOnceWith();
   });
-  it('shows a rate limit with its HTTP status instead of silently retrying',async()=>{
+  it('shows clear rate-limit recovery without automatically retrying',async()=>{
     vi.spyOn(api,'sessionStatus').mockResolvedValue({hasCredentials:false,checking:false} as Awaited<ReturnType<typeof api.sessionStatus>>);
     const login = vi.spyOn(api,'signInIos').mockRejectedValue({code:'rate_limited',message:'safe',nativeConnectionFault:{code:'rate_limited',stage:'identity',retryable:false,httpStatus:429}});
     renderWithProviders(<IosWelcome/>);
     await userEvent.click(screen.getByRole('button',{name:'Sign in with Twitter'}));
-    expect(await screen.findByRole('alert')).toHaveTextContent('HTTP 429');
+    expect(await screen.findByRole('alert')).not.toHaveTextContent('HTTP 429');
     expect(screen.getByRole('alert')).toHaveTextContent('Wait before checking again');
     expect(login).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button',{name:'Retry sign-in'})).not.toBeInTheDocument();

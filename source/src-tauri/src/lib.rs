@@ -226,9 +226,18 @@ pub fn run() {
             // first feed already has somewhere to point its video at. A failure
             // here is not fatal: the app runs, and video reports that the local
             // proxy is unavailable instead of showing a URL that cannot play.
-            match tauri::async_runtime::block_on(media_proxy::MediaProxy::start(Arc::clone(
-                &state.media,
-            ))) {
+            let fixture_proxy = false;
+            #[cfg(all(feature = "dev-mock", debug_assertions, target_os = "ios"))]
+            let fixture_proxy = std::env::var("FFN_UI_TEST_SCENARIO").is_ok();
+            let proxy = async {
+                #[cfg(all(feature = "dev-mock", debug_assertions, target_os = "ios"))]
+                if fixture_proxy {
+                    return media_proxy::MediaProxy::start_with_test_upstream(Arc::clone(&state.media), "http://127.0.0.1:8769/fixtures/".into()).await;
+                }
+                let _ = fixture_proxy;
+                media_proxy::MediaProxy::start(Arc::clone(&state.media)).await
+            };
+            match tauri::async_runtime::block_on(proxy) {
                 Ok(proxy) => state = state.with_proxy(proxy),
                 Err(e) => log::error!("media proxy unavailable: {}", e.message),
             }
@@ -302,7 +311,11 @@ pub fn run() {
             commands::reconnect_provider,
             commands::connect_x_account,
             commands::sign_in_ios,
+            commands::get_ui_test_fixture,
             commands::configure_ios_chrome,
+            commands::set_ios_chrome_visible,
+            commands::present_ios_media,
+            commands::dismiss_ios_media,
             commands::connect_iphone_companion,
             commands::check_session,
             commands::session_status,

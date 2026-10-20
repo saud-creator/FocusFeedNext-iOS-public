@@ -8,6 +8,7 @@ import {
   FOLLOWING_PROGRESS_EVENT,
   type Author,
   type PreloadProgress,
+  toAppError,
 } from "@/lib/api";
 import { useI18n, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ import {
   useOpenProfile,
 } from "@/components/account/AccountIdentity";
 import { useSessionReady } from "@/hooks/useStartupSequence";
+import {useRuntimeStore} from '@/lib/runtime';
 
 /**
  * People you follow, and the local organisation around them.
@@ -72,6 +74,8 @@ export function FollowingManagerPage() {
   const [failure, setFailure] = useState<string | null>(null);
   const [settingWorking, setSettingWorking] = useState(false);
   const [settingFailure, setSettingFailure] = useState<string | null>(null);
+  const [syncStartError,setSyncStartError]=useState<string|null>(null);
+  const foreground=useRuntimeStore(s=>s.snapshot.foreground);
   /** Handles removed this session, so the list updates without a refetch. */
   const [removed, setRemoved] = useState<Set<string>>(new Set());
 
@@ -112,7 +116,10 @@ export function FollowingManagerPage() {
   const snapshot = useQuery({
     queryKey: ["followingSnapshot"],
     queryFn: api.followingSnapshot,
+    refetchOnWindowFocus: 'always',
+    refetchInterval: query => query.state.data?.syncing ? 1000 : false,
   });
+  useEffect(()=>{if(foreground) void qc.invalidateQueries({queryKey:['followingSnapshot']});},[foreground,qc]);
 
   const accounts = useMemo(
     () => snapshot.data?.accounts ?? [],
@@ -120,10 +127,16 @@ export function FollowingManagerPage() {
   );
   const complete = snapshot.data?.complete ?? false;
   const syncing = snapshot.data?.syncing ?? false;
+  const syncState = snapshot.data?.state ?? (syncing ? 'loading' : complete ? 'complete' : 'idle');
   // One automatic attempt per authenticated account generation. A boolean here
   // strands the next account if the reader switches sessions in one window.
   const autoAttemptedFor = useRef<number | null>(null);
   const { phase, readyToken } = useSessionReady();
+  const retrySync=async()=>{
+    autoAttemptedFor.current=readyToken;setSyncStartError(null);
+    try {await api.startFollowingSync();await snapshot.refetch();}
+    catch(error) {setSyncStartError(toAppError(error).message);}
+  };
 
   // Progress is pushed, not polled: the worker emits on every batch it files.
   // Start registering this effect before the automatic start below. React runs
@@ -186,6 +199,7 @@ export function FollowingManagerPage() {
   useEffect(() => {
     if (
       !snapshot.data ||
+      syncState === 'failed' || syncState === 'cancelled' ||
       complete ||
       syncing ||
       autoAttemptedFor.current === readyToken ||
@@ -203,16 +217,13 @@ export function FollowingManagerPage() {
         // returns instead of relying solely on an event arriving in time.
         void qc.invalidateQueries({ queryKey: ["followingSnapshot"] });
       })
-      .catch(() => {
-        // The session may have changed between readiness and the command. Let
-        // the next session generation try again instead of leaving a silent,
-        // permanently-attempted empty state behind.
-        if (autoAttemptedFor.current === readyToken) {
-          autoAttemptedFor.current = null;
-        }
+      .catch((error:unknown) => {
+        // A failed start settles visibly. Only a deliberate retry or a new
+        // account generation may start again; refetching must not create a loop.
+        setSyncStartError(toAppError(error).message);
         void qc.invalidateQueries({ queryKey: ["followingSnapshot"] });
       });
-  }, [snapshot.data, complete, syncing, phase, readyToken, qc]);
+  }, [snapshot.data, complete, syncing, syncState, phase, readyToken, qc]);
 
   const groups = useQuery({ queryKey: ["groups"], queryFn: api.groups });
   const pinned = useQuery({
@@ -244,7 +255,7 @@ export function FollowingManagerPage() {
   // state hidden here prevents the misleading loading-plus-empty combination
   // seen on the native People page.
   const awaitingAccounts =
-    Boolean(snapshot.data) && present.length === 0 && !complete;
+    Boolean(snapshot.data) && present.length === 0 && syncState === 'loading';
   const snapshotError = snapshot.error
     ? snapshot.error instanceof Error
       ? snapshot.error.message
@@ -366,6 +377,7 @@ export function FollowingManagerPage() {
           </p>
         ) : null}
 
+        {(syncStartError || snapshot.data?.lastError) && <div className="mb-3"><ErrorState message={syncStartError || snapshot.data!.lastError!} onRetry={retrySync} busy={syncing}/></div>}
         {snapshot.isError ? (
           <ErrorState
             message={snapshotError}
@@ -469,7 +481,7 @@ export function FollowingManagerPage() {
             })}
           </ul>
         ) : (
-          <EmptyState
+          syncState === 'failed' || syncState === 'cancelled' ? null : !complete && accounts.length===0 ? <div className="space-y-3 text-sm text-ink-mute"><p>{t('people.notLoaded')}</p><Button onClick={()=>void retrySync()}>{t('common.retry')}</Button></div> : <EmptyState
             icon={<Users className="size-8" />}
             title={query ? t("people.noMatch.title") : t("people.empty.title")}
             hint={query ? t("people.noMatch.hint") : t("people.empty.hint")}

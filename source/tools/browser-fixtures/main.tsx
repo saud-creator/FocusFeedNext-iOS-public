@@ -17,4 +17,5 @@ const high=location.origin+'/media/'+('1'.repeat(32))+'/'+('2'.repeat(32));
 const low=location.origin+'/media/'+('1'.repeat(32))+'/'+('3'.repeat(32));
 const movie={kind:'video' as const,url:high,width:320,height:568,durationMs:7000,variants:[{label:'568p',url:high},{label:'284p',url:low}]};
 const posts=[{...base,media:[{kind:'image' as const,url:photo,width:320,height:500,alt:'Portrait geometry fixture',variants:[]}]},{...base,id:'100',text:'Phone video controls, quality switching and error recovery.',media:[movie]}];
+posts.push({...base,id:'101',text:'Recoverable picture error',media:[{kind:'image' as const,url:location.origin+'/fixtures/missing.png',width:1600,height:1200,alt:'Failed fixture image',variants:[]}]});
 createRoot(document.getElementById('root')!).render(<PlatformProvider><I18nProvider locale="en"><QueryClientProvider client={new QueryClient()}><TooltipProvider><main className="h-[100dvh] overflow-y-auto p-3 space-y-4">{posts.map(post=><PostCard key={post.id} post={post} read={false} readDwellMs={0} />)}</main></TooltipProvider></QueryClientProvider></I18nProvider></PlatformProvider>);

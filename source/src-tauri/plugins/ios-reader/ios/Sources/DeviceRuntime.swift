@@ -11,10 +11,13 @@ final class DeviceRuntime {
     private var constrained = false
     private var memoryRevision = 0
     var changed: (([String: Any]) -> Void)?
+    var currentScene: (() -> UIScene?)?
     init() {
         _ = ProcessInfo.processInfo.thermalState
         let notifications: [Notification.Name] = [UIApplication.didBecomeActiveNotification,
             UIApplication.willResignActiveNotification, UIApplication.didEnterBackgroundNotification,
+            UIScene.didActivateNotification, UIScene.willDeactivateNotification,
+            UIScene.didEnterBackgroundNotification, UIScene.willEnterForegroundNotification,
             .NSProcessInfoPowerStateDidChange, ProcessInfo.thermalStateDidChangeNotification,
             UIAccessibility.reduceMotionStatusDidChangeNotification,
             UIAccessibility.reduceTransparencyStatusDidChangeNotification,
@@ -46,8 +49,11 @@ final class DeviceRuntime {
         case .critical: thermal = "critical"
         @unknown default: thermal = "serious"
         }
-        return ["foreground": UIApplication.shared.applicationState != .background,
-            "active": UIApplication.shared.applicationState == .active,
+        let scene=currentScene?()
+        let foreground=scene.map { $0.activationState == .foregroundActive || $0.activationState == .foregroundInactive } ?? (UIApplication.shared.applicationState != .background)
+        let active=scene.map { $0.activationState == .foregroundActive } ?? (UIApplication.shared.applicationState == .active)
+        return ["foreground": foreground,
+            "active": active,
             "wifi": wifi, "expensive": expensive, "constrained": constrained,
             "lowPower": ProcessInfo.processInfo.isLowPowerModeEnabled,
             "thermal": thermal, "reduceMotion": UIAccessibility.isReduceMotionEnabled,

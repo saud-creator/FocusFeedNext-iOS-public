@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, ClipboardCopy, LoaderCircle, LogOut, Share2, ShieldCheck, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { api, isTauri, toAppError, type SessionSnapshot } from '@/lib/api';
@@ -13,6 +13,9 @@ import { Avatar } from '@/components/account/Avatar';
 
 function useIosAccount() {
   const qc = useQueryClient();
+  const owner=useRef({mounted:true,generation:0});
+  const pending=useRef<Promise<SessionSnapshot>|null>(null);
+  useEffect(()=>{const state=owner.current;state.mounted=true;return()=>{state.mounted=false;state.generation++;};},[]);
   const session = useQuery({ queryKey: ['sessionStatus'], queryFn: api.sessionStatus });
   const accept = (snapshot: SessionSnapshot) => {
     resetFeedSessionState();
@@ -22,7 +25,13 @@ function useIosAccount() {
     else acceptSessionSnapshot(snapshot);
     qc.setQueryData(['sessionStatus'], snapshot);
   };
-  const signIn = useMutation({ mutationFn: () => api.signInIos(), retry: false, onMutate: () => setStage('login'), onSuccess: accept });
+  const signIn = useMutation({ mutationFn: async () => {
+    const generation=owner.current.generation;
+    if(!pending.current) pending.current=api.signInIos().finally(()=>{pending.current=null;});
+    return {snapshot:await pending.current,generation};
+  }, retry: false, onMutate: () => setStage('login'), onSuccess: ({snapshot,generation}) => {
+    if(owner.current.mounted && owner.current.generation===generation) accept(snapshot);
+  } });
   const signOut = useMutation({ mutationFn: () => api.disconnect(), onSuccess: accept });
   const [stage,setStage] = useState('login');
   useEffect(() => {
@@ -42,9 +51,6 @@ export function ConnectionError({ error }: { error: unknown }) {
   const fault = value.nativeConnectionFault;
   return <p role="alert" className="text-sm text-bad">
     {fault ? t(`ios.error.${fault.code}`) : value.message}
-    {fault && <span className="block mt-1 text-xs text-ink-mute">{t(`ios.stage.${fault.stage}`)}{fault.requestId ? ` · ${t('ios.connection.reference',{id:fault.requestId})}` : ''}</span>}
-    {fault?.nativeErrorCode != null && <span className="block mt-1 text-xs text-ink-mute" dir="ltr">{fault.nativeErrorDomain} {fault.nativeErrorCode}</span>}
-    {fault?.httpStatus != null && <span className="block mt-1 text-xs text-ink-mute" dir="ltr">HTTP {fault.httpStatus}</span>}
   </p>;
 }
 
@@ -145,10 +151,10 @@ export function IosWelcome() {
         {signIn.isPending ? <LoaderCircle className="animate-spin" /> : <ArrowRight />}
         {t(signIn.isPending ? 'ios.signingIn' : 'ios.signin')}
       </Button>
-      <Button variant="ghost" className="w-full min-h-12" onClick={() => setRoute('settings')}><SlidersHorizontal />{t('nav.settings')}</Button>
+      <Button variant="ghost" className="w-full min-h-12" disabled={signIn.isPending} onClick={() => setRoute('settings')}><SlidersHorizontal />{t('nav.settings')}</Button>
       {signIn.isPending && <p role="status" className="text-sm text-ink-dim">{t(`ios.stage.${stage}`)}</p>}
       {signIn.error && <ConnectionError error={signIn.error} />}
-      {signIn.error && toAppError(signIn.error).nativeConnectionFault?.retryable && <Button variant="secondary" onClick={() => signIn.mutate()}>{t('ios.connection.retry')}</Button>}
+      {signIn.error && toAppError(signIn.error).nativeConnectionFault?.retryable && <Button variant="secondary" disabled={signIn.isPending} onClick={() => signIn.mutate()}>{t('ios.connection.retry')}</Button>}
       <ConnectionReport busy={signIn.isPending} />
     </div>
     <div className="ios-welcome-privacy"><ShieldCheck className="size-4 shrink-0" /><p>{t('ios.account.privacy')}</p></div>

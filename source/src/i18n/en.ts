@@ -339,6 +339,10 @@ export const en: Catalog = {
   "post.removeBookmark.failed": "Could not remove this bookmark from X. The post was kept here.",
   "post.openProfile": "Open the profile of {name}",
   "post.media.alt": "Image from a post",
+  "post.media.imageFailed": "This image could not load.",
+  "post.media.retryImage": "Retry image",
+  "feed.slow": "Still connecting. Your loaded posts remain available.",
+  "profile.paginationStopped": "The provider repeated a page. Refresh this profile to continue.",
   "post.media.openImage": "Open image",
   "post.media.openImageAlt": "Open image: {alt}",
   "post.media.gif": "GIF",
@@ -496,6 +500,7 @@ export const en: Catalog = {
   "people.count.other": "{count} accounts",
   "people.showing": "Showing {shown} of {total}",
   "people.loading": "Loading the people you follow…",
+  "people.notLoaded": "Accounts have not loaded yet.",
   "people.empty.title": "No accounts found",
   "people.empty.hint":
     "Refresh the feed to discover the accounts this session follows.",

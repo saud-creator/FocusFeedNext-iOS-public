@@ -2,6 +2,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+[[ "${FFN_UI_TEST:-0}" != 1 ]] || { echo 'Simulator fixtures cannot be packaged in a device IPA.' >&2; exit 1; }
 if [[ "$(uname -s)" != Darwin ]]; then
   echo 'An iOS device build requires macOS and Xcode. This environment cannot compile an iPhone executable.' >&2
   exit 1

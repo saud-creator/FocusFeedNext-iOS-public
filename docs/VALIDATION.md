@@ -1,31 +1,44 @@
-# Workspace validation — 19 October 2026
+# Validation record — 20 October 2026
 
-| Check | Result |
+The editable 0.8.5 import is published on upstream main with its original history. Local source now contains the 0.8.6 repair candidate; candidate changes require their own Mac gates before release. Results below distinguish those two states.
+
+## Published baseline and runner
+
+| Check | Observed result |
 | --- | --- |
-| Main archive Git blob ID and SHA-256 | Passed; matches pinned upstream blob |
-| 0.8.5 archive Git blob ID and SHA-256 | Passed; matches upstream blob and published SHA-256 |
-| Both ZIP CRC checks | Passed |
-| Archive comparison | 215 unchanged files, 44 modified, 20 added, zero removed |
-| Active source after local production build | All 279 archive files still match byte for byte |
-| Locked dependency install | Passed with npm ci |
-| Frontend lint | Passed with existing warnings |
-| TypeScript and Vite production build | Passed |
-| Frontend tests | 46 files, 610 tests passed |
-| CI configuration | Reviewed: uses tracked source, runs frontend checks, verifies IPA and retains report |
-| Shared Rust tests | Not run: Cargo is not installed on this host |
-| Swift/WebKit fixtures and iPhone compilation | Not run: this Windows host has no Swift/Xcode/iOS SDK |
-| Browser visual checks and physical iPhone tests | Not run in this import |
-| GitHub Actions / Codemagic builds | Not triggered |
+| Original main and stability archives | Checksums, Git blob IDs and ZIP CRCs match pinned upstream sources; see SOURCE_IMPORT.json |
+| Source import | 215 unchanged files, 44 modified, 20 added, zero removed; imported 0.8.5 bytes matched before app repairs |
+| Main history | 8115405 descends from original 466a1e3; subsequent publications use expected-head leases, without force pushes |
+| Main webhook | Automatic Codemagic builds #4 through #11 observed |
+| Toolchain | M2 runner, Node 24, Xcode 27.1; iOS 27 simulator available |
+| Frontend, shared Rust, Swift/WebKit, Mac browser gates | Passed on builds #5 and #6; the native simulator then exposed a launch failure |
+| Simulator compilation | Fixed by the pinned swift-rs cross-compilation correction in 404f708 |
+| iOS 27 launch | Build #6 crash report identifies UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption, before reader rendering |
+| Launch correction | 2b88b56 declares the scene manifest and backports upstream Tao #1245; build #7 reached the welcome screen; build #8 confirmed rendered welcome content but live accessibility queries timed out; build #9 exposed an incompatible simulator profile; build #10 selects a supported iPhone from the pinned iOS 27.1 runtime |
+| Simulator logging | Build #10 confirms the compatible iOS 27.1 device but still times out. Its console shows recursively nested `[stderr]` messages, and its spindump shows blocked pipe writes during UIKit startup. Tauri 2.11.5 redirects stderr into os_log; XCTest echoes os_log to stderr. Commit 1cc17dd sets OS_ACTIVITY_DT_MODE=NO for test app launches, retaining unified logging and every UI assertion |
+| Baseline simulator gate | Build #11 passed welcome controls, hidden reader navigation and portrait/landscape rotation on iOS 27.1: one test, zero failures, 27.245 seconds. Frontend, Rust, Swift/WebKit and Mac browser gates also passed |
+| Packaging discipline | Failed simulator gates stopped device IPA packaging |
+| Retained verified baseline | Build #11, version 0.8.5 build 085.11; 4,329,184 bytes; SHA-256 06c9b5ec930ee2aefd041cd81e0aa8e956c00c4fe32108c64d6cff9cf6a62150. iPhoneOS 27.1 SDK, arm64, iOS 16 minimum, archive CRC passed, zero signatures/provisioning profiles. Downloaded artifact checksum matches. This is not the 0.8.6 repair candidate |
 
-The first test attempt failed before executing tests because the Windows
-sandbox blocked temporary-file renames. The same suite passed when rerun outside
-that sandbox. No application code was changed to bypass the failure.
+The Tao 0.35.3 archive SHA-256 matches the original lock entry. The vendored crate is byte-identical except for the upstream one-line scene ownership correction. Licenses and provenance are retained. See vendor/tao-0.35.3/FOCUSFEED-PATCH.md and vendor/swift-rs-1.0.7/FOCUSFEED-PATCH.md under source/.
 
-Lint warnings include existing Fast Refresh export warnings, Hook dependency
-warnings and warnings on the generated Reader.js bundle. They were not treated
-as newly introduced defects or silently changed during import.
+## Local 0.8.6 repair candidate
 
-The active application source is the pinned upstream 0.8.5 source. This work
-changes repository/build integration and documentation; importing the newer
-version brings its app fixes into this workspace. It does not claim new device
-verification or a new IPA.
+- Frontend regression suite: all 624 tests across 48 files passed, including failed worker starts, late authentication callbacks, expired media registration recovery and intrinsic image proportions.
+- TypeScript and Vite production build passed. Ordinary release chunks exclude the simulator fixture renderer.
+- Lint passed with warnings, including existing generated Reader.js and Fast Refresh warnings.
+- Chromium and WebKit layout checks passed at 320×568, 390×844, 430×932 and 844×390.
+- Chromium passed actual MP4 playback, quality switching with resumption, and fullscreen error dismissal at all four sizes.
+- Windows WebKit returned decoder error 4 even for a plain MP4 outside the app. Its layout and recoverable failure state passed; playback is explicitly unverified on this host. Mac WebKit playback remains a required CI check.
+- Browser checks verify full card reading width, no horizontal overflow, compact failed images and no final broken-image glyph. Local screenshots and machine-readable results are in ignored .import/browser-checks/.
+- Windows has no Cargo, Swift or Xcode. New Rust and native media/navigation changes therefore require the candidate's Codemagic run; baseline CI success is not evidence that those newer changes compile.
+
+Candidate simulator fixtures use real PostCard, navigation, welcome and account components, plus actual image/video bytes through the native media proxy. Only opt-in debug simulator builds register loopback fixtures. Device packaging rejects fixture mode, and IPA verification checks version, iOS 16 minimum, scene delegate, architecture, unsigned state and fixture exclusion.
+
+The candidate declares an HTTP exception only for the in-process media proxy at 127.0.0.1. Apple's current ATS documentation requires explicit IP exceptions from iOS 17 onward. IPA verification checks that this exception survives packaging and that global, web-content and AVFoundation arbitrary-load exceptions remain disabled. Actual simulator photo/video decoding remains the delivery gate. See [Apple's IP exception rules](https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity/nsexceptiondomains).
+
+## Remaining acceptance
+
+The candidate must pass shared Rust tests, native Swift/WebKit fixtures and iOS 27 UI tests before producing a verified IPA. Native photo decoding, paging, zoom, safe-area controls, AVKit dismissal/rotation, authentication retry/cancellation/backgrounding, failed account recovery, English/Arabic, large text and reduced motion/transparency are included in the simulator gates. The controlled first-page paint limit is 250 ms after fixture content returns.
+
+A physical iOS 27 device and the current account are still required for the 20-minute reading/resource session and live authentication/network acceptance. A follow action must be deliberately selected by the user; the original follow complaint remains unconfirmed. No arbitrary live follow/unfollow action has been performed. New convenience features remain after the repair gates.

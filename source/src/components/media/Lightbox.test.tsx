@@ -69,7 +69,8 @@ describe("image layout reservation", () => {
     );
 
     const frame = screen.getAllByRole("button")[0];
-    const image = within(frame).getByRole("img");
+    // The reserved image frame exists before its bytes finish loading.
+    const image = within(frame).getByRole("img", { hidden: true });
     expect(frame.style.aspectRatio).toContain("1.777777");
     expect(frame.style.aspectRatio).toContain("/");
     expect(image.style.height).toBe("100%");

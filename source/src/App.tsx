@@ -156,7 +156,7 @@ function Shell() {
   // which is what keeps one page's state from leaking into the next — and a
   // remount starts at the top, so the offset is restored deliberately after
   // paint. Two profiles in a row are different pages, hence the username.
-  const key = scrollKey(route, profileUsername);
+  const key = `${scrollKey(route, profileUsername)}:${session.data?.account?.id ?? 'signed-out'}`;
   const main = useRef<HTMLElement>(null);
   const latest = useRef(0);
   const restoring = useRef(false);
@@ -221,7 +221,7 @@ function Shell() {
           onScroll={onScroll}
           className={
             isIphone
-              ? "flex-1 min-w-0 min-h-0 overflow-y-auto pb-[calc(var(--native-tab-height,4.5rem)+env(safe-area-inset-bottom))] ffn-rise"
+              ? "flex-1 min-w-0 min-h-0 overflow-y-auto pb-[var(--reader-bottom-inset,0px)] ffn-rise"
               : "flex-1 min-w-0 min-h-0 overflow-y-auto ffn-rise"
           }
         >

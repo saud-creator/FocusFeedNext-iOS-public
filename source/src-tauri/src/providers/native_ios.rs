@@ -14,6 +14,14 @@ pub fn cancel_reads() -> u64 { REQUEST_GENERATION.fetch_add(1,Ordering::SeqCst) 
 pub fn invalidate_account() { cancel_reads(); ACCOUNT_GENERATION.fetch_add(1,Ordering::SeqCst); if let Some(cache)=PROFILES.get() { cache.lock().unwrap().clear(); } }
 std::thread_local! { static PRIORITY: std::cell::Cell<u8> = const { std::cell::Cell::new(1) }; }
 std::thread_local! { static AUTHENTICATING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+std::thread_local! { static READ_DEADLINE: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) }; }
+fn now_ms() -> u64 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64 }
+/// Profile lookup and its dependent page share one foreground deadline.
+struct ReadBudgetGuard(Option<u64>);
+impl ReadBudgetGuard {
+    fn new() -> Self { Self(READ_DEADLINE.with(|p| {let previous=p.get();p.set(Some(previous.unwrap_or_else(||now_ms()+30000)));previous})) }
+}
+impl Drop for ReadBudgetGuard {fn drop(&mut self) {READ_DEADLINE.with(|p|p.set(self.0));}}
 pub struct AuthenticationGuard(bool);
 impl AuthenticationGuard { pub fn new() -> Self { Self(AUTHENTICATING.with(|p| p.replace(true))) } }
 impl Drop for AuthenticationGuard { fn drop(&mut self) { AUTHENTICATING.with(|p| p.set(self.0)); } }
@@ -76,7 +84,9 @@ impl NativeIosProvider {
         let write = ["Follow","Unfollow","DeleteBookmark"].contains(&operation);
         let credentials = self.store.load()?.ok_or_else(|| AppError::new(ErrorCode::NotAuthenticated, "Sign in to Twitter to load your feed."))?;
         // Plugin responses and errors are stripped of headers/cookies. Never log args.
-        let mut deadline = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64 + 75000;
+        let budget = if authentication || write { 75000 } else { 30000 };
+        let mut deadline = now_ms() + budget;
+        if !authentication && !write { if let Some(overall)=READ_DEADLINE.with(|p|p.get()) {deadline=deadline.min(overall);} }
         let mut retried_transport = false;
         let result = loop {
         if authentication { let _: Value = native_call("waitForLoginActive",json!({}))?; }
@@ -155,7 +165,7 @@ fn response_body_inner(result: Value) -> AppResult<Value> {
 impl XDataProvider for NativeIosProvider {
     fn name(&self) -> &'static str { "ios-direct" }
     fn capabilities(&self) -> ProviderCapabilities {
-        ProviderCapabilities { feed_cursor: true, list_cursor: true, following_cursor: false,
+        ProviderCapabilities { feed_cursor: true, list_cursor: true, following_cursor: true,
             user_posts_cursor: true, promoted_flag: true, follow: true, unfollow: true,
             unbookmark: true, mute: false, block: false }
     }
@@ -171,6 +181,7 @@ impl XDataProvider for NativeIosProvider {
         self.get_user_posts_page(username, max, None)
     }
     fn get_user_posts_page(&self, username: &str, max: u32, cursor: Option<String>) -> AppResult<FeedPage> {
+        let _budget=ReadBudgetGuard::new();
         let profile = self.profile(username)?;
         self.page("UserTweets", max, cursor, json!({"userId": profile.id}))
     }
@@ -210,6 +221,21 @@ impl XDataProvider for NativeIosProvider {
         }
         accounts.truncate(max as usize);
         Ok(accounts)
+    }
+    fn get_following_accounts_page(&self, username: &str, max: u32, cursor: Option<String>) -> AppResult<AccountPage> {
+        let _budget=ReadBudgetGuard::new();
+        let profile = self.profile(username)?;
+        let mut variables = json!({"userId":profile.id,"count":max.clamp(1,60),"includePromotedContent":false});
+        if let Some(value) = cursor { variables["cursor"] = Value::String(value); }
+        let data = self.request("Following", variables)?;
+        let mut accounts = Vec::new(); let mut next = None; let mut seen = HashSet::new();
+        walk(&data, &mut |node| {
+            if node["cursorType"] == "Bottom" { next = node["value"].as_str().map(str::to_owned); }
+            if let Some(user) = node.pointer("/user_results/result") {
+                if let Ok(author) = parse_author(user) { if seen.insert(author.id.clone()) { accounts.push(author); } }
+            }
+        });
+        Ok(AccountPage { accounts, cursor:next.filter(|v| !v.is_empty()) })
     }
     fn get_list_timeline(&self, list_id: &str, max: u32) -> AppResult<FeedPage> { self.get_list_timeline_page(list_id, max, None) }
     fn get_list_timeline_page(&self, list_id: &str, max: u32, cursor: Option<String>) -> AppResult<FeedPage> {

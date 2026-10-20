@@ -84,6 +84,39 @@ beforeEach(() => {
 });
 
 describe("People you follow — the list", () => {
+  it('settles a failed worker start and retries only when requested',async()=>{
+    followingSnapshot.mockResolvedValue({accounts:[],complete:false,syncing:false,state:'idle'});
+    startFollowingSync.mockRejectedValue({code:'network_unavailable',message:'Connection interrupted'});
+    const user=userEvent.setup();
+    renderWithProviders(<FollowingManagerPage/>);
+    expect(await screen.findByText('Connection interrupted')).toBeInTheDocument();
+    await waitFor(()=>expect(followingSnapshot.mock.calls.length).toBeGreaterThan(1));
+    expect(startFollowingSync).toHaveBeenCalledTimes(1);
+    await user.click(screen.getAllByRole('button',{name:'Retry'})[0]);
+    await waitFor(()=>expect(startFollowingSync).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText('Loading the people you follow…')).not.toBeInTheDocument();
+  });
+  it('offers recovery without claiming an unstarted empty list is complete',async()=>{
+    followingSnapshot.mockResolvedValue({accounts:[],complete:false,syncing:false,state:'idle'});
+    renderWithProviders(<FollowingManagerPage/>);
+    expect(await screen.findByText('Accounts have not loaded yet.')).toBeInTheDocument();
+    expect(screen.queryByText('No accounts found')).not.toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'Retry'})).toBeEnabled();
+  });
+  it('ends the skeleton when the worker failed before its first page', async () => {
+    followingSnapshot.mockResolvedValue(Object.assign({accounts: [], complete:false, syncing:false}, {state:'failed' as const,lastError:'Twitter request timed out',lastProgressAt:null}));
+    renderWithProviders(<FollowingManagerPage />);
+    expect(await screen.findByText('Twitter request timed out')).toBeInTheDocument();
+    expect(screen.queryByText(/Loading the people you follow/)).not.toBeInTheDocument();
+    expect(startFollowingSync).not.toHaveBeenCalled();
+  });
+  it('keeps a partial account list and exposes the later page failure', async () => {
+    followingSnapshot.mockResolvedValue(Object.assign({accounts:[REEM],complete:false,syncing:false},{state:'failed' as const,lastError:'Connection interrupted',lastProgressAt:null}));
+    renderWithProviders(<FollowingManagerPage />);
+    expect(await screen.findByText('Connection interrupted')).toBeInTheDocument();
+    expect(screen.getByText('Reem')).toBeInTheDocument();
+    expect(screen.queryByText(/Loading the people you follow/)).not.toBeInTheDocument();
+  });
   it("does not call an incomplete empty snapshot empty while it is syncing", async () => {
     followingSnapshot.mockResolvedValue({
       accounts: [],

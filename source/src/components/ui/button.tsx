@@ -43,6 +43,7 @@ export function Button({
   const Comp = asChild ? Slot : "button";
   return (
     <Comp
+      data-ffn-button="true"
       className={cn(buttonVariants({ variant, size }), className)}
       {...props}
     />

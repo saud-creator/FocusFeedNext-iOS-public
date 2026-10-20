@@ -376,7 +376,7 @@ export function Lightbox({
         />
       </div>
 
-      <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-3 bg-gradient-to-b from-black/70 to-transparent px-4 py-3 text-white/90">
+      <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-3 bg-gradient-to-b from-black/70 to-transparent text-white/90" style={{paddingTop:'max(12px, env(safe-area-inset-top))',paddingLeft:'max(12px, env(safe-area-inset-left))',paddingRight:'max(12px, env(safe-area-inset-right))',paddingBottom:12}}>
         <div className="min-w-0 text-[13px]">
           {total > 1 ? (
             <span aria-label={counter} dir="ltr" className="tabular-nums">

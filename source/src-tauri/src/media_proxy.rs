@@ -92,6 +92,12 @@ const MAX_RESPONSE_HEADER_BYTES: usize = 64 * 1024;
 /// predictable on long virtualized feeds.
 const MAX_CONCURRENT_TRANSFERS: usize = 4;
 
+async fn acquire_transfer(semaphore: &Arc<tokio::sync::Semaphore>) -> Option<tokio::sync::OwnedSemaphorePermit> {
+    // A normal viewport asks for several avatars and photos together. Queue
+    // that burst instead of turning requests beyond the first four into 429s.
+    tokio::time::timeout(Duration::from_secs(10), Arc::clone(semaphore).acquire_owned()).await.ok()?.ok()
+}
+
 /// Redirect hops permitted before a fetch is abandoned.
 const MAX_REDIRECTS: usize = 3;
 
@@ -299,7 +305,7 @@ impl MediaRegistry {
 
     /// Register a URL that bypasses host validation, for pointing tests at a
     /// local fixture server. `cfg(test)` only.
-    #[cfg(test)]
+    #[cfg(any(test, all(feature = "dev-mock", debug_assertions)))]
     pub fn register_for_test(&self, url: &str) -> String {
         let id = random_token(16);
         let mut guard = self.inner.lock().unwrap();
@@ -391,7 +397,7 @@ impl MediaProxy {
     ///
     /// `cfg(test)` only: a release binary has no code path that can widen the
     /// host allowlist, because this function is not compiled into one.
-    #[cfg(test)]
+    #[cfg(any(test, all(feature = "dev-mock", debug_assertions)))]
     pub async fn start_with_test_upstream(
         registry: Arc<MediaRegistry>,
         prefix: String,
@@ -452,7 +458,7 @@ impl MediaProxy {
             registry: Arc::clone(&registry),
             client,
             semaphore: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_TRANSFERS)),
-            #[cfg(test)]
+            #[cfg(any(test, all(feature = "dev-mock", debug_assertions)))]
             test_upstream_prefix,
         });
 
@@ -520,7 +526,7 @@ struct ProxyContext {
     client: reqwest::Client,
     semaphore: Arc<tokio::sync::Semaphore>,
     /// See [`MediaProxy::start_with_test_upstream`]. Absent from release builds.
-    #[cfg(test)]
+    #[cfg(any(test, all(feature = "dev-mock", debug_assertions)))]
     test_upstream_prefix: Option<String>,
 }
 
@@ -530,7 +536,7 @@ impl ProxyContext {
     /// In a release build this is exactly [`validate_media_url`]; the test
     /// branch does not exist there.
     fn allow<'a>(&self, url: &'a str) -> Option<&'a str> {
-        #[cfg(test)]
+        #[cfg(any(test, all(feature = "dev-mock", debug_assertions)))]
         if let Some(prefix) = &self.test_upstream_prefix {
             if url.starts_with(prefix.as_str()) {
                 return Some(url);
@@ -661,12 +667,14 @@ async fn handle(req: Request<Incoming>, ctx: Arc<ProxyContext>) -> Response<Prox
         return refuse(StatusCode::FORBIDDEN);
     };
 
-    let permit = match Arc::clone(&ctx.semaphore).try_acquire_owned() {
-        Ok(permit) => permit,
-        Err(_) => return refuse(StatusCode::TOO_MANY_REQUESTS),
+    let permit = match acquire_transfer(&ctx.semaphore).await {
+        Some(permit) => permit,
+        None => return refuse(StatusCode::TOO_MANY_REQUESTS),
     };
+    if ctx.registry.generation()!=entry.generation {return refuse(StatusCode::NOT_FOUND);}
 
-    let mut upstream = ctx.client.get(url);
+    let image_request=reqwest::Url::parse(url).ok().is_some_and(|parsed|parsed.host_str()==Some("pbs.twimg.com"));
+    let mut upstream = ctx.client.get(url).timeout(Duration::from_secs(if image_request {20}else{90}));
     for name in FORWARDED_REQUEST_HEADERS {
         if let Some(v) = req.headers().get(*name) {
             upstream = upstream.header(*name, v);
@@ -728,6 +736,8 @@ async fn handle(req: Request<Incoming>, ctx: Arc<ProxyContext>) -> Response<Prox
     // chunk rather than a file, and dropping the response — which is what
     // happens when the webview cancels or the card unmounts — cancels the
     // upstream request with it.
+    let registry=Arc::clone(&ctx.registry);
+    let generation=entry.generation;
     let stream = futures_util::StreamExt::scan(
         response
             .bytes_stream()
@@ -738,6 +748,7 @@ async fn handle(req: Request<Incoming>, ctx: Arc<ProxyContext>) -> Response<Prox
                 item.as_ref().map(|chunk| chunk.len() as u64).unwrap_or(0),
             );
             let next = match item {
+                _ if registry.generation()!=generation => Err(std::io::Error::other("media session ended")),
                 Ok(chunk) if *total <= MAX_MEDIA_BYTES => Ok(Frame::data(chunk)),
                 Ok(_) => Err(std::io::Error::other(
                     "media response exceeded its size limit",
@@ -771,6 +782,18 @@ pub fn copy_response_headers(from: &HeaderMap, to: &mut HeaderMap) {
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn a_normal_avatar_burst_waits_for_capacity_instead_of_failing() {
+        let slots=std::sync::Arc::new(tokio::sync::Semaphore::new(4));
+        let mut held=Vec::new();
+        for _ in 0..4 {held.push(super::acquire_transfer(&slots).await.unwrap());}
+        let waiting_slots=std::sync::Arc::clone(&slots);
+        let waiting=tokio::spawn(async move {super::acquire_transfer(&waiting_slots).await});
+        tokio::task::yield_now().await;
+        assert!(!waiting.is_finished(),"the fifth visible image was rejected instead of queued");
+        held.pop();
+        assert!(tokio::time::timeout(std::time::Duration::from_secs(1),waiting).await.unwrap().unwrap().is_some());
+    }
     use super::*;
 
     // -----------------------------------------------------------------------
@@ -1458,6 +1481,43 @@ mod tests {
         }
         assert_eq!(total, FIXTURE_LEN);
         assert!(chunks > 1, "whole body arrived as one buffer ({chunks})");
+    }
+
+    #[tokio::test]
+    async fn an_account_switch_aborts_an_already_open_media_stream() {
+        use futures_util::StreamExt;
+        let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let prefix=format!("http://{}/",listener.local_addr().unwrap());
+        let release=Arc::new(tokio::sync::Notify::new());
+        let upstream_release=Arc::clone(&release);
+        let server=tokio::spawn(async move {
+            let (socket,_)=listener.accept().await.unwrap();
+            let service=service_fn(move |_request:Request<Incoming>| {
+                let release=Arc::clone(&upstream_release);
+                async move {
+                    let first=futures_util::stream::iter([Ok::<_,std::io::Error>(Frame::data(Bytes::from(vec![1;1024])))]);
+                    let second=futures_util::stream::once(async move {
+                        release.notified().await;
+                        Ok::<_,std::io::Error>(Frame::data(Bytes::from(vec![2;1024])))
+                    });
+                    let response=Response::builder().header("content-type","video/mp4").header("content-length","2048")
+                        .body(StreamBody::new(first.chain(second))).unwrap();
+                    Ok::<_,std::convert::Infallible>(response)
+                }
+            });
+            let _=hyper::server::conn::http1::Builder::new().serve_connection(TokioIo::new(socket),service).await;
+        });
+        let registry=Arc::new(MediaRegistry::new());
+        let id=registry.register_for_test(&format!("{prefix}video.mp4"));
+        let proxy=MediaProxy::start_with_test_upstream(registry,prefix).await.unwrap();
+        let mut response=reqwest::Client::new().get(proxy.url_for(&id)).timeout(Duration::from_secs(3)).send().await.unwrap();
+        let mut received=0;
+        while received<1024 {received+=response.chunk().await.unwrap().expect("stream ended before the first fixture block").len();}
+        assert_eq!(received,1024);
+        proxy.registry().invalidate_all();
+        release.notify_one();
+        assert!(!matches!(response.chunk().await,Ok(Some(_))),"Old-account bytes continued after invalidation");
+        server.abort();
     }
 
     #[tokio::test]
