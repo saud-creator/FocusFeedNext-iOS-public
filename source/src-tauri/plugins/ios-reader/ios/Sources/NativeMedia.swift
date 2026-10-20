@@ -72,10 +72,15 @@ final class NativeMediaPresenter {
             controller = video
             NativePlaybackAudio.shared.activate(owner:video.audioID) { [weak self,weak video] in
                 guard let self=self,let video=video,self.presentationID == id,self.controller === video else {return}
+                guard UIApplication.shared.applicationState == .active else {
+                    NativePlaybackAudio.shared.deactivate(owner:video.audioID)
+                    finish(["index":args.index,"position":args.position ?? 0,"playing":false])
+                    return
+                }
                 root.present(video,animated:true) {
                     player.seek(to:CMTime(seconds:max(0,args.position ?? 0),preferredTimescale:600),toleranceBefore:.zero,toleranceAfter:.zero) { _ in
                         DispatchQueue.main.async {
-                            if video.presentingViewController != nil && !video.isBeingDismissed && (args.playing ?? true) { player.playImmediately(atRate:Float(args.speed ?? 1)) }
+                            if UIApplication.shared.applicationState == .active && video.presentingViewController != nil && !video.isBeingDismissed && (args.playing ?? true) { player.playImmediately(atRate:Float(args.speed ?? 1)) }
                         }
                     }
                 }

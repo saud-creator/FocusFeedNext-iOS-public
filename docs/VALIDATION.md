@@ -170,7 +170,7 @@ hittability. No photo or navigation assertion is removed.
 The same corrective batch addresses a simulator runtime warning from synchronous
 audio-session calls on the main thread. Audio activation/deactivation now uses a
 serial worker with presentation-specific leases; playback presentation returns
-to UIKit on the main queue and rejects cancelled owners. A late old dismissal
+to UIKit on the main queue and rejects cancelled or backgrounded owners. A late old dismissal
 cannot deactivate a newer lease. The existing iOS 16 API and deployment minimum
 remain; see [Apple's audio-session activation API](https://developer.apple.com/documentation/avfaudio/avaudiosession/setactive(_:options:)).
 The native video test now also opens and dismisses a second actual player. This
