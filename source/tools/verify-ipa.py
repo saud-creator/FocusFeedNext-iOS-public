@@ -15,6 +15,9 @@ with zipfile.ZipFile(args.ipa) as archive:
     assert info['CFBundleShortVersionString']==args.version, 'Unexpected version'
     assert info['CFBundleSupportedPlatforms']==['iPhoneOS'], 'Not an iPhone device build'
     assert info.get('CADisableMinimumFrameDurationOnPhone') is True, 'Missing ProMotion opt-in'
+    scenes=info.get('UIApplicationSceneManifest',{})
+    assert scenes.get('UIApplicationSupportsMultipleScenes') is True, 'Tao scene lifecycle is not enabled'
+    assert any(scene.get('UISceneDelegateClassName')=='TaoSceneDelegate' for scene in scenes.get('UISceneConfigurations',{}).get('UIWindowSceneSessionRoleApplication',[])), 'Missing iOS 27 scene delegate'
     assert not any('_CodeSignature' in name.split('/') or name.endswith('.mobileprovision') for name in names), 'Signature or profile present'
     executable=archive.read(root+info['CFBundleExecutable'])
     assert struct.unpack_from('<I',executable)[0]==0xfeedfacf, 'Expected a thin 64-bit Mach-O'

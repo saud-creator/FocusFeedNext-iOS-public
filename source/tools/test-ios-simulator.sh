@@ -39,5 +39,5 @@ set -e
 mkdir -p "$origin/dist-ios/simulator-screenshots"
 xcrun xcresulttool export attachments --path "$origin/dist-ios/SimulatorTests.xcresult" --output-path "$origin/dist-ios/simulator-screenshots" || true
 xcrun xcresulttool get test-results summary --path "$origin/dist-ios/SimulatorTests.xcresult" > "$origin/dist-ios/simulator-summary.json" || true
-xcrun simctl spawn "$device" log show --last 5m --style compact --predicate 'process == "focus-feed-next"' > "$origin/dist-ios/simulator-console.log" || true
+xcrun simctl spawn "$device" log show --last 5m --style compact --predicate 'process == "Focus Feed Next"' > "$origin/dist-ios/simulator-console.log" || true
 exit "$test_status"
