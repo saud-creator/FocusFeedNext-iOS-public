@@ -57,7 +57,11 @@ describe('registered media recovery',()=>{
     const recover=vi.fn().mockResolvedValue(undefined);
     const url='http://127.0.0.1:9876/media/'+'a'.repeat(32)+'/'+'b'.repeat(32);
     renderWithProviders(<VideoPlayer media={video({url})} onRecover={recover}/>);
-    fireEvent.error(element());await waitFor(()=>expect(recover).toHaveBeenCalledWith(false));
+    const firstAttempt=element();
+    fireEvent.error(firstAttempt);await waitFor(()=>expect(recover).toHaveBeenCalledWith(false));
+    // The first renewal must settle and mount its fresh attempt before the
+    // fixture injects a second failure into that attempt.
+    await waitFor(()=>expect(element()).not.toBe(firstAttempt));
     expect(probe).toHaveBeenCalledWith(url);expect(fetch).not.toHaveBeenCalled();
     fireEvent.error(element());await waitFor(()=>expect(screen.getByRole('button',{name:'Retry video'})).toBeEnabled());
     expect(recover).toHaveBeenCalledTimes(1);

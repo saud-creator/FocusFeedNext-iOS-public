@@ -324,7 +324,7 @@ export function VideoPlayer({
 
   // A quality change and a retry replace the keyed video element. Do not carry
   // the previous stream's dimensions into the new badge while it buffers.
-  useEffect(() => {
+  useLayoutEffect(() => {
     setDecodedSize(null);
     // A new declared source or deliberate retry is a new attempt. A WebKit
     // remount of the same failed source must retain its compact recovery UI.

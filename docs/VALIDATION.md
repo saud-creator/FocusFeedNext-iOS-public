@@ -314,3 +314,20 @@ eight browser layout/article cases, and four Chromium real HTTP failure/replay
 cases. The regression also unmounts/remounts the failed element and separately
 confirms that a genuinely refreshed source can load. Windows WebKit's decoder
 limitation remains explicit. macOS verification of this correction is pending.
+
+
+### Build #25: deterministic renewal boundary
+
+The strict frontend gate stopped build #25 on the new native-registration unit
+fixture: it injected a second failure as soon as the renewal callback was called,
+before the first replacement element had committed. The fixture now waits for that
+replacement before exercising the next failure and manual retry. A new attempt's
+status reset uses a layout effect, before media events can report a newer failure;
+passive effect scheduling cannot overwrite that failure afterward.
+
+Local Node is now the same official checksum-verified 24.22.0 as the runner.
+With these final changes, lint, production build, all 633 frontend tests and eight
+local browser cases pass. Four Chromium cases verify real HTTP interruption,
+compact fullscreen dismissal and deliberate replay; Windows WebKit playback
+remains explicitly unverified. Rust/Swift code is unchanged from the previous
+passing gates. The next Mac run must still pass every release stage.
