@@ -9,6 +9,20 @@ await mkdir(output,{recursive:true});
 const clips=await Promise.all(['portrait.mp4','small.mp4'].map(name=>readFile(new URL('./browser-fixtures/'+name,import.meta.url))));
 const results=[];
 const iphoneAgent='Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Mobile/15E148 Safari/604.1';
+async function checkImagePreload(browser,engine) {
+  const page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true,userAgent:iphoneAgent});
+  try {
+    await page.route('**/fixtures/ahead.svg',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160"><rect width="320" height="160" fill="#38bdf8"/></svg>'}));
+    const requested=page.waitForRequest('**/fixtures/ahead.svg',{timeout:10000});
+    await page.goto(base+'/tools/browser-fixtures/index.html?platform=ios&preload',{waitUntil:'domcontentloaded'});
+    await requested;
+    await page.waitForFunction(()=>{const image=document.querySelector('img[alt="Ahead-of-viewport fixture"]');return image?.complete && image.naturalWidth===320;});
+    const bounds=await page.evaluate(()=>({image:document.querySelector('img[alt="Ahead-of-viewport fixture"]').getBoundingClientRect().top,bottom:document.querySelector('main').getBoundingClientRect().bottom,scroll:document.querySelector('main').scrollTop}));
+    assert(bounds.image>=bounds.bottom,'Prefetch proof must remain below the visible reader');
+    assert.equal(bounds.scroll,0,'Prefetch must not move the reader');
+    console.log(`${engine}: image loaded ahead of the clipped reader viewport`);
+  } finally {await page.close();}
+}
 async function checkWindowedFeed(browser,engine,width,height) {
   const page=await browser.newPage({viewport:{width,height},isMobile:true,hasTouch:true,userAgent:iphoneAgent});
   let releaseImage;
@@ -143,6 +157,8 @@ try {
     results.push({engine,width,height,...geometry,...windowed,mp4Playback:true,qualityChangeResumed:true,fullscreenErrorExit:true});
     await page.close();
   }
+  await checkImagePreload(browser,engine);
+  for(const result of results.filter(result=>result.engine===engine)) result.imagePreloadedAhead=true;
 } finally {await browser.close();}
 }
 await writeFile(resolve(output,'results.json'),JSON.stringify(results,null,2)+'\n');

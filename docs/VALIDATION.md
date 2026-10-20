@@ -1,6 +1,6 @@
 # Validation record — 20 October 2026
 
-The editable 0.8.5 import is published on upstream main with its original history. Local source now contains the 0.8.6 repair candidate; candidate changes require their own Mac gates before release. Results below distinguish those two states.
+The editable 0.8.5 import is published on upstream main with its original history. Local source now contains the 0.8.7 repair candidate, incorporating the previous 0.8.6 repairs; candidate changes require their own Mac gates before release. Results below distinguish those states.
 
 ## Published baseline and runner
 
@@ -134,6 +134,29 @@ The readiness probe now requests the actual production fixture entry (locally
 verified HTTP 200) and fails explicitly if it never starts, removing the previous
 60-second loop against a root URL that returns 404. No production app source
 changes are included in this test-harness correction.
+
+Build #18 passed six of seven iOS simulator tests, including the unchanged 250 ms
+first-page and non-overlap gate. Account recovery, AVKit playback and dismissal,
+Arabic/large text and both welcome scenarios passed. Native photo decoding,
+zoom, paging, closing and reopening also passed; the final inline-image recovery
+assertion failed. Its heading was visible at y=568, but the image began at y=611,
+below the reader's y=595 boundary, so revealing the heading had not revealed the
+media. Packaging correctly stopped. The photo scenario recorded a 141 ms initial
+render; this is separate from the dedicated performance test's passed limit.
+
+The combined 0.8.7 correction also fixes a production preloading defect: a
+document-root IntersectionObserver cannot extend the clipping of the intermediate
+scrolling reader. Image and video observers now use their actual scroll viewport;
+eligible images start loading within the existing bounded prefetch margin. The
+browser regression requires a real SVG to load and decode below that viewport
+without scrolling. The native failure test centers the heading and then verifies
+that Retry is reachable above navigation. All version manifests advance together
+to 0.8.7. Local checks passed all 625 tests, lint, the production build, release
+manifest consistency and fixture exclusion. Chromium/WebKit passed all eight
+layout combinations plus real below-viewport image preloading in both engines.
+Chromium passed all four MP4 playback/quality/fullscreen combinations; the
+Windows WebKit decoder limitation remains explicitly unverified locally. Mac
+gates and a verified IPA are still required for this exact batch.
 
 Candidate simulator fixtures use real PostCard, navigation, welcome and account components, plus actual image/video bytes through the native media proxy. Only opt-in debug simulator builds register loopback fixtures. Device packaging rejects fixture mode, and IPA verification checks version, iOS 16 minimum, scene delegate, architecture, unsigned state and fixture exclusion.
 

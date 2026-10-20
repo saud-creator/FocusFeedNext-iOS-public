@@ -17,6 +17,8 @@ import { useI18n } from "@/i18n";
 import { feedWindow } from './feedWindow';
 import { useEffectivePolicy } from '@/lib/runtime';
 import { usePlatform } from '@/lib/platform';
+import {scrollParentOf} from '@/lib/scroll';
+export {scrollParentOf} from '@/lib/scroll';
 
 /**
  * Below this many posts the list renders whole.
@@ -69,34 +71,6 @@ export function FeedSkeleton() {
       ))}
     </div>
   );
-}
-
-/**
- * The nearest ancestor that actually scrolls.
- *
- * The feed does not own its scroll container — the app shell does, and the list
- * sits under a page header and a filter bar inside it. Rather than reaching for
- * a specific element by id, which would bind this component to one layout, the
- * scroller is found by walking up and asking the computed style.
- */
-export function scrollParentOf(el: HTMLElement | null): HTMLElement | null {
-  let node = el?.parentElement ?? null;
-  while (node && node !== document.body) {
-    const { overflowY } = getComputedStyle(node);
-    // The nearest overflow ancestor is the scroll contract even during its
-    // first layout pass, when its content has not contributed to scrollHeight
-    // yet. Waiting for scrollHeight > 0 can select documentElement instead of
-    // the app's <main>; the visible main scrollbar then moves without the
-    // virtualizer receiving the offset, leaving blank space where cards should
-    // be.
-    if (/(auto|scroll|overlay)/.test(overflowY)) {
-      return node;
-    }
-    node = node.parentElement;
-  }
-  // Nothing in between scrolls, so the document itself is the scroller.
-  const root = document.scrollingElement ?? document.documentElement;
-  return root instanceof HTMLElement ? root : null;
 }
 
 /**

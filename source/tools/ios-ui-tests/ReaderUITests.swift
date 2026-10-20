@@ -46,6 +46,8 @@ final class ReaderUITests: XCTestCase {
         capture("first-page-timing")
         XCTAssertTrue(app.staticTexts["First content painted within 250 ms"].waitForExistence(timeout:5),"Returned first-page content must paint within 250 ms")
         XCTAssertTrue(app.staticTexts["Feed cards do not overlap"].waitForExistence(timeout:5),"Measured media cards must not overlap the next post")
+        let timing=app.staticTexts.matching(NSPredicate(format:"label BEGINSWITH %@","First content render:")).firstMatch
+        if timing.exists {print("Controlled first-page timing: \(timing.label)")}
         app.terminate()
     }
     func testWelcomeFailureRetryCancellationAndResume() {
@@ -90,8 +92,9 @@ final class ReaderUITests: XCTestCase {
         XCTAssertTrue(photograph.waitForExistence(timeout:10),"A dismissed viewer must release ownership for the next presentation")
         close.tap()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout:5))
-        revealAboveTabs(app.staticTexts["Recoverable image failure"].firstMatch,in:app)
+        revealAboveTabs(app.staticTexts["Recoverable image failure"].firstMatch,in:app,centered:true)
         XCTAssertTrue(app.buttons["Retry image"].waitForExistence(timeout:10),"The failed inline fixture must settle into recovery")
+        revealAboveTabs(app.buttons["Retry image"].firstMatch,in:app)
         let welcome=app.buttons["Return to welcome"]
         revealAboveTabs(welcome,in:app);welcome.tap()
         XCTAssertTrue(app.staticTexts["Fixture welcome without reader navigation"].waitForExistence(timeout:5))
@@ -148,15 +151,16 @@ final class ReaderUITests: XCTestCase {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
-    private func revealAboveTabs(_ element:XCUIElement,in app:XCUIApplication) {
+    private func revealAboveTabs(_ element:XCUIElement,in app:XCUIApplication,centered:Bool=false) {
         XCTAssertTrue(element.waitForExistence(timeout:5))
         let top=app.frame.minY+4
         let bottom=app.tabBars.firstMatch.frame.minY-4
         let height=bottom-top
+        let targetBottom=centered ? top+height*0.55 : bottom
         for _ in 0..<8 {
             let rect=element.frame
-            if rect.minY>=top && rect.maxY<=bottom {return}
-            let distance=rect.minY<top ? min(top-rect.minY+12,height*0.3) : -min(rect.maxY-bottom+12,height*0.3)
+            if rect.minY>=top && rect.maxY<=targetBottom {return}
+            let distance=rect.minY<top ? min(top-rect.minY+12,height*0.3) : -min(rect.maxY-targetBottom+12,height*0.3)
             let origin=app.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0))
             let start=origin.withOffset(CGVector(dx:0,dy:height*0.5))
             let end=start.withOffset(CGVector(dx:0,dy:distance))

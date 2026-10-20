@@ -1,3 +1,4 @@
+import {intersectionRootOf} from '@/lib/scroll';
 import {
   useCallback,
   useEffect,
@@ -263,7 +264,7 @@ export function VideoPlayer({
       ([entry]) => setVisible(entry.isIntersecting),
       // A bounded runway keeps one nearby metadata request useful without
       // mounting/decoding a page of videos ahead of the reader.
-      { rootMargin: `${policy.speculative ? Math.min(350,policy.imageMargin) : 0}px 0px` },
+      { root:intersectionRootOf(el),rootMargin: `${policy.speculative ? Math.min(350,policy.imageMargin) : 0}px 0px` },
     );
     io.observe(el);
     return () => io.disconnect();
@@ -283,7 +284,7 @@ export function VideoPlayer({
             : 1;
         setInViewport(entry.isIntersecting && ratio >= 0.35);
       },
-      { threshold: [0, 0.35] },
+      { root:intersectionRootOf(el),threshold: [0, 0.35] },
     );
     io.observe(el);
     return () => io.disconnect();

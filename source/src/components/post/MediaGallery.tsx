@@ -13,6 +13,7 @@ import { VideoPlayer } from "./VideoPlayer";
 import { usePlatform } from '@/lib/platform';
 import { useEffectivePolicy } from '@/lib/runtime';
 import { useNativeMedia } from '@/lib/nativeMedia';
+import {intersectionRootOf} from '@/lib/scroll';
 
 /**
  * The tallest a single image may render.
@@ -32,9 +33,8 @@ const GRID_ROW_HEIGHT = 200;
 
 /**
  * Images are requested only when their frame is roughly one screen-runway
- * away. Native `loading="lazy"` remains as a browser hint, while this
- * observer gives WebView2 a predictable 350px boundary instead of its own
- * much larger document heuristic.
+ * away. Once the observer admits a source, eager loading avoids a second,
+ * browser-specific lazy threshold delaying that bounded prefetch.
  */
 function LazyFeedImage({
   media,
@@ -66,7 +66,7 @@ function LazyFeedImage({
           observer.disconnect();
         }
       },
-      { rootMargin: `${policy.imageMargin}px 0px` },
+      { root:intersectionRootOf(image),rootMargin: `${policy.imageMargin}px 0px` },
     );
     observer.observe(image);
     return () => observer.disconnect();
@@ -77,7 +77,7 @@ function LazyFeedImage({
       ref={frame}
       src={nearby ? media.url : undefined}
       alt={media.alt ?? ""}
-      loading="lazy"
+      loading={nearby ? 'eager' : 'lazy'}
       decoding="async"
       draggable={false}
       style={style}
