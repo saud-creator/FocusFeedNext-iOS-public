@@ -14,11 +14,28 @@ import { CONTROLS_IDLE_MS } from "@/components/media/useAutoHideControls";
 const CLIP = "https://cdn.example.com/clip.mp4";
 
 describe('registered media recovery',()=>{
+  it('allows a genuinely refreshed source to clear a terminal failure',()=>{
+    useAppStore.setState({prefs:{...defaultPreferences,autoplay:'off'}});
+    const view=renderWithProviders(<VideoPlayer media={video()}/>);
+    fireEvent.error(element());
+    fireEvent.loadStart(element());
+    expect(screen.getByRole('button',{name:'Retry video'})).toBeInTheDocument();
+    view.rerender(<VideoPlayer media={video({url:'https://cdn.example.com/refreshed.mp4'})}/>);
+    fireEvent.loadStart(element());fireEvent.loadedMetadata(element());
+    expect(screen.queryByRole('button',{name:'Retry video'})).not.toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'Play'})).toBeInTheDocument();
+  });
   it('keeps recovery visible when WebKit pauses a failed video',()=>{
     renderWithProviders(<VideoPlayer media={video()}/>);
     fireEvent.error(element());
     expect(screen.getByRole('button',{name:'Retry video'})).toBeInTheDocument();
     fireEvent.pause(element());
+    scrollTo(false);expect(screen.queryByTestId('video-element')).not.toBeInTheDocument();
+    scrollTo(true);
+    fireEvent.loadStart(element());
+    fireEvent.waiting(element());
+    fireEvent.loadedMetadata(element());
+    fireEvent.playing(element());
     expect(screen.getByRole('button',{name:'Retry video'})).toBeInTheDocument();
     expect(surface()).toHaveStyle({height:'160px'});
   });

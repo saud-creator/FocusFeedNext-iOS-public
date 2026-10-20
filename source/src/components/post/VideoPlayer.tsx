@@ -326,6 +326,9 @@ export function VideoPlayer({
   // the previous stream's dimensions into the new badge while it buffers.
   useEffect(() => {
     setDecodedSize(null);
+    // A new declared source or deliberate retry is a new attempt. A WebKit
+    // remount of the same failed source must retain its compact recovery UI.
+    setStatus('idle');
   }, [nonce, src]);
 
   // Autoplay visible media muted. Muting before play is required by Chromium's
@@ -335,6 +338,7 @@ export function VideoPlayer({
     const el = ref.current;
     if (
       !el ||
+      status === 'error' ||
       !mounted ||
       !inViewport ||
       !policy.autoplay ||
@@ -364,7 +368,7 @@ export function VideoPlayer({
       // Autoplay refusal is not a media failure worth surfacing. The poster
       // and play control remain available for a deliberate start.
     });
-  }, [inViewport, isGif, mounted, nonce, prefs.gifAutoplay, policy.autoplay]);
+  }, [inViewport, isGif, mounted, nonce, prefs.gifAutoplay, policy.autoplay,status]);
 
   // Leave the active set and pause as soon as the card is no longer actually
   // visible. Keeping a nearby element mounted is useful for metadata, but it
@@ -393,10 +397,12 @@ export function VideoPlayer({
     // Try the next candidate before declaring failure — but only when there
     // genuinely is one. On live data there is exactly one source.
     if (policy.videoQuality !== 'best' && sourceIndex + 1 < sources.length) {
+      setStatus('idle');
       setSourceIndex((i) => i + 1);
       return;
     }
     const fallback = classifyMediaError(code);
+    resumePlaying.current=false;
     setErrorKind(fallback);
     setStatus("error");
     wake();
@@ -519,6 +525,7 @@ export function VideoPlayer({
     autoplayRequested.current = false;
     resumeAt.current = ref.current?.currentTime ?? resumeAt.current;
     resumePlaying.current = ref.current ? !ref.current.paused : false;
+    setStatus('idle');setNonce(value=>value+1);
     setSourceIndex(index);
   }, []);
 
@@ -823,10 +830,11 @@ export function VideoPlayer({
             "h-full w-full bg-black object-contain",
             !fullscreen && "max-h-[520px]",
           )}
-          onLoadStart={() => setStatus("loading")}
+          onLoadStart={() => setStatus(current=>current==='error'?'error':'loading')}
           onWaiting={() => setStatus(current=>current==='error'?'error':'buffering')}
-          onPlaying={() => setStatus("playing")}
+          onPlaying={() => setStatus(current=>current==='error'?'error':'playing')}
           onPlay={(e) => {
+            if(status==='error'){e.currentTarget.pause();return;}
             if (autoplaying.current) {
               playingAutomatically.current = true;
               if (!registerAutoplay(e.currentTarget)) {
@@ -862,7 +870,7 @@ export function VideoPlayer({
             if (el.videoWidth > 0 && el.videoHeight > 0) {
               setDecodedSize({ width: el.videoWidth, height: el.videoHeight });
             }
-            setStatus(el.paused ? "paused" : "playing");
+            setStatus(current=>current==='error'?'error':el.paused?'paused':'playing');
             // Continue where the previous element left off. Only ever a seek
             // within the source already being fetched, never a second load.
             const at = resumeAt.current;

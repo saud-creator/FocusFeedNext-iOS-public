@@ -296,3 +296,21 @@ MP4 playback. Local Chromium passed all four sizes; all eight layout/article
 cases pass, with the Windows WebKit playback limitation retained. Failed recovery
 now saves its media event sequence and screenshot for diagnosis. No app code or
 release acceptance gate was removed by this fixture correction.
+
+
+### Build #24: terminal media state across remounts
+
+Build #24 passed frontend, Rust and native fixtures, then the HTTP-level Mac
+browser check exposed a second state transition: returning to the feed can
+remount a failed video element. Its passive load/metadata events replaced the
+terminal failure with Loading and restored the tall frame. The captured state
+shows readyState 0 and a 520-point loading panel after a previously observed error.
+
+Terminal errors now survive passive load, pause, waiting, metadata and playing
+events for that same source. Autoplay does not restart a failed clip. A declared
+new source, bounded automatic recovery or deliberate retry/quality choice starts
+a new attempt. Local checks pass: 633 frontend tests, production build, lint,
+eight browser layout/article cases, and four Chromium real HTTP failure/replay
+cases. The regression also unmounts/remounts the failed element and separately
+confirms that a genuinely refreshed source can load. Windows WebKit's decoder
+limitation remains explicit. macOS verification of this correction is pending.
