@@ -9,6 +9,10 @@ final class ReaderUITests: XCTestCase {
     }
     func testWelcomeAndRotation() {
         let app = XCUIApplication()
+        // Tauri redirects stderr to os_log. XCTest otherwise echoes os_log back
+        // to stderr, recursively filling that pipe and blocking UIKit startup.
+        // Keep unified logging enabled; disable only its debugger stderr echo.
+        app.launchEnvironment["OS_ACTIVITY_DT_MODE"] = "NO"
         app.launchArguments=["-AppleLanguages","(en)","-AppleLocale","en_US"]
         app.launch()
         let signIn = app.buttons["Sign in with Twitter"]
