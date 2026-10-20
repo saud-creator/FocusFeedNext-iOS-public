@@ -1,6 +1,6 @@
-# Validation record — 20 October 2026
+# Validation record — 21 October 2026
 
-The editable 0.8.5 import is published on upstream main with its original history. The 0.8.7 repair build (087.21), incorporating the previous 0.8.6 repairs, passed all automated release gates and independent IPA verification. Physical-device acceptance remains open. Historical results below distinguish each candidate from the verified release.
+The editable 0.8.5 import is published on upstream main with its original history. The 0.8.8 repair build (088.27), incorporating the previous repairs, passed all automated release gates and independent IPA verification. Physical-device acceptance remains open. Historical results below distinguish each candidate from the verified release.
 
 ## Published baseline and runner
 
@@ -350,3 +350,40 @@ and actual hittability before tapping; the same welcome content and zero-tab-bar
 assertions remain. Shipping app code is unchanged. Local lint and production
 build pass; the ordinary release still excludes the fixture renderer. The next
 run must pass the complete simulator gate before producing an IPA.
+
+
+## Verified 0.8.8 release — build 088.27
+
+[Codemagic build #27](https://codemagic.io/app/6ad63fe0fdc2a85dad554aca/build/6ad7f17c064e933257c5df5e)
+finished successfully in 17m 32s from source commit
+`e7d6054f7989fd9e3604741c79c2f40864d96b9a` on main. M2, actual Node 24.22.0,
+Xcode 27.1. The corrected fixture navigation passed without removing assertions.
+
+- All 633 frontend tests in 49 files passed; lint and production build passed.
+- All 406 Rust tests and 79 native Swift/WebKit assertions passed.
+- All eight Mac Chromium/WebKit cases passed actual MP4 playback, quality
+  resumption, fullscreen dismissal, controlled HTTP failure/retry, article reading,
+  layout/windowing and offscreen image preloading.
+- All seven iOS 27.1 Duo simulator tests passed, zero failures and runtime warnings.
+  Controlled returned first-page content rendered in 23 ms (250 ms limit); reader
+  shell startup was measured separately at 188 ms. The photo/article/navigation
+  lifecycle, AVKit reopening, account retry and welcome scenarios passed.
+- Device IPA: version 0.8.8, CFBundleVersion 088.27; arm64; iPhoneOS 27.1 SDK;
+  iOS 16.0 minimum; 4,447,411 bytes. Archive CRC, scene/ATS/ProMotion and fixture
+  exclusion checks passed. One native image checked; no code signature or
+  provisioning profile. Delivery remains unsigned, as requested.
+- Downloaded IPA independently passes the repository verifier. Local metadata,
+  architecture, CRC and checksum exactly match Codemagic's verification report.
+  SHA-256: `627cddf7b0fa7f0c92586739c2dc812bf887b3545f47304af3a5d601440473f3`.
+
+The retained local IPA, checksum, independent verification report, complete test
+reports/screenshots and green build proof are under ignored `.import/build-27/`.
+The previous verified 0.8.7/087.21 and 0.8.5/085.11 artifacts remain available.
+This evidence-only update uses [skip ci] to avoid another Mac run; shipping source
+and release artifacts remain exactly those tested in build #27.
+
+Physical-device/current-account acceptance remains pending. Use the targeted
+0.8.8 cases in DEVICE_ACCEPTANCE.md to verify a real article, authored versus
+attachment URLs, a known profile bio and a previously failing live video. No
+follow/unfollow action was performed, and provider availability cannot be
+established for every live asset by controlled fixtures.

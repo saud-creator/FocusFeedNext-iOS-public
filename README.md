@@ -2,7 +2,7 @@
 
 This workspace combines the pinned main snapshot of
 [saud-creator/FocusFeedNext-iOS](https://github.com/saud-creator/FocusFeedNext-iOS)
-with its newer **0.8.5 stability source**, followed by the **verified 0.8.7 repair build (087.21)** and the **0.8.8 article/profile/media repair candidate**. The editable application is in
+with its newer **0.8.5 stability source**, followed by the **verified 0.8.8 article/profile/media repair build (088.27)**. The editable application is in
 `source/`: React/TypeScript, a shared Rust/Tauri backend, and an iOS
 Swift/WebKit plugin.
 
