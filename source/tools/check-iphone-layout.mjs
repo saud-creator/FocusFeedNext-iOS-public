@@ -33,21 +33,38 @@ try {
     assert.equal(geometry.textSize,16,'Phone text sizing');
     assert(Math.abs(geometry.mediaWidth-geometry.readingWidth)<=1,`Media does not use the reading width: ${JSON.stringify(geometry)}`);
     await page.screenshot({path:resolve(output,`${engine}-phone-${width}.png`)});
+    // Model UIKit's measured occupied area. The scroll viewport must end above
+    // it; padding alone leaves visible controls underneath the native bar.
+    await page.evaluate(()=>document.documentElement.style.setProperty('--reader-bottom-inset','83px'));
+    const readerBottom=await page.locator('main').evaluate(element=>element.getBoundingClientRect().bottom);
+    assert(Math.abs(readerBottom-(height-83))<=1,'Reader viewport extends underneath native navigation');
     const videoCard=page.locator('[data-testid="post-card"]').nth(1);
     await videoCard.scrollIntoViewIfNeeded();
-    await page.waitForFunction(()=>{const video=document.querySelector('video');return video && (video.readyState>=1 || video.error);}).catch(async error=>{
+    await page.waitForFunction(()=>{const video=document.querySelector('video');return (video && (video.readyState>=1 || video.error)) || Array.from(document.querySelectorAll('button')).some(button=>button.textContent?.trim()==='Retry video');}).catch(async error=>{
       const mediaState=await page.evaluate(()=>{const video=document.querySelector('video');return {codec:document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E"'),readyState:video?.readyState,error:video?.error?.code,networkState:video?.networkState,sourcePresent:Boolean(video?.currentSrc),placeholder:Boolean(document.querySelector('[data-testid="video-surface-placeholder"]'))};});
       throw new Error(`${engine} ${width} video metadata: ${JSON.stringify(mediaState)}`,{cause:error});
     });
-    const decode=await page.evaluate(()=>({ready:document.querySelector('video')?.readyState,error:document.querySelector('video')?.error?.code}));
-    if(engine==='webkit' && process.platform==='win32' && decode.error===4) {
+    const decode=await page.evaluate(()=>({ready:document.querySelector('video')?.readyState,error:document.querySelector('video')?.error?.code,failed:Array.from(document.querySelectorAll('button')).some(button=>button.textContent?.trim()==='Retry video')}));
+    if(engine==='webkit' && process.platform==='win32' && (decode.error===4 || decode.failed)) {
       // A plain MP4 <video> also fails in this Windows WebKit build. Do not
       // label that playback as verified. macOS CI always requires playback.
+      const plainError=await page.evaluate(source=>new Promise(resolve=>{
+        const probe=document.createElement('video');probe.preload='metadata';probe.style.display='none';
+        const finish=code=>{probe.remove();resolve(code);};
+        probe.addEventListener('error',()=>finish(probe.error?.code),{once:true});
+        probe.addEventListener('loadedmetadata',()=>finish(0),{once:true});
+        document.body.appendChild(probe);probe.src=source;probe.load();
+      }),base+'/media/'+('1'.repeat(32))+'/'+('2'.repeat(32)));
+      assert.equal(plainError,4,'Windows limitation must reproduce outside the app');
       await videoCard.getByRole('button',{name:'Retry video'}).waitFor();
       results.push({engine,width,height,...geometry,mp4Playback:false,hostLimitation:'Windows WebKit MP4 decoder unavailable',recoverableVideoError:true});
       await page.close();continue;
     }
     assert(decode.ready>=1,`${engine} ${width} cannot decode fixture MP4: ${JSON.stringify(decode)}`);
+    const fullScreenControl=videoCard.getByTestId('video-enter-fullscreen');
+    await fullScreenControl.scrollIntoViewIfNeeded();
+    const inlineBounds=await fullScreenControl.boundingBox();
+    assert(inlineBounds && inlineBounds.y>=0 && inlineBounds.y+inlineBounds.height<=height-83,'Fullscreen control remains below the reading viewport');
     await videoCard.getByRole('button',{name:'Play',exact:true}).click();
     await page.waitForFunction(()=>{const video=document.querySelector('video');return video && !video.paused && video.currentTime>0.2;});
     await videoCard.getByTestId('video-inline-settings').click();

@@ -24,14 +24,16 @@ The Tao 0.35.3 archive SHA-256 matches the original lock entry. The vendored cra
 
 ## Local 0.8.6 repair candidate
 
-- Frontend regression suite: all 624 tests across 48 files passed, including failed worker starts, late authentication callbacks, expired media registration recovery and intrinsic image proportions.
+- Frontend regression suite: all 625 tests across 48 files passed, including failed worker starts, late authentication callbacks, expired media registration recovery, intrinsic image proportions and bounded initial iPhone rendering.
 - TypeScript and Vite production build passed. Ordinary release chunks exclude the simulator fixture renderer.
 - Lint passed with warnings, including existing generated Reader.js and Fast Refresh warnings.
 - Chromium and WebKit layout checks passed at 320×568, 390×844, 430×932 and 844×390.
 - Chromium passed actual MP4 playback, quality switching with resumption, and fullscreen error dismissal at all four sizes.
 - Windows WebKit returned decoder error 4 even for a plain MP4 outside the app. Its layout and recoverable failure state passed; playback is explicitly unverified on this host. Mac WebKit playback remains a required CI check.
 - Browser checks verify full card reading width, no horizontal overflow, compact failed images and no final broken-image glyph. Local screenshots and machine-readable results are in ignored .import/browser-checks/.
-- Windows has no Cargo, Swift or Xcode. New Rust and native media/navigation changes therefore require the candidate's Codemagic run; baseline CI success is not evidence that those newer changes compile.
+- Build #12 passed the 624-test frontend suite, shared Rust tests, native Swift/WebKit fixtures, Mac browser checks and simulator compilation. Its two welcome tests passed. Four other simulator tests failed: cold first-page rendering exceeded 250 ms in Arabic/photo scenarios; the account test requested “Retry” instead of the observed localized “Try again”; and video controls remained under native navigation, so the fullscreen tap activated More. Packaging stopped.
+- The corrective candidate windows the initial iPhone page, tests the actual FeedList, records the measured milliseconds after a visible card commits, and retains the 250 ms gate in a dedicated test so performance failures do not hide media diagnostics. The reader viewport ends above the measured native tab bar instead of relying on bottom padding. Recovery buttons receive the same 44-point minimum as other primary controls, and the video test requires AVKit to load the fixture MP4.
+- Windows has no Cargo, Swift or Xcode. The corrective native/UI changes require another Codemagic run; the previous candidate's compilation is not evidence that these newer changes pass.
 
 Candidate simulator fixtures use real PostCard, navigation, welcome and account components, plus actual image/video bytes through the native media proxy. Only opt-in debug simulator builds register loopback fixtures. Device packaging rejects fixture mode, and IPA verification checks version, iOS 16 minimum, scene delegate, architecture, unsigned state and fixture exclusion.
 

@@ -16,6 +16,7 @@ import { useAppStore } from "@/stores/useAppStore";
 import { useI18n } from "@/i18n";
 import { feedWindow } from './feedWindow';
 import { useEffectivePolicy } from '@/lib/runtime';
+import { usePlatform } from '@/lib/platform';
 
 /**
  * Below this many posts the list renders whole.
@@ -26,6 +27,9 @@ import { useEffectivePolicy } from '@/lib/runtime';
  * (a small group, a thin search result) on the simplest possible code path.
  */
 const WINDOW_THRESHOLD = 24;
+// The first iPhone page contains 20 posts. Bound its cold render too, rather
+// than waiting for a continuation before releasing offscreen card work.
+const IPHONE_WINDOW_THRESHOLD = 12;
 
 /** Vertical gap between cards, in px. Matches the `space-y-3` it replaces. */
 const CARD_GAP = 12;
@@ -157,7 +161,8 @@ export function FeedList({
 }) {
   const { t, plural } = useI18n();
   const prefs = useAppStore((s) => s.prefs);
-  const policy = useEffectivePolicy();
+  const {isIphone}=usePlatform();
+  const policy = useEffectivePolicy(isIphone);
   const topSentinel = useRef<HTMLDivElement>(null);
   const bottomSentinel = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef(onLoadMore);
@@ -222,7 +227,7 @@ export function FeedList({
   }, [hasMore, loadingMore, loadMoreError, onLoadMore, policy.foreground, policy.speculative, policy.screensAhead]);
 
   const items = useStablePosts(posts);
-  const windowed = items.length >= WINDOW_THRESHOLD;
+  const windowed = items.length >= (isIphone ? IPHONE_WINDOW_THRESHOLD : WINDOW_THRESHOLD);
 
   // Track whether the reader is at the top, so refreshes never shift the page.
   useEffect(() => {

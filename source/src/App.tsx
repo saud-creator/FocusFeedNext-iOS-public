@@ -219,9 +219,10 @@ function Shell() {
           key={key}
           ref={main}
           onScroll={onScroll}
+          style={isIphone ? {height:'calc(100% - var(--reader-bottom-inset,0px))'} : undefined}
           className={
             isIphone
-              ? "flex-1 min-w-0 min-h-0 overflow-y-auto pb-[var(--reader-bottom-inset,0px)] ffn-rise"
+              ? "flex-1 min-w-0 min-h-0 overflow-y-auto ffn-rise"
               : "flex-1 min-w-0 min-h-0 overflow-y-auto ffn-rise"
           }
         >

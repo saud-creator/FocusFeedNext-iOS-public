@@ -38,8 +38,13 @@ final class ReaderUITests: XCTestCase {
         app.launchEnvironment["FFN_UI_TEST_SCENARIO"]=scenario
         app.launch()
         XCTAssertTrue(app.staticTexts["Simulator fixture reader"].waitForExistence(timeout:30))
-        XCTAssertTrue(app.staticTexts["First content painted within 250 ms"].waitForExistence(timeout:5))
         return app
+    }
+    func testFirstPagePaintsWithin250Milliseconds() {
+        let app=fixture("photos")
+        capture("first-page-timing")
+        XCTAssertTrue(app.staticTexts["First content painted within 250 ms"].waitForExistence(timeout:5),"Returned first-page content must paint within 250 ms")
+        app.terminate()
     }
     func testWelcomeFailureRetryCancellationAndResume() {
         let app=application()
@@ -89,8 +94,11 @@ final class ReaderUITests: XCTestCase {
     }
     func testNativeVideoDismissalAndRotation() {
         let app=fixture("video")
-        app.buttons["Play"].firstMatch.tap()
-        app.buttons["Full screen"].firstMatch.tap()
+        let play=app.buttons["Play"].firstMatch
+        revealAboveTabs(play,in:app);play.tap()
+        let fullScreen=app.buttons["Full screen"].firstMatch
+        revealAboveTabs(fullScreen,in:app);fullScreen.tap()
+        XCTAssertTrue(app.descendants(matching:.any)["native-video-ready"].waitForExistence(timeout:15),"AVKit must load the actual MP4 fixture")
         // AVKit owns the controls and dismissal, including the system Done button.
         let done=app.buttons["Done"].firstMatch
         XCTAssertTrue(done.waitForExistence(timeout:10))
@@ -106,7 +114,10 @@ final class ReaderUITests: XCTestCase {
         let app=fixture("accounts")
         XCTAssertTrue(app.staticTexts["Fixture connection interrupted"].waitForExistence(timeout:5))
         XCTAssertFalse(app.staticTexts["Loading the people you follow…"].exists)
-        app.buttons["Retry"].firstMatch.tap()
+        let retry=app.buttons["Try again"].firstMatch
+        XCTAssertTrue(retry.waitForExistence(timeout:5))
+        XCTAssertGreaterThanOrEqual(retry.frame.height,44)
+        retry.tap()
         XCTAssertTrue(app.staticTexts["No accounts found"].waitForExistence(timeout:5))
         capture("accounts-retry-completed")
         app.terminate()
@@ -125,5 +136,12 @@ final class ReaderUITests: XCTestCase {
     private func capture(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+    }
+    private func revealAboveTabs(_ element:XCUIElement,in app:XCUIApplication) {
+        for _ in 0..<3 {
+            if element.frame.minY>=0 && element.frame.maxY<=app.tabBars.firstMatch.frame.minY {return}
+            app.swipeUp(velocity:.slow)
+        }
+        XCTAssertLessThanOrEqual(element.frame.maxY,app.tabBars.firstMatch.frame.minY,"Media controls must be reachable above native navigation")
     }
 }

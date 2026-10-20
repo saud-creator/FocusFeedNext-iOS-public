@@ -236,6 +236,8 @@ html[data-reduce-transparency="true"] .ios-tabbar { backdrop-filter: none; backg
   }
   [data-platform="ios"] .surface-card { border-radius: 22px; }
   [data-platform="ios"] [data-ffn-button="true"] { min-height:44px; }
+  [data-platform="ios"] [role="alert"] button,
+  [data-platform="ios"] [role="status"] button { min-height:44px; }
   [data-platform="ios"] [data-ffn-button="true"][class*="w-7"],
   [data-platform="ios"] [data-ffn-button="true"][class*="w-9"] { min-width:44px; }
   /* Keep identity beside its avatar while text/media use the full phone width. */

@@ -1,7 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, screen } from "@testing-library/react";
 import { FeedList } from "./FeedList";
 import { makeImage, makePost, renderWithProviders } from "@/test/factories";
+import { PlatformProvider } from '@/lib/platform';
 
 /**
  * Scroll-performance invariants.
@@ -213,6 +214,16 @@ describe("feed bounds the DOM it retains", () => {
     // The exact window depends on measured heights, which jsdom does not
     // produce. What matters is that it is a window at all.
     expect(mounted.length).toBeLessThan(posts.length);
+  });
+
+  it("bounds the initial 20-post iPhone page while keeping its first post visible", () => {
+    const agent=vi.spyOn(navigator,'userAgent','get').mockReturnValue('iPhone');
+    try {
+      renderWithProviders(<PlatformProvider><FeedList posts={feedOf(20)} readIds={new Set()}/></PlatformProvider>);
+      expect(screen.getByTestId('feed-window')).toBeInTheDocument();
+      expect(screen.getByText('post number 0')).toBeInTheDocument();
+      expect(screen.getAllByTestId('post-card').length).toBeLessThan(20);
+    } finally {agent.mockRestore();}
   });
 
   it("moves the rendered range when a bounded feed scrolls beyond its first viewport", async () => {

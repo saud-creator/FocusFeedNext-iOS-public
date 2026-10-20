@@ -80,10 +80,17 @@ private final class NativeVideoController: AVPlayerViewController {
     var finished: ((Double,Bool)->Void)?
     var shouldLoop = false
     private var endObserver: NSObjectProtocol?
+    private var statusObservation: NSKeyValueObservation?
     private var wasPlaying = false
     override func viewWillDisappear(_ animated:Bool) {wasPlaying=(player?.rate ?? 0)>0;super.viewWillDisappear(animated)}
     override func viewDidLoad() {
         super.viewDidLoad()
+        view.accessibilityIdentifier="native-video-loading"
+        statusObservation=player?.currentItem?.observe(\.status,options:[.initial,.new]) { [weak self] item,_ in
+            DispatchQueue.main.async {
+                self?.view.accessibilityIdentifier=item.status == .readyToPlay ? "native-video-ready" : item.status == .failed ? "native-video-failed" : "native-video-loading"
+            }
+        }
         endObserver = NotificationCenter.default.addObserver(forName:.AVPlayerItemDidPlayToEndTime,object:player?.currentItem,queue:.main) { [weak self] _ in
             guard let self = self,self.shouldLoop else { return }
             self.player?.seek(to:.zero);self.player?.play()
