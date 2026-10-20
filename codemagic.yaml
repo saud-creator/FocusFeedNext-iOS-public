@@ -20,12 +20,14 @@ workflows:
         - $HOME/Library/Caches/org.swift.swiftpm
     environment:
       xcode: 27.1
-      node: 24
+      node: '24.22.0'
     scripts:
       - name: Check Apple toolchain
         script: |
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
+          node --version
+          node -e "if (process.versions.node.split('.')[0] !== '24') throw new Error('Node 24 is required')"
           test -f source/package-lock.json
           test -f source/tools/test-ios-simulator.sh
       - name: Install locked dependencies
@@ -60,7 +62,8 @@ workflows:
         script: |
           cd source
           npx playwright install chromium webkit
-          npm run dev -- --host 127.0.0.1 > dist-ios/vite.log 2>&1 &
+          node tools/build-browser-fixtures.mjs
+          npm run preview -- --host 127.0.0.1 --port 5173 --outDir dist-ios/browser-fixture-app > dist-ios/vite.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           for i in {1..60}; do if curl -fsS http://127.0.0.1:5173 >/dev/null; then break; fi; sleep 1; done

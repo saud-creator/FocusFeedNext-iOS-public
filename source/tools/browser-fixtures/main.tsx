@@ -26,17 +26,21 @@ const unread=new Set<string>();
 function WindowedFixture() {
   const [returnedAt,setReturnedAt]=useState<number|null>(null);
   const [paintMs,setPaintMs]=useState<number|null>(null);
-  useEffect(()=>{let frame=requestAnimationFrame(()=>{frame=requestAnimationFrame(()=>setReturnedAt(performance.now()));});return()=>cancelAnimationFrame(frame);},[]);
+  const [stages,setStages]=useState('');
+  useEffect(()=>{let frame=requestAnimationFrame(()=>{frame=requestAnimationFrame(()=>{performance.mark('fixture-page-returned');setReturnedAt(performance.now());});});return()=>cancelAnimationFrame(frame);},[]);
   useEffect(()=>{
     if(returnedAt===null) return;
+    const effectMs=performance.now()-returnedAt;
     let frame=0;
     const measure=()=>{
       const rect=document.querySelector('[data-testid="post-card"]')?.getBoundingClientRect();
       if(!rect || rect.height===0 || rect.top>=innerHeight || rect.bottom<=0) {frame=requestAnimationFrame(measure);return;}
-      frame=requestAnimationFrame(()=>setPaintMs(performance.now()-returnedAt));
+      const visibleMs=performance.now()-returnedAt;
+      const cards=document.querySelectorAll('[data-testid="post-card"]').length;
+      frame=requestAnimationFrame(()=>{performance.mark('fixture-first-paint');const elapsed=performance.now()-returnedAt;setPaintMs(elapsed);setStages(JSON.stringify({effectMs,visibleMs,frameGap:elapsed-visibleMs,cards,visibility:document.visibilityState}));});
     };
     frame=requestAnimationFrame(measure);return()=>cancelAnimationFrame(frame);
   },[returnedAt]);
-  return <><output hidden data-testid="fixture-paint" data-ms={paintMs??undefined}/><FeedList posts={returnedAt===null?[]:windowedPosts} loading={returnedAt===null} readIds={unread}/></>;
+  return <><output hidden data-testid="fixture-paint" data-ms={paintMs??undefined} data-stages={stages}/><FeedList posts={returnedAt===null?[]:windowedPosts} loading={returnedAt===null} readIds={unread}/></>;
 }
 createRoot(document.getElementById('root')!).render(<PlatformProvider><I18nProvider locale="en"><QueryClientProvider client={new QueryClient()}><TooltipProvider><main className="overflow-y-auto p-3 space-y-4" style={{height:'calc(100dvh - var(--reader-bottom-inset,0px))'}}>{windowed ? <WindowedFixture/> : posts.map(post=><PostCard key={post.id} post={post} read={false} readDwellMs={0} />)}</main></TooltipProvider></QueryClientProvider></I18nProvider></PlatformProvider>);

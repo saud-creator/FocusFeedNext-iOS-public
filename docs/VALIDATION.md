@@ -88,6 +88,26 @@ first visible post in the actual FeedList: local unthrottled runs measured
 measured 307–357 ms; this is not an iOS simulator measurement and does not establish
 the native performance gate. The next Mac result remains required.
 
+Build #16 passed frontend, Rust and native transport checks. An additional
+desktop WebKit timing assertion measured 523 ms and stopped the run before
+simulator compilation. That assertion incorrectly applied the iOS simulator's
+budget to desktop browser emulation; it is replaced with recorded diagnostics,
+while ReaderUITests retains the required, unchanged 250 ms simulator assertion.
+The browser fixture now uses an isolated production build with an iPhone user
+agent, rather than React's development runtime. Ordinary app builds still exclude
+both test renderers. Browser reports retain timing stages and mounted-card counts
+alongside functional geometry/media results. Local profiling also showed that
+mounting an entire offscreen runway in one idle callback could block subsequent
+frames; the next correction grows that runway one card per paint/idle opportunity
+and suspends that work while backgrounded. It does not reset established row
+measurements or change the native timing boundary.
+
+The workflow now pins Node 24.22.0 explicitly and checks its major version before
+expensive work. Build #16's browser log reported Node 26 despite the previous
+major-only declaration, so the version is verified rather than inferred from
+configuration. The pinned patch version is listed on
+[Codemagic's Xcode 27.1 image](https://docs.codemagic.io/specs-macos/xcode-27-1/).
+
 Candidate simulator fixtures use real PostCard, navigation, welcome and account components, plus actual image/video bytes through the native media proxy. Only opt-in debug simulator builds register loopback fixtures. Device packaging rejects fixture mode, and IPA verification checks version, iOS 16 minimum, scene delegate, architecture, unsigned state and fixture exclusion.
 
 The candidate declares an HTTP exception only for the in-process media proxy at 127.0.0.1. Apple's current ATS documentation requires explicit IP exceptions from iOS 17 onward. IPA verification checks that this exception survives packaging and that global, web-content and AVFoundation arbitrary-load exceptions remain disabled. Actual simulator photo/video decoding remains the delivery gate. See [Apple's IP exception rules](https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity/nsexceptiondomains).

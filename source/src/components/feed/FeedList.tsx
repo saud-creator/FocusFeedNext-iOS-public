@@ -373,12 +373,15 @@ function WindowedCards({
   loadMoreError?: string | null;
 }) {
   const policy = useEffectivePolicy();
+  const warmTarget=policy.mode==='ultra'?16:policy.mode==='fast'?12:policy.mode==='battery'?4:6;
   const windowRef = useRef<HTMLDivElement>(null);
   const [scroller, setScroller] = useState<HTMLElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [fallbackScrollTop, setFallbackScrollTop] = useState(0);
   const [renderPhase, setRenderPhase] = useState<'first'|'visible'|'ahead'>('first');
+  const [runwayBudget,setRunwayBudget]=useState(0);
+  const warmedRunway=useRef(0);
   const direction = useRef<"up" | "down">("down");
   const lastTop = useRef(0);
   const velocity = useRef(0);
@@ -395,16 +398,24 @@ function WindowedCards({
   // Fill the measured viewport after paint, then enable its runway in idle
   // time. Restored/deep scroll positions always render their visible range.
   useEffect(() => {
-    if (!scroller || viewportHeight <= 0) return;
+    if (!scroller || viewportHeight <= 0 || !policy.foreground) return;
     let frame = 0, idle = 0, timer = 0;
+    const queueIdle=()=>{
+      // An idle callback is permission to begin a little work, not to mount
+      // an entire runway of players before the next animation frame.
+      const extend=()=>{
+        if(warmedRunway.current>=warmTarget) return;
+        warmedRunway.current++;
+        setRunwayBudget(warmedRunway.current);setRenderPhase('ahead');
+        if(warmedRunway.current<warmTarget) frame=requestAnimationFrame(()=>{frame=requestAnimationFrame(queueIdle);});
+      };
+      if(typeof window.requestIdleCallback==='function') idle=window.requestIdleCallback(extend,{timeout:250});
+      else timer=window.setTimeout(extend,0);
+    };
     frame = requestAnimationFrame(() => {
       frame = requestAnimationFrame(() => {
         setRenderPhase(current => current==='first' ? 'visible' : current);
-        if (typeof window.requestIdleCallback === 'function') {
-          idle = window.requestIdleCallback(() => setRenderPhase('ahead'), {timeout:250});
-        } else {
-          timer = window.setTimeout(() => setRenderPhase('ahead'), 0);
-        }
+        queueIdle();
       });
     });
     return () => {
@@ -412,7 +423,7 @@ function WindowedCards({
       if (idle) window.cancelIdleCallback(idle);
       window.clearTimeout(timer);
     };
-  }, [scroller, viewportHeight]);
+  }, [scroller, viewportHeight,policy.foreground,warmTarget]);
 
   // WebView2 can mount a route while the flex shell still reports a zero
   // viewport. TanStack quite correctly returns no virtual items for that
@@ -502,8 +513,9 @@ function WindowedCards({
   const rangeExtractor = useCallback((range: Range) => {
     if (renderPhase==='first' && range.startIndex===0 && !(scroller?.scrollTop)) return [0];
     if (renderPhase!=='ahead') return Array.from({length:range.endIndex-range.startIndex+1},(_,i)=>range.startIndex+i);
-    return feedWindow(range.startIndex, range.endIndex, range.count, direction.current === 'up', velocity.current, policy.mode);
-  }, [policy.mode, renderPhase, scroller]);
+    return feedWindow(range.startIndex, range.endIndex, range.count, direction.current === 'up', velocity.current, policy.mode)
+      .filter(index=>runwayBudget>=warmTarget || index>=range.startIndex-runwayBudget && index<=range.endIndex+runwayBudget);
+  }, [policy.mode, renderPhase, scroller,runwayBudget,warmTarget]);
 
   // Keep this function stable for the lifetime of the window. TanStack uses
   // callback identity as part of its measurement options; tying it to the
