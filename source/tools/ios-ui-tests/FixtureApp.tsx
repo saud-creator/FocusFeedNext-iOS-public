@@ -36,6 +36,7 @@ function FixtureReader({bootstrapAt}:{bootstrapAt:number}) {
   const [welcome,setWelcome]=useState(false);
   const [paint,setPaint]=useState('Measuring first content paint');
   const [paintMs,setPaintMs]=useState<number|null>(null);
+  const [paintStages,setPaintStages]=useState('');
   const [geometry,setGeometry]=useState('Measuring card separation');
   useEffect(()=>{
     if(!delivery || welcome || route==='accounts') return;
@@ -58,6 +59,7 @@ function FixtureReader({bootstrapAt}:{bootstrapAt:number}) {
   useEffect(()=>{
     if(!delivery) return;
     const returnedAt=delivery.returnedAt;
+    const effectMs=performance.now()-returnedAt;
     let id=0;
     const measure=()=>{
       const card=document.querySelector<HTMLElement>('[data-testid="post-card"]');
@@ -66,7 +68,9 @@ function FixtureReader({bootstrapAt}:{bootstrapAt:number}) {
       if(!ready && performance.now()-returnedAt<5000) {id=requestAnimationFrame(measure);return;}
       // A second frame observes a committed visible card, not an empty virtual
       // spacer or a loading skeleton. The 250 ms limit is unchanged.
-      id=requestAnimationFrame(()=>{const elapsed=performance.now()-returnedAt;setPaintMs(elapsed);setPaint(ready && elapsed<=250 ? 'First content painted within 250 ms' : 'First content exceeded 250 ms');});
+      const visibleMs=performance.now()-returnedAt;
+      const cards=document.querySelectorAll('[data-testid="post-card"]').length;
+      id=requestAnimationFrame(()=>{const elapsed=performance.now()-returnedAt;setPaintStages(`Commit effects ${Math.round(effectMs)} ms; visible frame ${Math.round(visibleMs)} ms; ${cards} cards mounted at visibility`);setPaintMs(elapsed);setPaint(ready && elapsed<=250 ? 'First content painted within 250 ms' : 'First content exceeded 250 ms');});
     };
     id=requestAnimationFrame(measure);return()=>cancelAnimationFrame(id);
   },[delivery,route]);
@@ -85,6 +89,7 @@ function FixtureReader({bootstrapAt}:{bootstrapAt:number}) {
     {delivery && <p>Fixture page ready</p>}
     {delivery && <p>{geometry}</p>}
     {paintMs!==null && <p>First content render: {Math.round(paintMs)} ms; reader shell: {Math.round(delivery!.shellMs)} ms; {firstPage.length} posts returned</p>}
+    {paintMs!==null && <p>{paintStages}</p>}
     <button className="min-h-11 p-3" onClick={()=>setWelcome(v=>!v)}>{welcome?'Enter reader':'Return to welcome'}</button>
     {welcome ? <p>Fixture welcome without reader navigation</p> : !delivery ? <p role="status">Waiting for the first page</p> : route==='accounts' ? <FollowingManagerPage/> : <div className="p-3"><FeedList posts={firstPage} readIds={unreadFixturePosts}/></div>}
     {!welcome && <MobileNavigation unread={0}/>}

@@ -69,7 +69,8 @@ final class ReaderUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout:5))
         XCTAssertEqual(app.tabBars.count,1)
         XCTAssertLessThan(app.tabBars.firstMatch.frame.height,110,"Only one native navigation layer may occupy the bottom")
-        app.buttons["Open image: Fixture photograph"].tap()
+        let open=app.buttons["Open image: Fixture photograph"]
+        revealAboveTabs(open,in:app);open.tap()
         let close=app.buttons.matching(NSPredicate(format:"identifier == %@ OR label ==[c] %@","native-photo-close","Close")).firstMatch
         XCTAssertTrue(close.waitForExistence(timeout:10))
         let photograph=app.images.matching(NSPredicate(format:"identifier == %@ AND label == %@","native-photo-image","Fixture photograph")).firstMatch
@@ -85,12 +86,14 @@ final class ReaderUITests: XCTestCase {
         capture("native-photo-next-page")
         close.tap()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout:5))
-        app.buttons["Open image: Fixture photograph"].tap()
+        revealAboveTabs(open,in:app);open.tap()
         XCTAssertTrue(photograph.waitForExistence(timeout:10),"A dismissed viewer must release ownership for the next presentation")
         close.tap()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout:5))
+        revealAboveTabs(app.staticTexts["Recoverable image failure"].firstMatch,in:app)
         XCTAssertTrue(app.buttons["Retry image"].waitForExistence(timeout:10),"The failed inline fixture must settle into recovery")
-        app.buttons["Return to welcome"].tap()
+        let welcome=app.buttons["Return to welcome"]
+        revealAboveTabs(welcome,in:app);welcome.tap()
         XCTAssertTrue(app.staticTexts["Fixture welcome without reader navigation"].waitForExistence(timeout:5))
         XCTAssertEqual(app.tabBars.count,0)
         capture("welcome-after-reader")
@@ -148,8 +151,10 @@ final class ReaderUITests: XCTestCase {
     private func revealAboveTabs(_ element:XCUIElement,in app:XCUIApplication) {
         for _ in 0..<3 {
             if element.frame.minY>=0 && element.frame.maxY<=app.tabBars.firstMatch.frame.minY {return}
-            app.swipeUp(velocity:.slow)
+            if element.frame.minY<0 {app.swipeDown(velocity:.slow)}
+            else {app.swipeUp(velocity:.slow)}
         }
+        XCTAssertGreaterThanOrEqual(element.frame.minY,0,"Media controls must not remain above the viewport")
         XCTAssertLessThanOrEqual(element.frame.maxY,app.tabBars.firstMatch.frame.minY,"Media controls must be reachable above native navigation")
     }
 }

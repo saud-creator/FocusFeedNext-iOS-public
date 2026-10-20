@@ -19,6 +19,9 @@ async function checkWindowedFeed(browser,engine,width,height) {
   try {
     await page.goto(base+'/tools/browser-fixtures/index.html?platform=ios&windowed');
     await page.getByTestId('feed-window-item').first().waitFor();
+    await page.waitForFunction(()=>Boolean(document.querySelector('[data-testid="fixture-paint"]')?.getAttribute('data-ms')));
+    const firstPaintMs=Number(await page.getByTestId('fixture-paint').getAttribute('data-ms'));
+    assert(firstPaintMs<=250,`${engine} ${width}: first returned post painted in ${firstPaintMs.toFixed(1)} ms`);
     const assertRows=async phase=>{
       try {
         await page.waitForFunction(()=>{
@@ -48,13 +51,14 @@ async function checkWindowedFeed(browser,engine,width,height) {
     await assertRows('shown');
     await page.screenshot({path:resolve(output,`${engine}-windowed-${width}.png`)});
     assert(await page.getByTestId('post-card').count()<40,'Windowed feed mounted the entire batch');
+    return {firstPaintMs,windowedGeometry:true};
   } finally {releaseImage();await page.close();}
 }
 for(const [engine,browserType] of [['chromium',chromium],['webkit',webkit]]) {
 const browser=await browserType.launch({headless:true});
 try {
   for(const [width,height] of [[320,568],[390,844],[430,932],[844,390]]) {
-    await checkWindowedFeed(browser,engine,width,height);
+    const windowed=await checkWindowedFeed(browser,engine,width,height);
     const page=await browser.newPage({viewport:{width,height},isMobile:true,hasTouch:true});
     const errors=[];page.on('pageerror',error=>errors.push(error.message));
     await page.route(/\/media\/[0-9a-f]+\/[0-9a-f]+$/,async route=>{
@@ -100,7 +104,7 @@ try {
       }),base+'/media/'+('1'.repeat(32))+'/'+('2'.repeat(32)));
       assert.equal(plainError,4,'Windows limitation must reproduce outside the app');
       await videoCard.getByRole('button',{name:'Retry video'}).waitFor();
-      results.push({engine,width,height,...geometry,mp4Playback:false,hostLimitation:'Windows WebKit MP4 decoder unavailable',recoverableVideoError:true});
+      results.push({engine,width,height,...geometry,...windowed,mp4Playback:false,hostLimitation:'Windows WebKit MP4 decoder unavailable',recoverableVideoError:true});
       await page.close();continue;
     }
     assert(decode.ready>=1,`${engine} ${width} cannot decode fixture MP4: ${JSON.stringify(decode)}`);
@@ -131,7 +135,7 @@ try {
     await failedCard.getByRole('button',{name:'Retry image'}).waitFor();
     assert.equal(await failedCard.locator('img[alt="Failed fixture image"]').count(),0,'Broken image glyph remained in finished UI');
     assert.equal(errors.length,0,errors.join('\n'));
-    results.push({engine,width,height,...geometry,mp4Playback:true,qualityChangeResumed:true,fullscreenErrorExit:true});
+    results.push({engine,width,height,...geometry,...windowed,mp4Playback:true,qualityChangeResumed:true,fullscreenErrorExit:true});
     await page.close();
   }
 } finally {await browser.close();}

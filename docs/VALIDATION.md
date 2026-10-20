@@ -68,6 +68,26 @@ passing test receipt is stored in the cross-build cache. Cache changes follow
 Mac caches are populated after successful runs; warm-cache savings are not yet
 measured. The simulator, native and device release checks remain mandatory.
 
+Build #15 passed frontend/Rust/native/Mac browser gates and confirmed separated
+cards in the iOS hierarchy. Initial rendering improved to 563 ms but still
+failed the 250 ms gate. Native photo decoding, safe areas, zoom, paging, dismissal
+and reopening passed; its final inline-image assertion failed because the
+correctly spaced, lazy media had not yet entered the viewport. Other simulator
+scenarios passed. Packaging stopped.
+
+The next combined correction commits the first post before constructing later
+players against estimated row heights, fills the visible range after paint, then
+enables its offscreen runway during idle time. Deep/restored scrolling still
+renders its complete visible range, and rotation cannot regress an established
+window to its initial phase. The media failure test scrolls to its lazy fixture
+before expecting network failure/retry. Native timing diagnostics now separate
+commit effects, first visible frame and final paint without changing the clock
+boundary or the 250 ms limit. The browser fixture also measures returned-data to
+first visible post in the actual FeedList: local unthrottled runs measured
+56–111 ms across eight combinations. An additional local 4× CPU stress probe
+measured 307–357 ms; this is not an iOS simulator measurement and does not establish
+the native performance gate. The next Mac result remains required.
+
 Candidate simulator fixtures use real PostCard, navigation, welcome and account components, plus actual image/video bytes through the native media proxy. Only opt-in debug simulator builds register loopback fixtures. Device packaging rejects fixture mode, and IPA verification checks version, iOS 16 minimum, scene delegate, architecture, unsigned state and fixture exclusion.
 
 The candidate declares an HTTP exception only for the in-process media proxy at 127.0.0.1. Apple's current ATS documentation requires explicit IP exceptions from iOS 17 onward. IPA verification checks that this exception survives packaging and that global, web-content and AVFoundation arbitrary-load exceptions remain disabled. Actual simulator photo/video decoding remains the delivery gate. See [Apple's IP exception rules](https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity/nsexceptiondomains).

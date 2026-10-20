@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 import {PostCard} from '../../src/components/post/PostCard';
@@ -22,4 +22,21 @@ posts.push({...base,id:'101',text:'Recoverable picture error',media:[{kind:'imag
 const windowed=new URLSearchParams(location.search).has('windowed');
 const windowedPosts=Array.from({length:40},(_,index)=>({...posts[index%3],id:String(200+index),text:index%3===0 ? posts[0].text+'\n\n'+('A paragraph of authored text.\n'.repeat(index%5+1)) : posts[index%3].text}));
 windowedPosts[0]={...windowedPosts[0],media:[{kind:'image',url:location.origin+'/fixtures/changing-photo.svg',width:320,height:80,alt:'Delayed intrinsic image',variants:[]}]};
-createRoot(document.getElementById('root')!).render(<PlatformProvider><I18nProvider locale="en"><QueryClientProvider client={new QueryClient()}><TooltipProvider><main className="overflow-y-auto p-3 space-y-4" style={{height:'calc(100dvh - var(--reader-bottom-inset,0px))'}}>{windowed ? <FeedList posts={windowedPosts} readIds={new Set()} /> : posts.map(post=><PostCard key={post.id} post={post} read={false} readDwellMs={0} />)}</main></TooltipProvider></QueryClientProvider></I18nProvider></PlatformProvider>);
+const unread=new Set<string>();
+function WindowedFixture() {
+  const [returnedAt,setReturnedAt]=useState<number|null>(null);
+  const [paintMs,setPaintMs]=useState<number|null>(null);
+  useEffect(()=>{let frame=requestAnimationFrame(()=>{frame=requestAnimationFrame(()=>setReturnedAt(performance.now()));});return()=>cancelAnimationFrame(frame);},[]);
+  useEffect(()=>{
+    if(returnedAt===null) return;
+    let frame=0;
+    const measure=()=>{
+      const rect=document.querySelector('[data-testid="post-card"]')?.getBoundingClientRect();
+      if(!rect || rect.height===0 || rect.top>=innerHeight || rect.bottom<=0) {frame=requestAnimationFrame(measure);return;}
+      frame=requestAnimationFrame(()=>setPaintMs(performance.now()-returnedAt));
+    };
+    frame=requestAnimationFrame(measure);return()=>cancelAnimationFrame(frame);
+  },[returnedAt]);
+  return <><output hidden data-testid="fixture-paint" data-ms={paintMs??undefined}/><FeedList posts={returnedAt===null?[]:windowedPosts} loading={returnedAt===null} readIds={unread}/></>;
+}
+createRoot(document.getElementById('root')!).render(<PlatformProvider><I18nProvider locale="en"><QueryClientProvider client={new QueryClient()}><TooltipProvider><main className="overflow-y-auto p-3 space-y-4" style={{height:'calc(100dvh - var(--reader-bottom-inset,0px))'}}>{windowed ? <WindowedFixture/> : posts.map(post=><PostCard key={post.id} post={post} read={false} readDwellMs={0} />)}</main></TooltipProvider></QueryClientProvider></I18nProvider></PlatformProvider>);

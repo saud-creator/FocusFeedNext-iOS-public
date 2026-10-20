@@ -378,7 +378,7 @@ function WindowedCards({
   const [scrollMargin, setScrollMargin] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [fallbackScrollTop, setFallbackScrollTop] = useState(0);
-  const [overscanReady, setOverscanReady] = useState(false);
+  const [renderPhase, setRenderPhase] = useState<'first'|'visible'|'ahead'>('first');
   const direction = useRef<"up" | "down">("down");
   const lastTop = useRef(0);
   const velocity = useRef(0);
@@ -390,18 +390,20 @@ function WindowedCards({
     setScroller(scrollParentOf(windowRef.current));
   }, []);
 
-  // Paint the visible page before constructing offscreen media and menus.
-  // The normal asymmetric runway is enabled in idle time after that paint;
-  // scrolling still computes the visible range immediately in either mode.
+  // Commit the first returned post without constructing later media players
+  // against estimated heights. A tall first photo can fill the whole viewport.
+  // Fill the measured viewport after paint, then enable its runway in idle
+  // time. Restored/deep scroll positions always render their visible range.
   useEffect(() => {
     if (!scroller || viewportHeight <= 0) return;
     let frame = 0, idle = 0, timer = 0;
     frame = requestAnimationFrame(() => {
       frame = requestAnimationFrame(() => {
+        setRenderPhase(current => current==='first' ? 'visible' : current);
         if (typeof window.requestIdleCallback === 'function') {
-          idle = window.requestIdleCallback(() => setOverscanReady(true), {timeout:250});
+          idle = window.requestIdleCallback(() => setRenderPhase('ahead'), {timeout:250});
         } else {
-          timer = window.setTimeout(() => setOverscanReady(true), 0);
+          timer = window.setTimeout(() => setRenderPhase('ahead'), 0);
         }
       });
     });
@@ -498,9 +500,10 @@ function WindowedCards({
   }, [scroller]);
 
   const rangeExtractor = useCallback((range: Range) => {
-    if (!overscanReady) return Array.from({length:range.endIndex-range.startIndex+1},(_,i)=>range.startIndex+i);
+    if (renderPhase==='first' && range.startIndex===0 && !(scroller?.scrollTop)) return [0];
+    if (renderPhase!=='ahead') return Array.from({length:range.endIndex-range.startIndex+1},(_,i)=>range.startIndex+i);
     return feedWindow(range.startIndex, range.endIndex, range.count, direction.current === 'up', velocity.current, policy.mode);
-  }, [policy.mode, overscanReady]);
+  }, [policy.mode, renderPhase, scroller]);
 
   // Keep this function stable for the lifetime of the window. TanStack uses
   // callback identity as part of its measurement options; tying it to the
