@@ -61,10 +61,11 @@ pictures, crop useful content, or strip authored blank lines from posts.
 
 ## Release discipline
 
-Reproduce -> regression -> fix -> local checks -> leased main commit ->
-Codemagic gates -> verified IPA. Failed checks stop packaging and the next
-milestone. Keep the prior artifact and recover through ordinary corrective or
-revert commits.
+Reproduce -> regression -> fix -> local checks -> fast-forward main commit ->
+Codemagic gates -> verified IPA. Per the user's later efficiency instruction,
+batch the remaining corrections and their local checks into one update before
+using the Mac runner. Failed checks stop packaging. Keep the prior artifact and
+recover through ordinary corrective or revert commits.
 
 Exercise portrait/landscape, English/Arabic, large text, reduced motion and
 transparency, actual image/video failures and fullscreen dismissal. Controlled

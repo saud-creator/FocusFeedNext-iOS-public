@@ -16,6 +16,8 @@ workflows:
         - $HOME/.npm
         - $HOME/.cargo/registry
         - $HOME/.cargo/git
+        - $HOME/Library/Caches/ms-playwright
+        - $HOME/Library/Caches/org.swift.swiftpm
     environment:
       xcode: 27.1
       node: 24
@@ -42,7 +44,7 @@ workflows:
           cd source
           npm run lint
           npm run build
-          npm test -- --reporter=default --reporter=junit --outputFile=dist-ios/frontend-tests.xml
+          npm test -- --maxWorkers=4 --reporter=default --reporter=junit --outputFile=dist-ios/frontend-tests.xml
         test_report: source/dist-ios/frontend-tests.xml
       - name: Shared Rust tests
         script: |

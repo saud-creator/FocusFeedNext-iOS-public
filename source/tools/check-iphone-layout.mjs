@@ -8,10 +8,53 @@ const output=resolve(process.argv[3] ?? 'dist-ios/browser-checks');
 await mkdir(output,{recursive:true});
 const clips=await Promise.all(['portrait.mp4','small.mp4'].map(name=>readFile(new URL('./browser-fixtures/'+name,import.meta.url))));
 const results=[];
+async function checkWindowedFeed(browser,engine,width,height) {
+  const page=await browser.newPage({viewport:{width,height},isMobile:true,hasTouch:true});
+  let releaseImage;
+  const imageReady=new Promise(resolve=>{releaseImage=resolve;});
+  await page.route('**/fixtures/changing-photo.svg',async route=>{
+    await imageReady;
+    await route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="900"><rect width="320" height="900" fill="#38bdf8"/></svg>'});
+  });
+  try {
+    await page.goto(base+'/tools/browser-fixtures/index.html?platform=ios&windowed');
+    await page.getByTestId('feed-window-item').first().waitFor();
+    const assertRows=async phase=>{
+      try {
+        await page.waitForFunction(()=>{
+          const rows=Array.from(document.querySelectorAll('[data-testid="feed-window-item"]')).sort((a,b)=>Number(a.dataset.index)-Number(b.dataset.index));
+          return rows.length>1 && rows.every((row,index)=>index===0 || Number(row.dataset.index)!==Number(rows[index-1].dataset.index)+1 || row.getBoundingClientRect().top>=rows[index-1].getBoundingClientRect().bottom-1);
+        },null,{timeout:4000});
+      } catch(error) {
+        const geometry=await page.getByTestId('feed-window-item').evaluateAll(rows=>rows.map(row=>({index:row.dataset.index,top:row.getBoundingClientRect().top,height:row.getBoundingClientRect().height})));
+        await page.screenshot({path:resolve(output,`${engine}-overlap-${width}-${phase}.png`)});
+        throw new Error(`${engine} ${width} ${phase}: overlapping measured cards ${JSON.stringify(geometry)}`,{cause:error});
+      }
+    };
+    await assertRows('initial');
+    releaseImage();
+    await page.waitForFunction(()=>{const image=document.querySelector('img[alt="Delayed intrinsic image"]');return image?.complete && image.naturalHeight===900;});
+    await assertRows('decoded');
+    await page.locator('main').evaluate(element=>{element.scrollTop=1100;});
+    await assertRows('scrolled');
+    await page.setViewportSize({width:height,height:width});
+    await assertRows('rotated');
+    await page.setViewportSize({width,height});
+    await page.locator('main').evaluate(element=>{element.scrollTop=0;});
+    await assertRows('restored');
+    await page.locator('main').evaluate(element=>{element.style.display='none';});
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    await page.locator('main').evaluate(element=>{element.style.display='';});
+    await assertRows('shown');
+    await page.screenshot({path:resolve(output,`${engine}-windowed-${width}.png`)});
+    assert(await page.getByTestId('post-card').count()<40,'Windowed feed mounted the entire batch');
+  } finally {releaseImage();await page.close();}
+}
 for(const [engine,browserType] of [['chromium',chromium],['webkit',webkit]]) {
 const browser=await browserType.launch({headless:true});
 try {
   for(const [width,height] of [[320,568],[390,844],[430,932],[844,390]]) {
+    await checkWindowedFeed(browser,engine,width,height);
     const page=await browser.newPage({viewport:{width,height},isMobile:true,hasTouch:true});
     const errors=[];page.on('pageerror',error=>errors.push(error.message));
     await page.route(/\/media\/[0-9a-f]+\/[0-9a-f]+$/,async route=>{

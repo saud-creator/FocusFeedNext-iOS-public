@@ -45,6 +45,7 @@ final class ReaderUITests: XCTestCase {
         let app=fixture("photos")
         capture("first-page-timing")
         XCTAssertTrue(app.staticTexts["First content painted within 250 ms"].waitForExistence(timeout:5),"Returned first-page content must paint within 250 ms")
+        XCTAssertTrue(app.staticTexts["Feed cards do not overlap"].waitForExistence(timeout:5),"Measured media cards must not overlap the next post")
         app.terminate()
     }
     func testWelcomeFailureRetryCancellationAndResume() {

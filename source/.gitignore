@@ -13,6 +13,7 @@ dist-ssr
 dist-ios/
 .linux-target/
 *.local
+__pycache__/
 
 # Apple build and signing outputs. The generated Xcode project is recreated by
 # the CI workflow; signing material and exported archives must never be committed.

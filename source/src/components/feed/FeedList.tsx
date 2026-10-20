@@ -378,6 +378,7 @@ function WindowedCards({
   const [scrollMargin, setScrollMargin] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [fallbackScrollTop, setFallbackScrollTop] = useState(0);
+  const [overscanReady, setOverscanReady] = useState(false);
   const direction = useRef<"up" | "down">("down");
   const lastTop = useRef(0);
   const velocity = useRef(0);
@@ -388,6 +389,28 @@ function WindowedCards({
   useLayoutEffect(() => {
     setScroller(scrollParentOf(windowRef.current));
   }, []);
+
+  // Paint the visible page before constructing offscreen media and menus.
+  // The normal asymmetric runway is enabled in idle time after that paint;
+  // scrolling still computes the visible range immediately in either mode.
+  useEffect(() => {
+    if (!scroller || viewportHeight <= 0) return;
+    let frame = 0, idle = 0, timer = 0;
+    frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        if (typeof window.requestIdleCallback === 'function') {
+          idle = window.requestIdleCallback(() => setOverscanReady(true), {timeout:250});
+        } else {
+          timer = window.setTimeout(() => setOverscanReady(true), 0);
+        }
+      });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      if (idle) window.cancelIdleCallback(idle);
+      window.clearTimeout(timer);
+    };
+  }, [scroller, viewportHeight]);
 
   // WebView2 can mount a route while the flex shell still reports a zero
   // viewport. TanStack quite correctly returns no virtual items for that
@@ -475,8 +498,9 @@ function WindowedCards({
   }, [scroller]);
 
   const rangeExtractor = useCallback((range: Range) => {
+    if (!overscanReady) return Array.from({length:range.endIndex-range.startIndex+1},(_,i)=>range.startIndex+i);
     return feedWindow(range.startIndex, range.endIndex, range.count, direction.current === 'up', velocity.current, policy.mode);
-  }, [policy.mode]);
+  }, [policy.mode, overscanReady]);
 
   // Keep this function stable for the lifetime of the window. TanStack uses
   // callback identity as part of its measurement options; tying it to the
@@ -517,13 +541,11 @@ function WindowedCards({
     [virtualizer],
   );
 
-  useLayoutEffect(() => {
-    if (!scroller || viewportHeight <= 0) return;
-    // Force a fresh rect/range after a delayed nonzero layout. This is cheap in
-    // the normal case and prevents a spacer-only frame after WebView2 restores
-    // a previously scrolled route.
-    virtualizer.measure();
-  }, [scroller, viewportHeight, virtualizer]);
+  // The virtualizer already observes both the viewport and mounted row sizes.
+  // Do not call measure() on viewport changes: it clears every cached height,
+  // while unchanged rows receive no new ResizeObserver entry to restore it.
+  // That leaves tall media cards positioned at the text-only estimate, with
+  // subsequent posts overlapping them after rotation or shell initialization.
 
   // This listener exists only while the virtualizer has no range. It lets the
   // defensive fallback below follow a deep restored scroll position without

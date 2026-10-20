@@ -9,7 +9,7 @@ if [[ "$(uname -s)" != Darwin ]]; then
 fi
 xcrun --sdk iphoneos --show-sdk-path >/dev/null
 node tools/build-ios-native.mjs
-bash tools/test-ios-native.sh
+bash tools/test-ios-native.sh --reuse-verified
 build_number="${1:-1}"
 [[ "$build_number" =~ ^[0-9]+$ ]] || { echo 'Build number must be numeric.' >&2; exit 1; }
 output="$PWD/dist-ios"

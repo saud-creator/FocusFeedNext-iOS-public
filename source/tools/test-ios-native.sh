@@ -2,6 +2,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p dist-ios/native-tests
+fingerprint=$(python3 tools/native-test-fingerprint.py)
+receipt=dist-ios/native-tests/input.sha256
+if [[ "${1:-}" == --reuse-verified && -f "$receipt" && "$(cat "$receipt")" == "$fingerprint" ]] &&
+   grep -q '^Native session and WebKit checks passed:' dist-ios/native-tests/results.txt; then
+  echo 'Reusing native fixtures passed for identical inputs and toolchain in this build.'
+  exit 0
+fi
+rm -f "$receipt"
 python3 tools/ios-native-tests/server.py &
 fixture_pid=$!
 trap 'kill "$fixture_pid" 2>/dev/null || true' EXIT
@@ -22,3 +30,4 @@ swiftc src-tauri/plugins/ios-reader/ios/Sources/SessionTransaction.swift \
   src-tauri/plugins/ios-reader/ios/Sources/ReaderScript.swift \
   tools/ios-native-tests/main.swift -o dist-ios/native-tests/verify-webkit
 dist-ios/native-tests/verify-webkit | tee dist-ios/native-tests/results.txt
+printf '%s\n' "$fingerprint" > "$receipt"

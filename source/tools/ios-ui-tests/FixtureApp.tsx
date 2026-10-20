@@ -36,6 +36,25 @@ function FixtureReader({bootstrapAt}:{bootstrapAt:number}) {
   const [welcome,setWelcome]=useState(false);
   const [paint,setPaint]=useState('Measuring first content paint');
   const [paintMs,setPaintMs]=useState<number|null>(null);
+  const [geometry,setGeometry]=useState('Measuring card separation');
+  useEffect(()=>{
+    if(!delivery || welcome || route==='accounts') return;
+    let id=0;
+    const inspect=()=>{
+      const rows=Array.from(document.querySelectorAll<HTMLElement>('[data-testid="feed-window-item"]')).sort((a,b)=>Number(a.dataset.index)-Number(b.dataset.index));
+      const separated=rows.length>0 && rows.every((row,index)=>index===0 || Number(row.dataset.index)!==Number(rows[index-1].dataset.index)+1 || row.getBoundingClientRect().top>=rows[index-1].getBoundingClientRect().bottom-1);
+      setGeometry(separated?'Feed cards do not overlap':'Feed cards overlap');
+    };
+    const update=()=>{cancelAnimationFrame(id);id=requestAnimationFrame(inspect);};
+    const observer=new ResizeObserver(update);
+    const observeRows=()=>document.querySelectorAll('[data-testid="feed-window-item"]').forEach(row=>observer.observe(row));
+    observeRows();
+    const mutation=new MutationObserver(()=>{observeRows();update();});
+    const layer=document.querySelector('[data-testid="feed-window"]');
+    if(layer) mutation.observe(layer,{childList:true});
+    update();window.addEventListener('resize',update);
+    return()=>{cancelAnimationFrame(id);observer.disconnect();mutation.disconnect();window.removeEventListener('resize',update);};
+  },[delivery,welcome,route]);
   useEffect(()=>{
     if(!delivery) return;
     const returnedAt=delivery.returnedAt;
@@ -64,6 +83,7 @@ function FixtureReader({bootstrapAt}:{bootstrapAt:number}) {
     <PageHeader title="Simulator fixture reader" subtitle="English and Arabic media, accounts and safe-area checks"/>
     <p role="status">{paint}</p>
     {delivery && <p>Fixture page ready</p>}
+    {delivery && <p>{geometry}</p>}
     {paintMs!==null && <p>First content render: {Math.round(paintMs)} ms; reader shell: {Math.round(delivery!.shellMs)} ms; {firstPage.length} posts returned</p>}
     <button className="min-h-11 p-3" onClick={()=>setWelcome(v=>!v)}>{welcome?'Enter reader':'Return to welcome'}</button>
     {welcome ? <p>Fixture welcome without reader navigation</p> : !delivery ? <p role="status">Waiting for the first page</p> : route==='accounts' ? <FollowingManagerPage/> : <div className="p-3"><FeedList posts={firstPage} readIds={unreadFixturePosts}/></div>}

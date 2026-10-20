@@ -37,6 +37,37 @@ The Tao 0.35.3 archive SHA-256 matches the original lock entry. The vendored cra
 - The next fixture request follows a painted loading shell and UIKit's measured viewport readiness, matching the normal reader's data lifecycle. It records shell startup separately and starts the unchanged 250 ms clock immediately when the page-data promise returns, before constructing/rendering cards. No posts render before that boundary. The native tests reveal AVKit's controls before dismissal and locate the photo control across UIKit's traditional and floating chrome. Photo safe-area checks verify window containment, separation from the photo viewport, and status-bar intersection when the OS exposes a status-bar element; the iPhone Duo's floating status area is also retained in screenshots for visual review. The photo close accessibility label now follows the app's English/Arabic locale.
 - Windows has no Cargo, Swift or Xcode. The corrective native/UI changes require another Codemagic run; the previous candidate's compilation is not evidence that these newer changes pass.
 
+### Combined correction after build #14
+
+Build #14 passed six of seven simulator tests: both welcome scenarios, failed
+accounts and retry, Arabic/large text, native photo decoding/paging/zoom/reopening,
+and actual AVKit playback with background/resume, rotation and dismissal. The
+first-page render check measured 809 ms and failed; packaging correctly stopped.
+
+Screenshot review also exposed overlapping virtualized cards. Local browser
+reproduction confirmed that calling the virtualizer's `measure()` on viewport
+changes discarded measured heights without causing unchanged rows to be measured
+again. Removing that reset preserves dynamic row geometry. Initial rendering now
+constructs the visible range first and enables the offscreen runway during idle
+time after paint. The simulator's unchanged 250 ms response-to-content gate will
+measure this production path; it also checks card separation.
+
+The combined local update passed all 625 tests, lint, fixture/production builds
+and fixture exclusion. Browser coverage now uses the real FeedList with 40 mixed
+posts and asserts non-overlap after delayed intrinsic image sizing, scrolling,
+rotation, restoration and hiding/showing its viewport, in all eight layout/engine
+combinations. Windows WebKit's MP4 decoder limitation remains explicit.
+
+At the user's request, remaining corrections are batched before another Mac run.
+The workflow caches Playwright downloads and Swift packages alongside npm/Cargo
+dependencies, caps frontend workers at four, and reuses native fixture success
+only inside the same run when a SHA-256 fingerprint of all fixture/source inputs
+and the Swift toolchain still matches. Changed inputs force fresh tests; no
+passing test receipt is stored in the cross-build cache. Cache changes follow
+[Codemagic's documented cache configuration and limits](https://docs.codemagic.io/knowledge-codemagic/caching/).
+Mac caches are populated after successful runs; warm-cache savings are not yet
+measured. The simulator, native and device release checks remain mandatory.
+
 Candidate simulator fixtures use real PostCard, navigation, welcome and account components, plus actual image/video bytes through the native media proxy. Only opt-in debug simulator builds register loopback fixtures. Device packaging rejects fixture mode, and IPA verification checks version, iOS 16 minimum, scene delegate, architecture, unsigned state and fixture exclusion.
 
 The candidate declares an HTTP exception only for the in-process media proxy at 127.0.0.1. Apple's current ATS documentation requires explicit IP exceptions from iOS 17 onward. IPA verification checks that this exception survives packaging and that global, web-content and AVFoundation arbitrary-load exceptions remain disabled. Actual simulator photo/video decoding remains the delivery gate. See [Apple's IP exception rules](https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity/nsexceptiondomains).
