@@ -108,6 +108,33 @@ major-only declaration, so the version is verified rather than inferred from
 configuration. The pinned patch version is listed on
 [Codemagic's Xcode 27.1 image](https://docs.codemagic.io/specs-macos/xcode-27-1/).
 
+Build #17 passed the pinned toolchain, frontend/Rust/native gates and all eight
+Mac browser layout/media combinations, including real MP4 playback. Its timing
+stages distinguish content work from the next animation callback: the native
+first-page case committed in 3 ms and had a visible card at 25 ms, but the second
+rAF callback arrived at 603 ms. The first desktop WebKit case likewise had a
+visible card at 67 ms followed by a 478 ms animation-callback gap; later cases
+measured 63–80 ms overall. These are diagnostic observations, not a passed native
+paint gate.
+
+The corrected probe queues a task inside the first rAF with a committed card
+intersecting the reader viewport. This runs after that rendering opportunity,
+instead of waiting for a separate idle animation frame. It retains the same
+returned-data start time and 250 ms limit. This follows
+[Chrome's documented after-next-paint pattern](https://web.dev/codelabs/understanding-inp#requestpostanimationframe).
+Detailed numeric diagnostics move below the fixture reader so they cannot push
+test actions under navigation. Route changes do not restart the initial-page
+clock with an old response timestamp.
+
+Build #17 also exposed fixture interaction failures: the Accounts retry tap
+changed to Following, and full-page swipes overshot a photo control by 57 points.
+The next test batch reveals Retry before tapping and uses bounded measured drags
+with a final hold to avoid inertia, retaining every account/photo assertion.
+The readiness probe now requests the actual production fixture entry (locally
+verified HTTP 200) and fails explicitly if it never starts, removing the previous
+60-second loop against a root URL that returns 404. No production app source
+changes are included in this test-harness correction.
+
 Candidate simulator fixtures use real PostCard, navigation, welcome and account components, plus actual image/video bytes through the native media proxy. Only opt-in debug simulator builds register loopback fixtures. Device packaging rejects fixture mode, and IPA verification checks version, iOS 16 minimum, scene delegate, architecture, unsigned state and fixture exclusion.
 
 The candidate declares an HTTP exception only for the in-process media proxy at 127.0.0.1. Apple's current ATS documentation requires explicit IP exceptions from iOS 17 onward. IPA verification checks that this exception survives packaging and that global, web-content and AVFoundation arbitrary-load exceptions remain disabled. Actual simulator photo/video decoding remains the delivery gate. See [Apple's IP exception rules](https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity/nsexceptiondomains).

@@ -128,7 +128,7 @@ final class ReaderUITests: XCTestCase {
         let retry=app.buttons["Try again"].firstMatch
         XCTAssertTrue(retry.waitForExistence(timeout:5))
         XCTAssertGreaterThanOrEqual(retry.frame.height,44)
-        retry.tap()
+        revealAboveTabs(retry,in:app);retry.tap()
         XCTAssertTrue(app.staticTexts["No accounts found"].waitForExistence(timeout:5))
         capture("accounts-retry-completed")
         app.terminate()
@@ -149,10 +149,19 @@ final class ReaderUITests: XCTestCase {
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
     private func revealAboveTabs(_ element:XCUIElement,in app:XCUIApplication) {
-        for _ in 0..<3 {
-            if element.frame.minY>=0 && element.frame.maxY<=app.tabBars.firstMatch.frame.minY {return}
-            if element.frame.minY<0 {app.swipeDown(velocity:.slow)}
-            else {app.swipeUp(velocity:.slow)}
+        XCTAssertTrue(element.waitForExistence(timeout:5))
+        let top=app.frame.minY+4
+        let bottom=app.tabBars.firstMatch.frame.minY-4
+        let height=bottom-top
+        for _ in 0..<8 {
+            let rect=element.frame
+            if rect.minY>=top && rect.maxY<=bottom {return}
+            let distance=rect.minY<top ? min(top-rect.minY+12,height*0.3) : -min(rect.maxY-bottom+12,height*0.3)
+            let origin=app.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0))
+            let start=origin.withOffset(CGVector(dx:0,dy:height*0.5))
+            let end=start.withOffset(CGVector(dx:0,dy:distance))
+            // Hold at the end to avoid fling/overshoot around a short target.
+            start.press(forDuration:0.05,thenDragTo:end,withVelocity:.slow,thenHoldForDuration:0.2)
         }
         XCTAssertGreaterThanOrEqual(element.frame.minY,0,"Media controls must not remain above the viewport")
         XCTAssertLessThanOrEqual(element.frame.maxY,app.tabBars.firstMatch.frame.minY,"Media controls must be reachable above native navigation")

@@ -60,20 +60,22 @@ function FixtureReader({bootstrapAt}:{bootstrapAt:number}) {
     if(!delivery) return;
     const returnedAt=delivery.returnedAt;
     const effectMs=performance.now()-returnedAt;
-    let id=0;
+    let id=0,timer=0;
     const measure=()=>{
       const card=document.querySelector<HTMLElement>('[data-testid="post-card"]');
       const rect=card?.getBoundingClientRect();
-      const ready=route==='accounts' ? document.body.textContent?.includes('Fixture connection interrupted') : rect && rect.height>0 && rect.top<innerHeight && rect.bottom>0;
+      const viewport=card?.closest('main')?.getBoundingClientRect();
+      const ready=delivery.fixture.scenario==='accounts' ? document.body.textContent?.includes('Fixture connection interrupted') : rect && viewport && rect.height>0 && rect.top<viewport.bottom && rect.bottom>viewport.top;
       if(!ready && performance.now()-returnedAt<5000) {id=requestAnimationFrame(measure);return;}
-      // A second frame observes a committed visible card, not an empty virtual
-      // spacer or a loading skeleton. The 250 ms limit is unchanged.
+      // Queue a task after this rendering opportunity. A second rAF measures
+      // WebKit's idle-frame scheduling, which can be hundreds of ms later.
+      // The clock still starts before constructing any returned cards.
       const visibleMs=performance.now()-returnedAt;
       const cards=document.querySelectorAll('[data-testid="post-card"]').length;
-      id=requestAnimationFrame(()=>{const elapsed=performance.now()-returnedAt;setPaintStages(`Commit effects ${Math.round(effectMs)} ms; visible frame ${Math.round(visibleMs)} ms; ${cards} cards mounted at visibility`);setPaintMs(elapsed);setPaint(ready && elapsed<=250 ? 'First content painted within 250 ms' : 'First content exceeded 250 ms');});
+      timer=window.setTimeout(()=>{const elapsed=performance.now()-returnedAt;setPaintStages(`Commit effects ${Math.round(effectMs)} ms; visible frame ${Math.round(visibleMs)} ms; ${cards} cards mounted at visibility; after-paint task ${Math.round(elapsed-visibleMs)} ms`);setPaintMs(elapsed);setPaint(ready && elapsed<=250 ? 'First content painted within 250 ms' : 'First content exceeded 250 ms');},0);
     };
-    id=requestAnimationFrame(measure);return()=>cancelAnimationFrame(id);
-  },[delivery,route]);
+    id=requestAnimationFrame(measure);return()=>{cancelAnimationFrame(id);window.clearTimeout(timer);};
+  },[delivery]);
   const firstPage=useMemo(()=>{
   if(!fixture) return [];
   const author={id:'fixture',username:'fixture_reader',displayName:'Fixture reader',avatarUrl:fixture.failedImage,verified:false};
@@ -88,10 +90,9 @@ function FixtureReader({bootstrapAt}:{bootstrapAt:number}) {
     <p role="status">{paint}</p>
     {delivery && <p>Fixture page ready</p>}
     {delivery && <p>{geometry}</p>}
-    {paintMs!==null && <p>First content render: {Math.round(paintMs)} ms; reader shell: {Math.round(delivery!.shellMs)} ms; {firstPage.length} posts returned</p>}
-    {paintMs!==null && <p>{paintStages}</p>}
     <button className="min-h-11 p-3" onClick={()=>setWelcome(v=>!v)}>{welcome?'Enter reader':'Return to welcome'}</button>
     {welcome ? <p>Fixture welcome without reader navigation</p> : !delivery ? <p role="status">Waiting for the first page</p> : route==='accounts' ? <FollowingManagerPage/> : <div className="p-3"><FeedList posts={firstPage} readIds={unreadFixturePosts}/></div>}
+    {paintMs!==null && <div aria-label="Fixture diagnostics"><p>First content render: {Math.round(paintMs)} ms; reader shell: {Math.round(delivery!.shellMs)} ms; {firstPage.length} posts returned</p><p>{paintStages}</p></div>}
     {!welcome && <MobileNavigation unread={0}/>}
   </main>;
 }

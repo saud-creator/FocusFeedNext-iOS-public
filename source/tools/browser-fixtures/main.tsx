@@ -31,15 +31,16 @@ function WindowedFixture() {
   useEffect(()=>{
     if(returnedAt===null) return;
     const effectMs=performance.now()-returnedAt;
-    let frame=0;
+    let frame=0,timer=0;
     const measure=()=>{
       const rect=document.querySelector('[data-testid="post-card"]')?.getBoundingClientRect();
-      if(!rect || rect.height===0 || rect.top>=innerHeight || rect.bottom<=0) {frame=requestAnimationFrame(measure);return;}
+      const viewport=document.querySelector('main')?.getBoundingClientRect();
+      if(!rect || !viewport || rect.height===0 || rect.top>=viewport.bottom || rect.bottom<=viewport.top) {frame=requestAnimationFrame(measure);return;}
       const visibleMs=performance.now()-returnedAt;
       const cards=document.querySelectorAll('[data-testid="post-card"]').length;
-      frame=requestAnimationFrame(()=>{performance.mark('fixture-first-paint');const elapsed=performance.now()-returnedAt;setPaintMs(elapsed);setStages(JSON.stringify({effectMs,visibleMs,frameGap:elapsed-visibleMs,cards,visibility:document.visibilityState}));});
+      timer=window.setTimeout(()=>{performance.mark('fixture-first-paint');const elapsed=performance.now()-returnedAt;setPaintMs(elapsed);setStages(JSON.stringify({effectMs,visibleMs,afterPaintTask:elapsed-visibleMs,cards,visibility:document.visibilityState}));},0);
     };
-    frame=requestAnimationFrame(measure);return()=>cancelAnimationFrame(frame);
+    frame=requestAnimationFrame(measure);return()=>{cancelAnimationFrame(frame);window.clearTimeout(timer);};
   },[returnedAt]);
   return <><output hidden data-testid="fixture-paint" data-ms={paintMs??undefined} data-stages={stages}/><FeedList posts={returnedAt===null?[]:windowedPosts} loading={returnedAt===null} readIds={unread}/></>;
 }
