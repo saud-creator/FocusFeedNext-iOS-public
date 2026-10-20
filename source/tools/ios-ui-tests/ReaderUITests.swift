@@ -1,7 +1,7 @@
 import XCTest
 
 final class ReaderUITests: XCTestCase {
-    override func setUp() { super.setUp(); continueAfterFailure = false }
+    override func setUp() { super.setUp(); continueAfterFailure = false;XCUIDevice.shared.orientation = .portrait }
     override func tearDown() {
         print("Reader UI hierarchy: \(XCUIApplication().debugDescription)")
         capture("test-final-state")
@@ -38,6 +38,7 @@ final class ReaderUITests: XCTestCase {
         app.launchEnvironment["FFN_UI_TEST_SCENARIO"]=scenario
         app.launch()
         XCTAssertTrue(app.staticTexts["Simulator fixture reader"].waitForExistence(timeout:30))
+        XCTAssertTrue(app.staticTexts["Fixture page ready"].waitForExistence(timeout:5))
         return app
     }
     func testFirstPagePaintsWithin250Milliseconds() {
@@ -68,12 +69,14 @@ final class ReaderUITests: XCTestCase {
         XCTAssertEqual(app.tabBars.count,1)
         XCTAssertLessThan(app.tabBars.firstMatch.frame.height,110,"Only one native navigation layer may occupy the bottom")
         app.buttons["Open image: Fixture photograph"].tap()
-        let close=app.navigationBars.buttons.matching(identifier:"Close").firstMatch
+        let close=app.buttons.matching(NSPredicate(format:"identifier == %@ OR label ==[c] %@","native-photo-close","Close")).firstMatch
         XCTAssertTrue(close.waitForExistence(timeout:10))
-        XCTAssertGreaterThanOrEqual(close.frame.minY,app.statusBars.firstMatch.frame.maxY)
-        capture("native-photo-safe-area")
-        let photograph=app.images["native-photo-image"]
+        let photograph=app.images.matching(NSPredicate(format:"identifier == %@ AND label == %@","native-photo-image","Fixture photograph")).firstMatch
         XCTAssertTrue(photograph.waitForExistence(timeout:10),"The native viewer must decode the actual fixture image")
+        XCTAssertTrue(app.frame.contains(close.frame))
+        XCTAssertFalse(photograph.frame.intersects(close.frame),"Native controls must stay outside the photo's safe viewport")
+        if app.statusBars.firstMatch.exists {XCTAssertFalse(close.frame.intersects(app.statusBars.firstMatch.frame))}
+        capture("native-photo-safe-area")
         photograph.doubleTap();photograph.pinch(withScale:0.5,velocity:-1)
         photograph.doubleTap() // Return to fit before handing the swipe to the pager.
         app.swipeLeft()
@@ -82,8 +85,8 @@ final class ReaderUITests: XCTestCase {
         close.tap()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout:5))
         app.buttons["Open image: Fixture photograph"].tap()
-        XCTAssertTrue(app.images["native-photo-image"].waitForExistence(timeout:10),"A dismissed viewer must release ownership for the next presentation")
-        app.navigationBars.buttons.matching(identifier:"Close").firstMatch.tap()
+        XCTAssertTrue(photograph.waitForExistence(timeout:10),"A dismissed viewer must release ownership for the next presentation")
+        close.tap()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout:5))
         XCTAssertTrue(app.buttons["Retry image"].waitForExistence(timeout:10),"The failed inline fixture must settle into recovery")
         app.buttons["Return to welcome"].tap()
@@ -99,12 +102,16 @@ final class ReaderUITests: XCTestCase {
         let fullScreen=app.buttons["Full screen"].firstMatch
         revealAboveTabs(fullScreen,in:app);fullScreen.tap()
         XCTAssertTrue(app.descendants(matching:.any)["native-video-ready"].waitForExistence(timeout:15),"AVKit must load the actual MP4 fixture")
-        // AVKit owns the controls and dismissal, including the system Done button.
-        let done=app.buttons["Done"].firstMatch
+        // AVKit hides its controls during playback. Reveal them as a person
+        // would; the native dismissal label varies across supported iOS releases.
+        let player=app.descendants(matching:.any)["native-video-ready"]
+        let done=app.buttons.matching(NSPredicate(format:"label ==[c] %@ OR label ==[c] %@","Done","Close")).firstMatch
+        if !done.exists {player.tap()}
         XCTAssertTrue(done.waitForExistence(timeout:10))
         XCUIDevice.shared.press(.home);app.activate()
         XCUIDevice.shared.orientation = .landscapeLeft
         capture("native-video-landscape")
+        if !done.exists || !done.isHittable {player.tap()}
         done.tap()
         XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout:5))

@@ -115,10 +115,12 @@ private final class NativePhotoPager: UIPageViewController, UIPageViewController
     private let cache=NSCache<NSURL,UIImage>()
     private let session:URLSession
     let retryLabel:String
+    let closeLabel:String
     let numberFormatter=NumberFormatter()
     init(items:[NativeMediaItem],index:Int,retryLabel:String,locale:String) {
         self.items=items;self.index=index
         self.retryLabel=retryLabel
+        closeLabel=locale == "ar" ? "إغلاق" : "Close"
         numberFormatter.locale=Locale(identifier:locale)
         let config=URLSessionConfiguration.ephemeral;config.urlCache=nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData;config.timeoutIntervalForRequest=20
@@ -129,7 +131,10 @@ private final class NativePhotoPager: UIPageViewController, UIPageViewController
     required init?(coder:NSCoder) { fatalError("init(coder:) is unavailable") }
     override func viewDidLoad() {
         super.viewDidLoad();view.backgroundColor = .black;dataSource=self;delegate=self
-        navigationItem.rightBarButtonItem=UIBarButtonItem(barButtonSystemItem:.close,target:self,action:#selector(close))
+        let closeItem=UIBarButtonItem(barButtonSystemItem:.close,target:self,action:#selector(close))
+        closeItem.accessibilityIdentifier="native-photo-close"
+        closeItem.accessibilityLabel=closeLabel
+        navigationItem.rightBarButtonItem=closeItem
         setViewControllers([page(index)],direction:.forward,animated:false);updateTitle()
         let swipe=UIPanGestureRecognizer(target:self,action:#selector(pan(_:)));swipe.delegate=self;view.addGestureRecognizer(swipe)
     }

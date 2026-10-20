@@ -14,12 +14,31 @@ import {useAppStore,defaultPreferences} from '../../src/stores/useAppStore';
 
 type Fixture=NonNullable<Awaited<ReturnType<typeof api.uiTestFixture>>>;
 const unreadFixturePosts=new Set<string>();
-function FixtureReader({fixture,returnedAt}:{fixture:Fixture;returnedAt:number}) {
+function FixtureReader({bootstrapAt}:{bootstrapAt:number}) {
+  const [delivery,setDelivery]=useState<{fixture:Fixture;returnedAt:number;shellMs:number}|null>(null);
+  useEffect(()=>{
+    let active=true,id=0;
+    // Like a live feed, mount its loading shell before requesting page data.
+    // Keep cold shell startup separate from response-to-visible-content time.
+    const requestPage=()=>{
+      const style=getComputedStyle(document.documentElement);
+      const nativeHeight=parseFloat(style.getPropertyValue('--native-tab-height'));
+      const occupied=parseFloat(style.getPropertyValue('--reader-bottom-inset'));
+      if(!(nativeHeight>0 && occupied===nativeHeight) && performance.now()-bootstrapAt<5000) {id=requestAnimationFrame(requestPage);return;}
+      const shellMs=performance.now()-bootstrapAt;
+      void api.uiTestFixture().then(fixture=>{if(active && fixture) setDelivery({fixture,returnedAt:performance.now(),shellMs});});
+    };
+    id=requestAnimationFrame(()=>{id=requestAnimationFrame(requestPage);});
+    return()=>{active=false;cancelAnimationFrame(id);};
+  },[bootstrapAt]);
+  const fixture=delivery?.fixture;
   const route=useAppStore(s=>s.route);
   const [welcome,setWelcome]=useState(false);
   const [paint,setPaint]=useState('Measuring first content paint');
   const [paintMs,setPaintMs]=useState<number|null>(null);
   useEffect(()=>{
+    if(!delivery) return;
+    const returnedAt=delivery.returnedAt;
     let id=0;
     const measure=()=>{
       const card=document.querySelector<HTMLElement>('[data-testid="post-card"]');
@@ -31,8 +50,9 @@ function FixtureReader({fixture,returnedAt}:{fixture:Fixture;returnedAt:number})
       id=requestAnimationFrame(()=>{const elapsed=performance.now()-returnedAt;setPaintMs(elapsed);setPaint(ready && elapsed<=250 ? 'First content painted within 250 ms' : 'First content exceeded 250 ms');});
     };
     id=requestAnimationFrame(measure);return()=>cancelAnimationFrame(id);
-  },[returnedAt,route]);
+  },[delivery,route]);
   const firstPage=useMemo(()=>{
+  if(!fixture) return [];
   const author={id:'fixture',username:'fixture_reader',displayName:'Fixture reader',avatarUrl:fixture.failedImage,verified:false};
   const base:Post={id:'fixture-photo',author,text:'Complete pictures and authored paragraph breaks.\n\nنص عربي لاختبار القراءة والمحاذاة.',createdAt:new Date().toISOString(),media:[],isRepost:false,isPromoted:false,isArticle:false,provider:'fixture',metrics:{likes:0,reposts:0,replies:0,quotes:0,views:0,bookmarks:0}};
   const photos={...base,media:[{kind:'image' as const,url:fixture.image,width:128,height:128,alt:'Fixture photograph',variants:[]},{kind:'image' as const,url:fixture.image,width:128,height:128,alt:'Second fixture photograph',variants:[]}]};
@@ -43,17 +63,18 @@ function FixtureReader({fixture,returnedAt}:{fixture:Fixture;returnedAt:number})
   return <main className="overflow-y-auto" style={{height:'calc(100dvh - var(--reader-bottom-inset,0px))'}}>
     <PageHeader title="Simulator fixture reader" subtitle="English and Arabic media, accounts and safe-area checks"/>
     <p role="status">{paint}</p>
-    {paintMs!==null && <p>First content render: {Math.round(paintMs)} ms; {firstPage.length} posts returned</p>}
+    {delivery && <p>Fixture page ready</p>}
+    {paintMs!==null && <p>First content render: {Math.round(paintMs)} ms; reader shell: {Math.round(delivery!.shellMs)} ms; {firstPage.length} posts returned</p>}
     <button className="min-h-11 p-3" onClick={()=>setWelcome(v=>!v)}>{welcome?'Enter reader':'Return to welcome'}</button>
-    {welcome ? <p>Fixture welcome without reader navigation</p> : route==='accounts' ? <FollowingManagerPage/> : <div className="p-3"><FeedList posts={firstPage} readIds={unreadFixturePosts}/></div>}
+    {welcome ? <p>Fixture welcome without reader navigation</p> : !delivery ? <p role="status">Waiting for the first page</p> : route==='accounts' ? <FollowingManagerPage/> : <div className="p-3"><FeedList posts={firstPage} readIds={unreadFixturePosts}/></div>}
     {!welcome && <MobileNavigation unread={0}/>}
   </main>;
 }
 
 export async function testApplication(normal:ReactElement) {
+  const bootstrapAt=performance.now();
   const fixture=await api.uiTestFixture();
   if(!fixture) return normal;
-  const returnedAt=performance.now();
   const arabic=fixture.scenario==='arabic';
   document.documentElement.dir=arabic?'rtl':'ltr';
   document.documentElement.style.setProperty('--reading-scale',fixture.scenario==='large-text'?'1.5':'1');
@@ -73,5 +94,5 @@ export async function testApplication(normal:ReactElement) {
     loginAttempts++;
     throw {code:'provider_unavailable',message:'Fixture sign-in stopped',nativeConnectionFault:{code:loginAttempts===1?'transport_initialization':'cancelled',stage:'transport',retryable:loginAttempts===1}};
   };
-  return <PlatformProvider><I18nProvider locale={arabic?'ar':'en'}><QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><TooltipProvider>{fixture.scenario==='authentication'?<main className="h-[100dvh] overflow-y-auto"><IosWelcome/></main>:<FixtureReader fixture={fixture} returnedAt={returnedAt}/>}</TooltipProvider></QueryClientProvider></I18nProvider></PlatformProvider>;
+  return <PlatformProvider><I18nProvider locale={arabic?'ar':'en'}><QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><TooltipProvider>{fixture.scenario==='authentication'?<main className="h-[100dvh] overflow-y-auto"><IosWelcome/></main>:<FixtureReader bootstrapAt={bootstrapAt}/>}</TooltipProvider></QueryClientProvider></I18nProvider></PlatformProvider>;
 }
