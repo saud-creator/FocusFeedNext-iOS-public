@@ -1,5 +1,5 @@
-import { memo, useEffect, useRef } from "react";
-import { FileText } from "lucide-react";
+import { memo, useEffect, useRef,useState } from "react";
+import {ArticleReader} from "./ArticleReader";
 import type { Post } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { AuthorHeader, Avatar } from "./AuthorHeader";
@@ -72,7 +72,7 @@ export function canonicalPostUrl(
 }
 
 function PostCardImpl({
-  post,
+  post:originalPost,
   read,
   timestampStyle = "relative",
   collapseLongPosts = true,
@@ -85,6 +85,8 @@ function PostCardImpl({
   isBookmark = false,
   onRemoveBookmark,
 }: PostCardProps) {
+  const [recovered,setRecovered]=useState<{original:Post;post:Post}|null>(null);
+  const post=recovered?.original===originalPost?recovered.post:originalPost;
   const ref = useRef<HTMLElement>(null);
   const timer = useRef<number | null>(null);
   const postUrl = canonicalPostUrl(post);
@@ -167,27 +169,11 @@ function PostCardImpl({
             </div>
           </div>
 
-          {post.isArticle && post.articleTitle ? (
-            <div className="mt-2 flex items-center gap-2 rounded-lg border border-edge bg-surface-1 px-3 py-2">
-              <FileText className="size-4 text-accent shrink-0" />
-              <span className="text-[13.5px] font-medium text-ink truncate">
-                {post.articleTitle}
-              </span>
-              <span className="ml-auto text-[11px] text-ink-mute shrink-0">
-                Article
-              </span>
-            </div>
-          ) : null}
+          {post.isArticle ? <ArticleReader post={post} onOpenProfile={onOpenProfile}/> : <PostText
+            text={post.text} collapsible={collapseLongPosts} onOpenProfile={onOpenProfile}
+            postUrl={postUrl} className="mt-1.5"/>}
 
-          <PostText
-            text={post.text}
-            collapsible={collapseLongPosts}
-            onOpenProfile={onOpenProfile}
-            postUrl={postUrl}
-            className="mt-1.5"
-          />
-
-          <MediaGallery media={post.media} defaultSpeed={defaultSpeed} postId={post.id} />
+          <MediaGallery media={post.media} defaultSpeed={defaultSpeed} postId={post.id} onPostRecovered={value=>setRecovered({original:originalPost,post:value})}/>
 
           {post.quoted ? (
             <QuotedPostCard

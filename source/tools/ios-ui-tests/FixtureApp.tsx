@@ -14,6 +14,7 @@ import {useAppStore,defaultPreferences} from '../../src/stores/useAppStore';
 
 type Fixture=NonNullable<Awaited<ReturnType<typeof api.uiTestFixture>>>;
 const unreadFixturePosts=new Set<string>();
+const fixtureArticle:Post={id:'fixture-article',text:'An article preview.',author:{id:'fixture',username:'fixture_reader',displayName:'Fixture reader',verified:false},createdAt:'2026-10-20T00:00:00Z',isRepost:false,isPromoted:false,isArticle:true,articleTitle:'An article with a complete, readable title',media:[],metrics:{likes:0,reposts:0,replies:0,quotes:0,views:0,bookmarks:0},provider:'fixture'};
 function FixtureReader({bootstrapAt}:{bootstrapAt:number}) {
   const [delivery,setDelivery]=useState<{fixture:Fixture;returnedAt:number;shellMs:number}|null>(null);
   useEffect(()=>{
@@ -83,7 +84,7 @@ function FixtureReader({bootstrapAt}:{bootstrapAt:number}) {
   const photos={...base,media:[{kind:'image' as const,url:fixture.image,width:128,height:128,alt:'Fixture photograph',variants:[]},{kind:'image' as const,url:fixture.image,width:128,height:128,alt:'Second fixture photograph',variants:[]}]};
   const video={...base,id:'fixture-video',text:'Native video playback',media:[{kind:'video' as const,url:fixture.video,width:320,height:284,alt:'Fixture video',variants:[]}]};
   const failed={...base,id:'fixture-failed',text:'Recoverable image failure',media:[{kind:'image' as const,url:fixture.failedImage,width:1600,height:1200,alt:'Failed fixture',variants:[]}]};
-  return [...(fixture.scenario==='video'?[video,photos,failed]:[photos,failed,video]),...Array.from({length:17},(_,i)=>({...base,id:`fixture-text-${i}`,text:`First page post ${i+4}\n\nA separate authored paragraph.`}))];
+  return [...(fixture.scenario==='video'?[video,photos,failed]:[photos,failed,video]),fixtureArticle,...Array.from({length:16},(_,i)=>({...base,id:`fixture-text-${i}`,text:`First page post ${i+5}\n\nA separate authored paragraph.`}))];
   },[fixture]);
   return <main className="overflow-y-auto" style={{height:'calc(100dvh - var(--reader-bottom-inset,0px))'}}>
     <PageHeader title="Simulator fixture reader" subtitle="English and Arabic media, accounts and safe-area checks"/>
@@ -101,6 +102,10 @@ export async function testApplication(normal:ReactElement) {
   const bootstrapAt=performance.now();
   const fixture=await api.uiTestFixture();
   if(!fixture) return normal;
+  api.postContent=async id=>{
+    if(id!==fixtureArticle.id)throw new Error('Unknown article fixture');
+    return {post:fixtureArticle,article:{title:fixtureArticle.articleTitle!,blocks:[{kind:'heading2',text:'Fixture article chapter'},{kind:'paragraph',text:'Complete article paragraph.\n\nفقرة عربية كاملة.'},{kind:'image',text:fixture.image}]}};
+  };
   const arabic=fixture.scenario==='arabic';
   document.documentElement.dir=arabic?'rtl':'ltr';
   document.documentElement.style.setProperty('--reading-scale',fixture.scenario==='large-text'?'1.5':'1');

@@ -665,7 +665,7 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
     }
     @objc func request(_ invoke: Invoke) throws {
         let args = try invoke.parseArgs(RequestArgs.self)
-        let allowed = ["Me", "HomeTimeline", "HomeLatestTimeline", "Bookmarks", "UserByScreenName", "UserTweets", "Following", "ListLatestTweetsTimeline", "DeleteBookmark", "Follow", "Unfollow"]
+        let allowed = ["Me", "TweetResultByRestId", "HomeTimeline", "HomeLatestTimeline", "Bookmarks", "UserByScreenName", "UserTweets", "Following", "ListLatestTweetsTimeline", "DeleteBookmark", "Follow", "Unfollow"]
         guard allowed.contains(args.operation), args.authToken.count <= 512, args.ct0.count <= 512 else { rejectNative(invoke, "Unsupported request."); return }
         DispatchQueue.main.async {
             // A health/feed request from the previous session must not replace

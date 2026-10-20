@@ -221,3 +221,43 @@ The automated repair gates passed for the exact source commit above. Future
 functional changes must pass the same gates before replacing this verified IPA.
 
 A physical iOS 27 device and the current account are still required for the 20-minute reading/resource session and live authentication/network acceptance. A follow action must be deliberately selected by the user; the original follow complaint remains unconfirmed. No arbitrary live follow/unfollow action has been performed. New convenience features remain after the repair gates.
+
+
+## 0.8.8 article, profile and media repair candidate
+
+The installed 0.8.7 screenshots exposed four remaining live-data problems. This
+candidate handles them together before one Codemagic run:
+
+- Articles load full DraftJS content on demand through the existing authenticated
+  native HTTP transport. Titles wrap, paragraphs/headings/lists/code remain readable,
+  images use the registered proxy, and interrupted reads expose an explicit retry.
+  Link entity destinations and literal embedded text are retained without executing HTML.
+- Native post parsing removes only provider-identified media/article/available-quote
+  wrapper links. Ordinary authored URLs expand and unknown links remain. Arabic URL
+  runs are isolated left-to-right; paragraph breaks are retained.
+- Profiles read modern `profile_bio.description` with a legacy fallback and an
+  explicit fresh details read. Unknown bio/counts differ from empty bio/real zero.
+- Proxied video posters are accepted. Native scoped HTTP probes avoid WebKit-origin
+  diagnostic failures; expired registrations renew once, decoding may try one real
+  lower rendition, and deliberate retry refreshes the individual post's provider
+  sources. Failure panels remain compact and repeated explicit retries stay usable.
+
+Local results before publication: lint and production build passed; 631 frontend
+regressions in 49 files and 406 Rust tests passed. Chromium/WebKit article, layout,
+windowing and image-preload checks passed at four sizes each. Chromium passed real
+MP4 playback, quality resumption and fullscreen error dismissal at all four sizes;
+Windows WebKit's independently reproduced MP4 decoder limitation remains unverified.
+Python/native JSON fixtures parse. Swift/WebKit and iOS 27.1 UI gates must run on Mac;
+the latter now exercises opening, reading and closing an article as part of the
+existing photo/navigation lifecycle test. No additional Codemagic build has yet been
+started for this candidate. Physical-device/current-account acceptance remains open.
+
+Provider shape references: [modern bio parser](https://github.com/anatolykoptev/go-twitter/blob/main/parsers.go),
+[article request fields](https://github.com/public-clis/twitter-cli/blob/main/twitter_cli/client.py),
+[article content shape](https://github.com/public-clis/twitter-cli/blob/main/twitter_cli/parser.py).
+
+For live acceptance, open a known article and read beyond the preview; refresh a
+media post and confirm its attachment link is absent while authored links remain;
+open a profile with a known bio; and replay one previously failing clip, including
+its deliberate Retry action. Record provider refusals separately from successful
+playback. Fixture success cannot establish that every live Twitter asset is available.

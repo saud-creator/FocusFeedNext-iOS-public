@@ -1680,6 +1680,50 @@ pub fn get_post(state: Sh<'_>, id: String) -> Result<Option<Post>, AppError> {
     Ok(found)
 }
 
+/// Fetch one explicitly opened article or manually retried clip; never traverse a feed.
+#[tauri::command]
+pub async fn refresh_post_content(state:Sh<'_>,id:String)->Result<crate::models::PostContent,AppError> {
+    state.guard()?;
+    let _foreground=state.inner().foreground_request();
+    let epoch=state.account_epoch();let st=state.inner().clone();
+    let mut content=tauri::async_runtime::spawn_blocking(move || {
+        let provider=st.background_provider()?;
+        let content=provider.get_post_content(&id)?;
+        let _commit=st.account_commit.lock().unwrap();st.ensure_account_epoch(epoch)?;
+        st.db.update_cached_post(&content.post)?;
+        Ok::<_,AppError>(content)
+    }).await.map_err(|_|AppError::new(ErrorCode::ProviderUnavailable,"Post recovery ended."))??;
+    let _commit=state.account_commit.lock().unwrap();
+    state.ensure_account_epoch(epoch)?;state.proxy_media(std::slice::from_mut(&mut content.post));
+    if let Some(article)=content.article.as_mut() {
+        let account=state.active_handle()?;let guard=state.proxy.lock().unwrap();
+        for block in &mut article.blocks {
+            if block.kind=="image" {
+                block.text=guard.as_ref().and_then(|proxy|state.media.register(&block.text,&content.post.id,&account).map(|id|proxy.url_for(&id))).unwrap_or_default();
+            }
+        }
+    }
+    state.ensure_account_epoch(epoch)?;
+    Ok(content)
+}
+
+/// Browser fetch diagnostics can fail on WKWebView's opaque origin. Probe only
+/// this process's exact registered loopback URL, without widening browser CORS.
+#[tauri::command]
+pub async fn probe_media(state:Sh<'_>,url:String)->Result<u16,AppError> {
+    let epoch=state.account_epoch();
+    {
+        let guard=state.proxy.lock().unwrap();
+        let proxy=guard.as_ref().ok_or_else(||AppError::new(ErrorCode::ProviderUnavailable,"Media connection unavailable."))?;
+        let id=url.strip_prefix(&(proxy.base_url()+"/")).unwrap_or_default();
+        if id.len()!=32 || !id.bytes().all(|b|b.is_ascii_hexdigit()) || proxy.url_for(id)!=url {return Err(AppError::new(ErrorCode::BlockedOperation,"Invalid media registration."));}
+        if state.media.lookup(id).is_none() {return Ok(404)}
+    }
+    let client=reqwest::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(8)).build().map_err(|_|AppError::new(ErrorCode::ProviderUnavailable,"Media check unavailable."))?;
+    let response=client.head(url).send().await.map_err(|_|AppError::new(ErrorCode::NetworkUnavailable,"Media connection interrupted."))?;
+    state.ensure_account_epoch(epoch)?;Ok(response.status().as_u16())
+}
+
 #[tauri::command]
 pub fn get_posts_by_authors(
     state: Sh<'_>,
@@ -2309,7 +2353,7 @@ pub fn get_group_candidates(
 
 /// One account's profile, for the internal profile page.
 #[tauri::command]
-pub async fn get_user_profile(state: Sh<'_>, username: String) -> Result<Author, AppError> {
+pub async fn get_user_profile(state: Sh<'_>, username: String,refresh:Option<bool>) -> Result<Author, AppError> {
     state.guard()?;
     let _foreground = state.inner().foreground_request();
     let epoch = state.account_epoch();
@@ -2318,7 +2362,7 @@ pub async fn get_user_profile(state: Sh<'_>, username: String) -> Result<Author,
         // Use a credential snapshot so a slow profile request does not hold
         // the shared provider mutex and block the feed or health check.
         let provider = st.background_provider()?;
-        let author = provider.get_user_profile(&username)?;
+        let author = if refresh.unwrap_or(false){provider.refresh_user_profile(&username)?}else{provider.get_user_profile(&username)?};
         let _commit = st.account_commit.lock().unwrap();
         st.ensure_account_epoch(epoch)?;
         st.db.upsert_author(&author)?;

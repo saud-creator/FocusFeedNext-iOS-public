@@ -163,6 +163,15 @@ fn response_body_inner(result: Value) -> AppResult<Value> {
     Ok(body)
 }
 impl XDataProvider for NativeIosProvider {
+    fn get_post_content(&self,id:&str)->AppResult<PostContent> {
+        if id.is_empty() || id.len()>32 || !id.bytes().all(|b|b.is_ascii_digit()) {return Err(AppError::new(ErrorCode::BlockedOperation,"Invalid post ID."));}
+        let _budget=ReadBudgetGuard::new();
+        let data=self.request("TweetResultByRestId",json!({"tweetId":id,"withCommunity":false,"includePromotedContent":false,"withVoice":false}))?;
+        let raw=data.pointer("/data/tweetResult/result").ok_or_else(||AppError::new(ErrorCode::ProviderUnavailable,"This post could not be loaded."))?;
+        let raw=raw.get("tweet").unwrap_or(raw);
+        let post=parse_post(raw,false).filter(|post|post.id==id).ok_or_else(||AppError::new(ErrorCode::ProviderUnavailable,"This post is unavailable."))?;
+        Ok(PostContent{post,article:super::content::article(raw)})
+    }
     fn name(&self) -> &'static str { "ios-direct" }
     fn capabilities(&self) -> ProviderCapabilities {
         ProviderCapabilities { feed_cursor: true, list_cursor: true, following_cursor: true,
@@ -172,6 +181,10 @@ impl XDataProvider for NativeIosProvider {
     fn get_following_feed(&self, max: u32, cursor: Option<String>) -> AppResult<FeedPage> { self.page("HomeLatestTimeline", max, cursor, json!({})) }
     fn get_for_you_feed(&self, max: u32, cursor: Option<String>) -> AppResult<FeedPage> { self.page("HomeTimeline", max, cursor, json!({})) }
     fn get_user_profile(&self, username: &str) -> AppResult<Author> { self.profile(username) }
+    fn refresh_user_profile(&self,username:&str)->AppResult<Author> {
+        if let Some(cache)=PROFILES.get(){cache.lock().unwrap().remove(&username.to_ascii_lowercase());}
+        self.profile(username)
+    }
     fn get_account_relationship(&self, username: &str) -> AppResult<AccountRelationship> {
         validate_username(username)?;
         let data = self.request("UserByScreenName", json!({"screen_name":username,"withSafetyModeUserFields":true}))?;
@@ -337,6 +350,7 @@ fn reconcile_write(result: AppResult<Value>, verify: impl FnOnce() -> AppResult<
     }
 }
 fn string(value: &Value, key: &str) -> Option<String> { value[key].as_str().map(str::to_owned) }
+fn count(value:&Value)->Option<u64> {value.as_u64().or_else(||value.as_str()?.replace(',',"").parse().ok())}
 fn validate_username(username: &str) -> AppResult<()> {
     if username.is_empty() || username.len() > 15 || !username.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
         return Err(AppError::new(ErrorCode::BlockedOperation, "Invalid Twitter handle."));
@@ -356,7 +370,7 @@ fn parse_author(raw: &Value) -> AppResult<Author> {
     Ok(Author { id, username, display_name: string(core, "name").or_else(|| string(legacy, "name")).unwrap_or_default(),
         avatar_url: string(&raw["avatar"], "image_url").or_else(|| string(legacy, "profile_image_url_https")),
         banner_url: string(legacy, "profile_banner_url"), verified: raw["is_blue_verified"].as_bool().unwrap_or(false) || legacy["verified"].as_bool().unwrap_or(false),
-        bio: string(legacy, "description"), followers_count: legacy["followers_count"].as_u64(), following_count: legacy["friends_count"].as_u64(),
+        bio: string(&raw["profile_bio"], "description").or_else(||string(legacy,"description")), followers_count: count(&legacy["followers_count"]), following_count: count(&legacy["friends_count"]),
         location: string(&raw["location"], "location").or_else(|| string(legacy, "location")),
         website: legacy.pointer("/entities/url/urls/0/expanded_url").and_then(Value::as_str).map(str::to_owned),
         joined_at: date(&core["created_at"]).or_else(|| date(&legacy["created_at"])), posts_count: legacy["statuses_count"].as_u64() })
@@ -392,10 +406,11 @@ fn parse_post(raw: &Value, promoted: bool) -> Option<Post> {
     let id = string(original, "rest_id").or_else(|| string(legacy, "id_str"))?;
     let created_at = date(&legacy["created_at"])?;
     let text = original.pointer("/note_tweet/note_tweet_results/result/text").and_then(Value::as_str)
-        .or_else(|| legacy["full_text"].as_str())?.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">");
+        .or_else(|| legacy["full_text"].as_str()).or_else(||original.pointer("/article/article_results/result/title").and_then(Value::as_str).map(|_|""))?.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">");
+    let text=super::content::text(original,&text);
     let quoted = original.pointer("/quoted_status_result/result").and_then(|q| {
         let q = q.get("tweet").unwrap_or(q);
-        Some(Box::new(QuotedPost { id: string(q,"rest_id")?, text: string(&q["legacy"],"full_text")?,
+        Some(Box::new(QuotedPost { id: string(q,"rest_id")?, text: super::content::text(q,&string(&q["legacy"],"full_text")?),
             author: parse_author(q.pointer("/core/user_results/result")?).ok()?, created_at: date(&q["legacy"]["created_at"]), media: media(q), url: None }))
     });
     Some(Post { url: Some(format!("https://x.com/{}/status/{id}", author.username)), id, text, author, created_at,
@@ -403,7 +418,7 @@ fn parse_post(raw: &Value, promoted: bool) -> Option<Post> {
         is_promoted: promoted, quoted,
         metrics: PostMetrics { quotes: legacy["quote_count"].as_u64().unwrap_or(0), replies: legacy["reply_count"].as_u64().unwrap_or(0), reposts: legacy["retweet_count"].as_u64().unwrap_or(0), likes: legacy["favorite_count"].as_u64().unwrap_or(0),
             bookmarks: legacy["bookmark_count"].as_u64().unwrap_or(0), views: original.pointer("/views/count").and_then(|v|v.as_str().and_then(|s|s.parse().ok()).or_else(||v.as_u64())).unwrap_or(0) },
-        media: media(original), is_article: original.get("article").is_some(), article_title: original.pointer("/article/article_results/result/title").and_then(Value::as_str).map(str::to_owned),
+        media: media(original), is_article: original.pointer("/article/article_results/result/title").and_then(Value::as_str).is_some(), article_title: original.pointer("/article/article_results/result/title").and_then(Value::as_str).map(str::to_owned),
         in_reply_to: string(legacy,"in_reply_to_status_id_str"), provider: "ios-direct".into() })
 }
 fn walk(value: &Value, visitor: &mut impl FnMut(&Value)) {
@@ -427,6 +442,11 @@ fn parse_page(data: &Value) -> AppResult<FeedPage> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn modern_profile_bio_and_string_counts_do_not_depend_on_legacy_description() {
+        let raw=json!({"rest_id":"12","core":{"name":"Author","screen_name":"author"},"profile_bio":{"description":"نبذة\nSecond line"},"legacy":{"followers_count":"12,400","friends_count":0}});
+        let author=parse_author(&raw).unwrap();assert_eq!(author.bio.as_deref(),Some("نبذة\nSecond line"));assert_eq!(author.followers_count,Some(12400));assert_eq!(author.following_count,Some(0));
+        let minimal=parse_author(&json!({"rest_id":"12","core":{"screen_name":"author"}})).unwrap();assert!(minimal.bio.is_none());assert!(minimal.followers_count.is_none());
+    }
     #[test] fn uncertain_write_uses_one_read_and_never_repeats_the_write() {
         let mut reads=0;
         let result=reconcile_write(Err(AppError::new(ErrorCode::ProviderUnavailable,"response lost")),||{reads+=1;Ok(true)});

@@ -94,6 +94,8 @@ export interface Post {
   provider: string;
 }
 
+export interface PostContent {post:Post;article:{title:string;blocks:{kind:string;text:string}[]}|null}
+
 export interface FeedFilters {
   hidePromoted: boolean;
   hideReposts: boolean;
@@ -486,6 +488,8 @@ export const api = {
   // interface opens a browser, so the backend no longer exposes a command that
   // could — see the note above `get_data_dir` in commands.rs.
   post: (id: string) => invoke<Post | null>("get_post", { id }),
+  postContent: (id:string) => invoke<PostContent>("refresh_post_content",{id}),
+  probeMedia: (url:string) => invoke<number>("probe_media",{url}),
   /**
    * One account's profile, fetched live.
    *
@@ -493,8 +497,8 @@ export const api = {
    * was registered the whole time, but nothing bound it — which is why every
    * avatar in the app looked clickable and opened nothing.
    */
-  userProfile: (username: string) =>
-    invoke<Author>("get_user_profile", { username }),
+  userProfile: (username: string,refresh=false) =>
+    invoke<Author>("get_user_profile", { username,refresh }),
   accountRelationship: (username: string) => invoke<'following' | 'notFollowing' | 'pending' | 'unknown'>("get_account_relationship", { username }),
   openCreatorSubscription: (username: string) => invoke<void>("open_creator_subscription", { username }),
   postsByAuthors: (authorIds: string[], limit = 60) =>

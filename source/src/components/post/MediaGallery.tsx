@@ -4,7 +4,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { api, isTauri, type PostMedia } from "@/lib/api";
+import { api, isTauri, type Post,type PostMedia } from "@/lib/api";
 import { Lightbox } from "@/components/media/Lightbox";
 import { isVideoLike } from "@/lib/media";
 import { useI18n } from "@/i18n";
@@ -99,7 +99,7 @@ function ImageTile({media, onOpen, onRecover, adaptive, single, spanFull}: {medi
     <p>{t('post.media.imageFailed')}</p>
     {media.url && <button type="button" disabled={retrying} className="mt-2 min-h-11 px-3 text-accent" onClick={()=>{
       setRetrying(true);
-      void onRecover().finally(()=>{setRetrying(false);setAttempt(n=>n+1);setStatus('loading');});
+      void onRecover().then(()=>{setAttempt(n=>n+1);setStatus('loading');}).catch(()=>setStatus('failed')).finally(()=>setRetrying(false));
     }}>{t('post.media.retryImage')}</button>}
   </div>;
   return <button type="button" onClick={onOpen}
@@ -128,10 +128,14 @@ export function MediaGallery({
   media,
   defaultSpeed,
   postId,
+  recoverOverride,
+  onPostRecovered,
 }: {
   media: PostMedia[];
   defaultSpeed?: number;
   postId?: string;
+  recoverOverride?:()=>Promise<void>;
+  onPostRecovered?:(post:Post)=>void;
 }) {
   const { isIphone } = usePlatform();
   const {t,locale}=useI18n();
@@ -140,12 +144,13 @@ export function MediaGallery({
   const [recovered,setRecovered]=useState<{original:PostMedia[];items:PostMedia[]}|null>(null);
   const owner=useRef(true);
   useEffect(()=>{owner.current=true;return()=>{owner.current=false;};},[]);
-  const recover=async()=>{
+  const recover=async(freshSource=false)=>{
+    if(recoverOverride){await recoverOverride();return;}
     if(!postId || !isTauri())return;
-    // Re-read only the session cache to renew evicted proxy registrations.
-    // No timeline traversal or account write is triggered by media recovery.
-    const fresh=await api.post(postId).catch(()=>null);
-    if(owner.current && fresh) setRecovered({original:media,items:fresh.media});
+    // Automatic registration repair reads the session cache. A deliberate
+    // video retry refreshes that single post's provider URLs on iOS.
+    const fresh=freshSource && isIphone && isTauri() ? (await api.postContent(postId)).post : await api.post(postId);
+    if(owner.current && fresh) {setRecovered({original:media,items:fresh.media});onPostRecovered?.(fresh);}
   };
   const displayed=recovered?.original===media ? recovered.items : media;
 

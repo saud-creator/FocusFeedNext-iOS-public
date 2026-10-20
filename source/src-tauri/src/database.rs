@@ -860,6 +860,14 @@ impl Db {
         Ok(post)
     }
 
+    /// A detail refresh updates cached bytes without touching bookmark order or feed membership.
+    pub fn update_cached_post(&self,post:&Post)->AppResult<()> {
+        self.upsert_author(&post.author)?;
+        self.conn.lock().unwrap().execute("UPDATE posts SET text=?1,media_json=?2,article_title=COALESCE(?3,article_title),is_article=CASE WHEN ?4<>0 THEN 1 ELSE is_article END,last_updated_at=?5,quoted_json=?7 WHERE id=?6",
+            params![post.text,serde_json::to_string(&post.media).unwrap_or_default(),post.article_title,post.is_article as i64,Utc::now().to_rfc3339(),post.id,post.quoted.as_ref().map(|q|serde_json::to_string(q).unwrap_or_default())])?;
+        Ok(())
+    }
+
     pub fn posts_by_authors(&self, author_ids: &[String], limit: i64) -> AppResult<Vec<Post>> {
         if author_ids.is_empty() {
             return Ok(vec![]);
@@ -1805,6 +1813,15 @@ mod tests {
             .load_feed("following", &FeedFilters::default(), 100)
             .unwrap();
         assert_eq!(loaded.len(), visible_len(&page));
+    }
+
+    #[test] fn a_detail_repair_does_not_reorder_bookmarks_or_change_membership() {
+        let db=Db::in_memory().unwrap();let page=sample_page();
+        db.save_feed_page("bookmarks",&page).unwrap();
+        let mut post=page.posts[0].clone();let position=db.bookmark_position(&post.id).unwrap();
+        post.text="Repaired original text".into();db.update_cached_post(&post).unwrap();
+        assert_eq!(db.bookmark_position(&post.id).unwrap(),position);
+        assert_eq!(db.get_post(&post.id).unwrap().unwrap().text,post.text);
     }
 
     #[test]

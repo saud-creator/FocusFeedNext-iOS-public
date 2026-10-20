@@ -144,6 +144,7 @@ export function PostText({
             return (
               <span
                 key={i}
+                dir="ltr" style={{unicodeBidi:"isolate"}}
                 className="text-ink-dim break-all underline decoration-edge-strong decoration-dotted underline-offset-2"
               >
                 {seg.value.replace(/^https?:\/\//, "")}

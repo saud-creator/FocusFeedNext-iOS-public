@@ -2,6 +2,7 @@ import React, {useEffect,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 import {PostCard} from '../../src/components/post/PostCard';
+import {api} from '../../src/lib/api';
 import {FeedList} from '../../src/components/feed/FeedList';
 import {I18nProvider} from '../../src/i18n';
 import {PlatformProvider} from '../../src/lib/platform';
@@ -21,10 +22,25 @@ const posts=[{...base,media:[{kind:'image' as const,url:photo,width:320,height:5
 posts.push({...base,id:'101',text:'Recoverable picture error',media:[{kind:'image' as const,url:location.origin+'/fixtures/missing.png',width:1600,height:1200,alt:'Failed fixture image',variants:[]}]});
 const windowed=new URLSearchParams(location.search).has('windowed');
 const preloading=new URLSearchParams(location.search).has('preload');
+const articleTest=new URLSearchParams(location.search).has('article');
 const aheadPost={...base,id:'preload-proof',text:'A picture just ahead of the viewport.',media:[{kind:'image' as const,url:location.origin+'/fixtures/ahead.svg',width:320,height:160,alt:'Ahead-of-viewport fixture',variants:[]}]};
 const windowedPosts=Array.from({length:40},(_,index)=>({...posts[index%3],id:String(200+index),text:index%3===0 ? posts[0].text+'\n\n'+('A paragraph of authored text.\n'.repeat(index%5+1)) : posts[index%3].text}));
 windowedPosts[0]={...windowedPosts[0],media:[{kind:'image',url:location.origin+'/fixtures/changing-photo.svg',width:320,height:80,alt:'Delayed intrinsic image',variants:[]}]};
 const unread=new Set<string>();
+function ArticleFixture() {
+  const [reads,setReads]=useState(0);
+  const post={...base,id:'123',isArticle:true,articleTitle:'عنوان مقالة طويل وكامل يجب أن يبقى مقروءًا على أصغر شاشة بدون اقتطاع',text:'An authored introduction.\n\nمقدمة عربية.',media:[]};
+  useEffect(()=>{
+    const previous=api.postContent;let attempt=0;
+    api.postContent=async()=>{
+      setReads(n=>n+1);
+      if(attempt++===0)throw new Error('Controlled interrupted read');
+      return {post,article:{title:post.articleTitle,blocks:[{kind:'heading2',text:'Full article chapter'},{kind:'paragraph',text:'First paragraph.\n\nفقرة عربية كاملة.'},{kind:'code',text:'<script>literal article text</script>'},{kind:'image',text:photo}]}};
+    };
+    return()=>{api.postContent=previous;};
+  },[]);
+  return <><output hidden data-testid="article-read-count">{reads}</output><PostCard post={post} read={false} readDwellMs={0}/></>;
+}
 function WindowedFixture() {
   const [returnedAt,setReturnedAt]=useState<number|null>(null);
   const [paintMs,setPaintMs]=useState<number|null>(null);
@@ -46,4 +62,4 @@ function WindowedFixture() {
   },[returnedAt]);
   return <><output hidden data-testid="fixture-paint" data-ms={paintMs??undefined} data-stages={stages}/><FeedList posts={returnedAt===null?[]:windowedPosts} loading={returnedAt===null} readIds={unread}/></>;
 }
-createRoot(document.getElementById('root')!).render(<PlatformProvider><I18nProvider locale="en"><QueryClientProvider client={new QueryClient()}><TooltipProvider><main className="overflow-y-auto p-3 space-y-4" style={{height:'calc(100dvh - var(--reader-bottom-inset,0px))'}}>{preloading ? <><div aria-hidden style={{height:'calc(100dvh + 40px)'}}/><PostCard post={aheadPost} read={false} readDwellMs={0}/></> : windowed ? <WindowedFixture/> : posts.map(post=><PostCard key={post.id} post={post} read={false} readDwellMs={0} />)}</main></TooltipProvider></QueryClientProvider></I18nProvider></PlatformProvider>);
+createRoot(document.getElementById('root')!).render(<PlatformProvider><I18nProvider locale="en"><QueryClientProvider client={new QueryClient()}><TooltipProvider><main className="overflow-y-auto p-3 space-y-4" style={{height:'calc(100dvh - var(--reader-bottom-inset,0px))'}}>{articleTest ? <ArticleFixture/> : preloading ? <><div aria-hidden style={{height:'calc(100dvh + 40px)'}}/><PostCard post={aheadPost} read={false} readDwellMs={0}/></> : windowed ? <WindowedFixture/> : posts.map(post=><PostCard key={post.id} post={post} read={false} readDwellMs={0} />)}</main></TooltipProvider></QueryClientProvider></I18nProvider></PlatformProvider>);

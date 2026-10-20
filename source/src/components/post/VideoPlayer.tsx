@@ -21,7 +21,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { isTauri, type PostMedia } from "@/lib/api";
+import { api,isTauri, type PostMedia } from "@/lib/api";
 import { useNativeMedia } from '@/lib/nativeMedia';
 import {
   classifyMediaError,
@@ -69,7 +69,6 @@ import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 /** Retries allowed before the player stops trying. */
-const MAX_RETRIES = 1;
 const VIDEO_FALLBACK_RATIO = "16/9";
 
 const SPEEDS = [0.25, 0.5, 1, 1.5, 2];
@@ -87,7 +86,7 @@ export function VideoPlayer({
 }: {
   media: PostMedia;
   defaultSpeed?: number;
-  onRecover?: () => Promise<void>;
+  onRecover?: (freshSource?:boolean) => Promise<void>;
 }) {
   const { t } = useI18n();
   const {present:presentNativeMedia}=useNativeMedia();
@@ -107,7 +106,10 @@ export function VideoPlayer({
   );
   const [status, setStatus] = useState<Status>("idle");
   const [errorKind, setErrorKind] = useState<VideoErrorKind>("unknown");
-  const [retries, setRetries] = useState(0);
+  const [retrying,setRetrying]=useState(false);
+  const retryInFlight=useRef(false);
+  const recoveredRegistration=useRef(false);
+  const formatFallback=useRef(false);
   // A GIF is always silent; ordinary video starts from whatever the reader
   // last chose in this session.
   const [muted, setMuted] = useState(isGif || sessionMuted());
@@ -408,23 +410,40 @@ export function VideoPlayer({
     errorProbe.current?.abort();
     const probe = new AbortController(); errorProbe.current = probe;
     const deadline = window.setTimeout(() => probe.abort(),8000);
-    void fetch(url, { method: "HEAD", signal:probe.signal })
-      .then((res) => {
-        if (!probe.signal.aborted && !res.ok) setErrorKind(classifyProxyFailure(res.status));
+    void (isTauri()?api.probeMedia(url):fetch(url, { method: "HEAD", signal:probe.signal }).then(res=>res.status))
+      .then(async code => {
+        if(probe.signal.aborted) return;
+        if(code>=200 && code<300) {
+          if((ref.current?.error?.code===3 || ref.current?.error?.code===4) && sourceIndex+1<sources.length && !formatFallback.current) {
+            formatFallback.current=true;resumeAt.current=ref.current?.currentTime??resumeAt.current;
+            setSourceIndex(index=>index+1);setStatus('idle');
+          }
+          return;
+        }
+        setErrorKind(classifyProxyFailure(code));
+        if(code===404 && onRecover && !recoveredRegistration.current) {
+          recoveredRegistration.current=true;
+          if(retryInFlight.current) return;
+          retryInFlight.current=true;setRetrying(true);
+          try {await onRecover(false);if(!probe.signal.aborted){setStatus('idle');setNonce(n=>n+1);}}
+          finally {retryInFlight.current=false;setRetrying(false);}
+        }
       })
-      .catch(() => { if (!probe.signal.aborted) setErrorKind("proxyUnavailable"); })
+      .catch(() => { if (!probe.signal.aborted) setErrorKind("network"); })
       .finally(() => window.clearTimeout(deadline));
-  }, [sourceIndex, sources, policy.videoQuality, wake]);
+  }, [sourceIndex, sources, policy.videoQuality, wake,onRecover]);
 
   const retry = async () => {
-    if (retries >= MAX_RETRIES) return;
+    if (retryInFlight.current) return;
+    retryInFlight.current=true;setRetrying(true);
     autoplayRequested.current = false;
-    setRetries((r) => r + 1);
-    if(onRecover) await onRecover();
-    setSourceIndex(resolveQualityIndex(qualities, policy.videoQuality));
-    setErrorKind("unknown");
-    setStatus("idle");
-    setNonce((n) => n + 1);
+    errorProbe.current?.abort();
+    try {
+      if(onRecover) await onRecover(true);
+      setSourceIndex(resolveQualityIndex(qualities, policy.videoQuality));
+      setErrorKind("unknown");setStatus("idle");setNonce(n=>n+1);
+    } catch {setStatus('error');setErrorKind('network');}
+    finally {retryInFlight.current=false;setRetrying(false);}
   };
 
   const toggle = useCallback(() => {
@@ -772,7 +791,7 @@ export function VideoPlayer({
           : "w-full rounded-xl border border-edge",
       )}
       style={
-        !expandedLayout ? { aspectRatio: mediaRatio, maxHeight: isIphone ? 'min(65svh, 520px)' : 520 } : undefined
+        !expandedLayout ? status==='error'?{height:160}:{ aspectRatio: mediaRatio, maxHeight: isIphone ? 'min(65svh, 520px)' : 520 } : undefined
       }
       {...(fullscreen
         ? { role: "region", "aria-label": t("a11y.video.fullscreenPlayer") }
@@ -892,12 +911,12 @@ export function VideoPlayer({
             <p className="text-white/90 text-sm">
               {t(videoErrorKey(errorKind))}
             </p>
-            <div className="mt-2 flex items-center justify-center gap-3">
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-0">
               <button
                 type="button"
                 onClick={retry}
-                disabled={retries >= MAX_RETRIES}
-                className="inline-flex items-center gap-1.5 text-[12.5px] text-accent hover:underline cursor-pointer"
+                disabled={retrying}
+                className="min-h-11 inline-flex items-center gap-1.5 text-[12.5px] text-accent hover:underline cursor-pointer"
               >
                 <RotateCcw className="size-3.5" />
                 {t("post.video.retry")}
@@ -1080,7 +1099,7 @@ export function VideoPlayer({
       data-testid="video-surface-placeholder"
       aria-hidden="true"
       className="w-full rounded-xl border border-edge bg-black"
-      style={{ aspectRatio: mediaRatio, maxHeight: 520 }}
+      style={status==='error' && !fullscreen ? {height:160} : { aspectRatio: mediaRatio, maxHeight: 520 }}
     />
   ) : null;
 

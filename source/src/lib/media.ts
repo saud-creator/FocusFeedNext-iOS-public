@@ -12,10 +12,9 @@ import type { MediaVariant, PostMedia } from "@/lib/api";
  * single best MP4. So on live data there is nothing left to choose: `url` is
  * already the highest-quality MP4 X offered.
  *
- * The variant plumbing below therefore exists for two reasons only: fixtures in
- * the test suite carry variants, and a future twitter-cli could start emitting
- * them. It must never *require* variants, which is exactly what the 0.1.0
- * player got wrong.
+ * The native iOS provider supplies real MP4 variants and proxied thumbnails.
+ * Desktop CLI payloads can still carry only one source, so the player must
+ * never require a variant list or invent an unavailable rendition.
  */
 export type VideoErrorKind =
   | "network"
@@ -140,7 +139,7 @@ export function classifyProxyFailure(status: number): VideoErrorKind {
   // successful first load means the registration was invalidated.
   if (status === 404) return "expired";
   if (status === 502 || status === 504) return "upstream";
-  if (status === 403) return "unsupported";
+  if (status === 403) return "upstream";
   if (status === 416) return "network";
   return "unknown";
 }
@@ -153,6 +152,7 @@ export function classifyProxyFailure(status: number): VideoErrorKind {
  */
 export function posterFor(media: PostMedia): string | undefined {
   const p = (media.previewUrl ?? "").trim();
+  if(isProxiedMedia(p) && p!==media.url) return p;
   if (!p || !/^https:\/\//i.test(p)) return undefined;
   return /\.(jpe?g|png|webp)$/i.test(p.split("?")[0]) ? p : undefined;
 }

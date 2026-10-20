@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { PostMedia } from "@/lib/api";
+import * as apiModule from '@/lib/api';
+import {waitFor} from '@testing-library/react';
 import { VideoPlayer } from "./VideoPlayer";
 import { MediaGallery } from "./MediaGallery";
 import { renderWithProviders } from "@/test/factories";
@@ -10,6 +12,34 @@ import { defaultPreferences, useAppStore } from "@/stores/useAppStore";
 import { CONTROLS_IDLE_MS } from "@/components/media/useAutoHideControls";
 
 const CLIP = "https://cdn.example.com/clip.mp4";
+
+describe('registered media recovery',()=>{
+  it('tries one real lower rendition when a reachable best source cannot decode',async()=>{
+    useAppStore.setState({prefs:{...defaultPreferences,videoQuality:'best'}});
+    vi.spyOn(apiModule,'isTauri').mockReturnValue(true);
+    vi.spyOn(apiModule.api,'probeMedia').mockResolvedValue(200);
+    const high='http://127.0.0.1:9876/media/'+'a'.repeat(32)+'/'+'b'.repeat(32);
+    const low='http://127.0.0.1:9876/media/'+'a'.repeat(32)+'/'+'c'.repeat(32);
+    renderWithProviders(<VideoPlayer media={video({url:high,variants:[{url:high,label:'1080p',bitrate:4000000},{url:low,label:'480p',bitrate:500000}]})}/>);
+    Object.defineProperty(element(),'error',{configurable:true,value:{code:4}});
+    fireEvent.error(element());
+    await waitFor(()=>expect(element().getAttribute('src')).toBe(low));
+  });
+  it('uses native diagnostics when browser fetch is unavailable and renews a stale registration once',async()=>{
+    vi.spyOn(apiModule,'isTauri').mockReturnValue(true);
+    const probe=vi.spyOn(apiModule.api,'probeMedia').mockResolvedValue(404);
+    const fetch=vi.spyOn(globalThis,'fetch').mockRejectedValue(new TypeError('opaque origin'));
+    const recover=vi.fn().mockResolvedValue(undefined);
+    const url='http://127.0.0.1:9876/media/'+'a'.repeat(32)+'/'+'b'.repeat(32);
+    renderWithProviders(<VideoPlayer media={video({url})} onRecover={recover}/>);
+    fireEvent.error(element());await waitFor(()=>expect(recover).toHaveBeenCalledWith(false));
+    expect(probe).toHaveBeenCalledWith(url);expect(fetch).not.toHaveBeenCalled();
+    fireEvent.error(element());await waitFor(()=>expect(screen.getByRole('button',{name:'Retry video'})).toBeEnabled());
+    expect(recover).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('button',{name:'Retry video'}));
+    await waitFor(()=>expect(recover).toHaveBeenLastCalledWith(true));
+  });
+});
 
 function video(over: Partial<PostMedia> = {}): PostMedia {
   return {

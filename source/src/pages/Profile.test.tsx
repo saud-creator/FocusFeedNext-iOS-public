@@ -200,6 +200,15 @@ describe("filterProfilePosts", () => {
 // ---------------------------------------------------------------------------
 
 describe("ProfilePage — the identity shell", () => {
+  it('does not invent an empty bio or zero counts when profile fields are missing',async()=>{
+    userProfile.mockResolvedValue({...REEM,bio:null,followersCount:null,followingCount:null});
+    renderWithProviders(<ProfilePage/>);
+    expect(await screen.findByText('Bio unavailable. Try refreshing this profile.')).toBeInTheDocument();
+    expect(screen.queryByText('This account has no bio.')).not.toBeInTheDocument();
+    expect(screen.getAllByText('—')).toHaveLength(2);
+    await userEvent.click(screen.getByRole('button',{name:'Refresh profile details'}));
+    expect(userProfile).toHaveBeenLastCalledWith('reem_codes',true);
+  });
   it("shows the handle before anything at all has loaded", () => {
     userProfile.mockReturnValue(pending<typeof REEM>());
     renderWithProviders(<ProfilePage />);

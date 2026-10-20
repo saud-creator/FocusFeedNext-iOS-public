@@ -129,6 +129,12 @@ describe("classifyMediaError", () => {
 });
 
 describe("posterFor", () => {
+  it('accepts a registered local image thumbnail without treating the clip as its poster',()=>{
+    const url='http://127.0.0.1:9876/media/'+ 'a'.repeat(32)+'/'+ 'b'.repeat(32);
+    expect(posterFor(makeVideo({previewUrl:url}))).toBe(url);
+    expect(posterFor(makeVideo({url,previewUrl:url}))).toBeUndefined();
+    expect(posterFor(makeVideo({previewUrl:'http://evil.test/photo.jpg'}))).toBeUndefined();
+  });
   it("returns a real image poster", () => {
     const m = makeVideo({ previewUrl: "https://pbs.twimg.com/x.jpg" });
     expect(posterFor(m)).toBe("https://pbs.twimg.com/x.jpg");

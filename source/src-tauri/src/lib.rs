@@ -328,6 +328,8 @@ pub fn run() {
             commands::refresh_feed,
             commands::load_feed_page,
             commands::get_post,
+            commands::refresh_post_content,
+            commands::probe_media,
             commands::get_posts_by_authors,
             commands::get_user_profile,
             commands::get_account_relationship,

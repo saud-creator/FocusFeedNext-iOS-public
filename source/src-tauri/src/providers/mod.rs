@@ -17,6 +17,7 @@ pub mod mock;
 
 pub mod twitter_cli;
 pub mod native_ios;
+pub mod content;
 
 use crate::credentials::CredentialStore;
 use crate::models::*;
@@ -87,6 +88,9 @@ impl ProviderCapabilities {
 /// 0.5.0: `search_posts` and `search_posts_tab` went with the Search page, so
 /// the one free-text path into X no longer exists anywhere in the app.
 pub trait XDataProvider: Send + Sync {
+    fn get_post_content(&self,_id:&str)->AppResult<PostContent> {
+        Err(AppError::new(ErrorCode::ProviderUnavailable,"Full post content is unavailable from this provider."))
+    }
     fn name(&self) -> &'static str;
 
     /// What this backend can do. Defaults to "nothing declared" so a provider
@@ -154,6 +158,7 @@ pub trait XDataProvider: Send + Sync {
     fn get_following_feed(&self, max: u32, cursor: Option<String>) -> AppResult<FeedPage>;
     fn get_for_you_feed(&self, max: u32, cursor: Option<String>) -> AppResult<FeedPage>;
     fn get_user_profile(&self, username: &str) -> AppResult<Author>;
+    fn refresh_user_profile(&self,username:&str)->AppResult<Author> {self.get_user_profile(username)}
     fn get_account_relationship(&self, _username: &str) -> AppResult<AccountRelationship> { Ok(AccountRelationship::Unknown) }
     fn get_user_posts(&self, username: &str, max: u32) -> AppResult<FeedPage>;
     fn get_user_posts_page(&self, username: &str, max: u32, _cursor: Option<String>) -> AppResult<FeedPage> {

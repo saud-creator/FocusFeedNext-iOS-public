@@ -95,6 +95,16 @@ final class ReaderUITests: XCTestCase {
         revealAboveTabs(app.staticTexts["Recoverable image failure"].firstMatch,in:app,centered:true)
         XCTAssertTrue(app.buttons["Retry image"].waitForExistence(timeout:10),"The failed inline fixture must settle into recovery")
         revealAboveTabs(app.buttons["Retry image"].firstMatch,in:app)
+        let article=app.buttons["Read full article"].firstMatch
+        revealAboveTabs(article,in:app);article.tap()
+        let chapter=app.staticTexts["Fixture article chapter"].firstMatch
+        XCTAssertTrue(chapter.waitForExistence(timeout:5),"An article must show its full content inside the reader")
+        revealAboveTabs(chapter,in:app)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format:"label CONTAINS %@","Complete article paragraph.")).firstMatch.exists)
+        capture("native-article-reader")
+        let closeArticle=app.buttons["Close article"].firstMatch
+        revealAboveTabs(closeArticle,in:app);closeArticle.tap()
+        XCTAssertFalse(chapter.exists)
         let welcome=app.buttons["Return to welcome"]
         revealAboveTabs(welcome,in:app);welcome.tap()
         XCTAssertTrue(app.staticTexts["Fixture welcome without reader navigation"].waitForExistence(timeout:5))

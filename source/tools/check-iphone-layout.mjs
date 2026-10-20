@@ -9,6 +9,28 @@ await mkdir(output,{recursive:true});
 const clips=await Promise.all(['portrait.mp4','small.mp4'].map(name=>readFile(new URL('./browser-fixtures/'+name,import.meta.url))));
 const results=[];
 const iphoneAgent='Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Mobile/15E148 Safari/604.1';
+async function checkArticle(browser,engine,width,height) {
+  const page=await browser.newPage({viewport:{width,height},isMobile:true,hasTouch:true,userAgent:iphoneAgent});
+  try {
+    await page.goto(base+'/tools/browser-fixtures/index.html?platform=ios&article');
+    const read=page.getByRole('button',{name:'Read full article',exact:true});
+    await read.waitFor();
+    assert.equal(await page.getByTestId('article-read-count').textContent(),'0','Article must not delay the initial feed');
+    await read.click();
+    await page.getByRole('button',{name:'Retry article',exact:true}).click();
+    await page.getByRole('heading',{name:'Full article chapter',exact:true}).waitFor();
+    assert.equal(await page.getByTestId('article-read-count').textContent(),'2','Retry must make one bounded article read');
+    assert.equal(await page.getByText('<script>literal article text</script>',{exact:true}).count(),1,'Article markup must remain inert text');
+    const paragraph=await page.getByText(/First paragraph/).textContent();
+    assert(paragraph.includes('\n\n'),'Authored paragraph breaks were deleted');
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),width,'Article causes horizontal overflow');
+    await page.screenshot({path:resolve(output,`${engine}-article-${width}.png`)});
+    const close=page.getByRole('button',{name:'Close article',exact:true});
+    await close.scrollIntoViewIfNeeded();await close.click();
+    assert.equal(await page.getByTestId('article-body').count(),0,'Article cannot be dismissed');
+    return true;
+  } finally {await page.close();}
+}
 async function checkImagePreload(browser,engine) {
   const page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true,userAgent:iphoneAgent});
   try {
@@ -78,6 +100,7 @@ const browser=await browserType.launch({headless:true});
 try {
   for(const [width,height] of [[320,568],[390,844],[430,932],[844,390]]) {
     const windowed=await checkWindowedFeed(browser,engine,width,height);
+    windowed.articleReader=await checkArticle(browser,engine,width,height);
     const page=await browser.newPage({viewport:{width,height},isMobile:true,hasTouch:true,userAgent:iphoneAgent});
     const errors=[];page.on('pageerror',error=>errors.push(error.message));
     await page.route(/\/media\/[0-9a-f]+\/[0-9a-f]+$/,async route=>{
@@ -149,6 +172,8 @@ try {
     await page.waitForFunction(()=>Boolean(document.querySelector('video')?.error));
     await page.getByTestId('video-exit-fullscreen').click();
     await page.waitForFunction(()=>document.querySelector('[data-testid="video-surface"]').dataset.fullscreen==='false');
+    await page.getByRole('button',{name:'Retry video',exact:true}).waitFor();
+    assert((await page.getByTestId('video-surface').boundingBox()).height<=180,'Failed video reserves an oversized black panel');
     const failedCard=page.locator('[data-testid="post-card"]').nth(2);
     await failedCard.scrollIntoViewIfNeeded();
     await failedCard.getByRole('button',{name:'Retry image'}).waitFor();

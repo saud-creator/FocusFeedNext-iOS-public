@@ -163,7 +163,7 @@ export function ProfilePage() {
   // avatar, the name and the bio are one cheap call and appear on their own.
   const profile = useQuery({
     queryKey: ["userProfile", handle],
-    queryFn: () => api.userProfile(handle),
+    queryFn: () => api.userProfile(handle,true),
     enabled: handle.length > 0,
     staleTime: 5 * 60_000,
     retry: false,
@@ -298,7 +298,7 @@ export function ProfilePage() {
                   account={account}
                   layout="stacked"
                   showAvatar={false}
-                  nameClassName="text-[19px] max-w-none"
+                  nameClassName="text-[19px] max-w-none whitespace-normal break-words"
                   handleClassName="text-[13.5px] max-w-none"
                 />
               ) : (
@@ -322,9 +322,10 @@ export function ProfilePage() {
 
           {account ? (
             <>
-              <p className="mt-3 text-[13.5px] text-ink-dim" dir="auto">
-                {account.bio?.trim() || t("profile.noBio")}
+              <p className="mt-3 whitespace-pre-line text-[13.5px] text-ink-dim" dir="auto">
+                {account.bio == null ? t("profile.bioUnavailable") : account.bio.trim() || t("profile.noBio")}
               </p>
+              <button type="button" className="min-h-11 text-sm text-accent" disabled={profile.isFetching} onClick={()=>void profile.refetch()}>{t('profile.refreshDetails')}</button>
 
               <div className="mt-3 flex items-center gap-4 flex-wrap text-[12.5px] text-ink-mute">
                 {account.location ? (
@@ -353,24 +354,24 @@ export function ProfilePage() {
 
               <div className="mt-3 flex items-center gap-4 text-[13px] text-ink-dim">
                 <span
-                  title={plural(
+                  title={account.followersCount==null?undefined:plural(
                     "profile.followers",
                     account.followersCount ?? 0,
                   )}
                 >
                   <strong className="text-ink">
-                    {formatCompact(account.followersCount ?? 0)}
+                    {account.followersCount == null ? "—" : formatCompact(account.followersCount)}
                   </strong>{" "}
                   {t("profile.followers.label")}
                 </span>
                 <span
-                  title={plural(
+                  title={account.followingCount==null?undefined:plural(
                     "profile.following",
                     account.followingCount ?? 0,
                   )}
                 >
                   <strong className="text-ink">
-                    {formatCompact(account.followingCount ?? 0)}
+                    {account.followingCount == null ? "—" : formatCompact(account.followingCount)}
                   </strong>{" "}
                   {t("profile.following.label")}
                 </span>

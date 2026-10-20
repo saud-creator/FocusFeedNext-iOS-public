@@ -27,6 +27,7 @@ function pause(ms: number, signal: AbortSignal) {
 }
 
 const queryIds: Record<string, string> = {
+  TweetResultByRestId: '7xflPyRiUxGVbJd4uWmbfg',
   HomeTimeline: 'c-CzHF1LboFilMpsx4ZCrQ', HomeLatestTimeline: 'BKB7oi212Fi7kQtCBGE4zA',
   UserByScreenName: '1VOOyvKkiI3FMmkeDNxM9A', UserTweets: 'q6xj5bs0hapm9309hexA_g',
   Bookmarks: '2neUNDqrrFzbLui8yallcQ', ListLatestTweetsTimeline: 'RlZzktZY_9wJynoepm8ZsA',
@@ -80,6 +81,7 @@ function parseQueryMetadata(script: string) {
 }
 function flagsFor(operation: string) {
   const flags = { ...(operation === 'UserByScreenName' ? profileFeatures : features) };
+  if(operation==='TweetResultByRestId') Object.assign(flags,{articles_preview_enabled:true,responsive_web_twitter_article_tweet_consumption_enabled:true,longform_notetweets_consumption_enabled:true});
   for (const key of requiredFeatures[operation] ?? []) flags[key] = metadataFlags[key] ?? flags[key] ?? false;
   return flags;
 }
@@ -233,7 +235,9 @@ async function perform(operation: string, variables: Record<string, unknown>, cs
       headers['content-type'] = 'application/json';
       body = JSON.stringify({ variables, features: operationFeatures, queryId: queryIds[operation] });
     } else if (!isRest) {
-      url += '?' + new URLSearchParams({ variables: JSON.stringify(variables), features: JSON.stringify(operationFeatures) });
+      const params=new URLSearchParams({ variables: JSON.stringify(variables), features: JSON.stringify(operationFeatures) });
+      if(operation==='TweetResultByRestId') params.set('fieldToggles',JSON.stringify({withArticleRichContentState:true,withArticlePlainText:true}));
+      url += '?' + params;
     }
     signal.throwIfAborted();
     sent();

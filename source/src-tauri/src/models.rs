@@ -233,6 +233,16 @@ pub struct Post {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all="camelCase")]
+pub struct ArticleBlock {pub kind:String,pub text:String}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all="camelCase")]
+pub struct ArticleDocument {pub title:String,pub blocks:Vec<ArticleBlock>}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all="camelCase")]
+pub struct PostContent {pub post:Post,pub article:Option<ArticleDocument>}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountPage {
     pub accounts: Vec<Author>,

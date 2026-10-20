@@ -75,6 +75,11 @@ class Handler(BaseHTTPRequestHandler):
                 elif parsed.path.endswith('/UserByScreenName'):
                     valid = valid and flags.get('subscriptions_verification_info_verified_since_enabled') is True
                     content = b'{"data":{"user":{"result":{"rest_id":"42","core":{"screen_name":"fixture","name":"Fixture"},"legacy":{"following":true}}}}}'
+                elif parsed.path.endswith('/TweetResultByRestId'):
+                    toggles=json.loads(parse_qs(parsed.query).get('fieldToggles',['{}'])[0])
+                    variables=json.loads(parse_qs(parsed.query).get('variables',['{}'])[0])
+                    valid=valid and toggles.get('withArticleRichContentState') is True and toggles.get('withArticlePlainText') is True and variables.get('tweetId')=='123'
+                    content=b'{"data":{"tweetResult":{"result":{"article":{"article_results":{"result":{"title":"Fixture article","content_state":{"blocks":[{"type":"header-two","text":"Full article heading"}]}}}}}}}}'
                 if not valid: status = 401
             if parsed.path.startswith('/responsive-web/client-web/') and any(self.headers.get(h) for h in ['Cookie','authorization','x-csrf-token']): status = 403
             if status != 200: content = b'{"errors":[{"code":89}]}'
