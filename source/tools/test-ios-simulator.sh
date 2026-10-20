@@ -9,6 +9,7 @@ mkdir -p "$work"
 rsync -a --exclude node_modules --exclude dist --exclude dist-ios --exclude target --exclude gen ./ "$work/"
 ln -s "$origin/node_modules" "$work/node_modules"
 cd "$work"
+device=$(python3 tools/select-ios-simulator.py "$origin/dist-ios/simulator-runtime.json")
 rustup target add aarch64-apple-ios-sim
 npm run tauri -- ios init --ci
 python3 - <<'PY'
@@ -28,7 +29,6 @@ if ! find src-tauri/gen/apple -type d -name '*.app' -print -quit | grep -q .; th
   echo "No simulator application was produced (exit $status)" >&2; exit 1
 fi
 ruby tools/configure-ios-uitests.rb
-device=$(python3 tools/select-ios-simulator.py "$origin/dist-ios/simulator-runtime.json")
 xcrun simctl boot "$device" || true
 xcrun simctl bootstatus "$device" -b
 project=$(find src-tauri/gen/apple -maxdepth 1 -name '*.xcodeproj' -print -quit)
