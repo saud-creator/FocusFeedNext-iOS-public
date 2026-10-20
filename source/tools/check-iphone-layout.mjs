@@ -103,7 +103,9 @@ try {
     windowed.articleReader=await checkArticle(browser,engine,width,height);
     const page=await browser.newPage({viewport:{width,height},isMobile:true,hasTouch:true,userAgent:iphoneAgent});
     const errors=[];page.on('pageerror',error=>errors.push(error.message));
+    let refuseMedia=false,refusals=0;
     await page.route(/\/media\/[0-9a-f]+\/[0-9a-f]+$/,async route=>{
+      if(refuseMedia){refusals++;await route.fulfill({status:503,headers:{'cache-control':'no-store','content-type':'text/plain'},body:'Controlled media interruption'});return;}
       const bytes=route.request().url().endsWith('3'.repeat(32)) ? clips[1] : clips[0];
       const range=/^bytes=(\d+)-(\d*)$/.exec(route.request().headers().range ?? '');
       const start=range ? Number(range[1]) : 0;
@@ -168,18 +170,49 @@ try {
     await page.screenshot({path:resolve(output,`${engine}-fullscreen-${width}.png`)});
     const exit=await page.getByTestId('video-exit-fullscreen').boundingBox();
     assert(exit && exit.x>=0 && exit.y>=0 && exit.x+exit.width<=width && exit.y+exit.height<=height,'Exit is outside the viewport');
-    await page.evaluate(()=>{document.querySelector('video').src='/missing-video.mp4';document.querySelector('video').load();});
-    await page.waitForFunction(()=>Boolean(document.querySelector('video')?.error));
+    // Fail the player's actual registered source, including any real fallback.
+    // Mutating only the DOM src leaves React/probing pointed at a healthy URL.
+    refuseMedia=true;
+    await page.evaluate(()=>{
+      const video=document.querySelector('video');window.fixtureMediaEvents=[];
+      for(const type of ['error','pause','loadstart','waiting','playing','loadedmetadata','emptied']) video.addEventListener(type,()=>{window.fixtureMediaEvents.push({type,at:performance.now(),error:video.error?.code,ready:video.readyState});if(window.fixtureMediaEvents.length>64)window.fixtureMediaEvents.shift();});
+      video.load();
+    });
+    const waitForRecovery=async stage=>{
+      try {await page.getByRole('button',{name:'Retry video',exact:true}).waitFor();}
+      catch(error){
+        const state=await page.evaluate(()=>{const video=document.querySelector('video');return {ready:video?.readyState,error:video?.error?.code,paused:video?.paused,network:video?.networkState,fullscreen:document.querySelector('[data-testid="video-surface"]')?.dataset.fullscreen,text:document.body.innerText,events:window.fixtureMediaEvents};});
+        await writeFile(resolve(output,`${engine}-recovery-${width}.json`),JSON.stringify({stage,refusals,...state},null,2));
+        await page.screenshot({path:resolve(output,`${engine}-recovery-${width}.png`)});
+        throw new Error(`${engine} ${width} ${stage} recovery: ${JSON.stringify({refusals,...state})}`,{cause:error});
+      }
+    };
+    await waitForRecovery('fullscreen');
+    assert(refusals>0,'The controlled source failure must reach the HTTP route');
     await page.getByTestId('video-exit-fullscreen').click();
     await page.waitForFunction(()=>document.querySelector('[data-testid="video-surface"]').dataset.fullscreen==='false');
-    await page.getByRole('button',{name:'Retry video',exact:true}).waitFor();
-    assert((await page.getByTestId('video-surface').boundingBox()).height<=180,'Failed video reserves an oversized black panel');
+    await waitForRecovery('inline');
+    // The browser's native fullscreen exit is asynchronous. Its top-layer CSS
+    // still fills the window briefly after React has restored inline state.
+    await page.waitForFunction(()=>!document.fullscreenElement && !document.webkitFullscreenElement && document.querySelector('[data-testid="video-surface"]').getBoundingClientRect().height<=180,null,{timeout:10000});
+    const failureBounds=await page.getByTestId('video-surface').boundingBox();
+    if(failureBounds.height>180){
+      const state=await page.evaluate(()=>{const video=document.querySelector('video');const frame=document.querySelector('[data-testid="video-surface"]');return {error:video?.error?.code,ready:video?.readyState,style:frame?.getAttribute('style'),text:frame?.textContent,events:window.fixtureMediaEvents};});
+      throw new Error(`Failed video reserves an oversized panel: ${JSON.stringify({failureBounds,...state})}`);
+    }
+    await page.screenshot({path:resolve(output,`${engine}-compact-video-failure-${width}.png`)});
+    refuseMedia=false;
+    const retryVideo=page.getByRole('button',{name:'Retry video',exact:true});
+    await retryVideo.scrollIntoViewIfNeeded();await retryVideo.click();
+    await page.waitForFunction(()=>document.querySelector('video')?.readyState>=1);
+    await videoCard.getByRole('button',{name:'Play',exact:true}).click();
+    await page.waitForFunction(()=>{const video=document.querySelector('video');return video && !video.paused && video.currentTime>0.2;});
     const failedCard=page.locator('[data-testid="post-card"]').nth(2);
     await failedCard.scrollIntoViewIfNeeded();
     await failedCard.getByRole('button',{name:'Retry image'}).waitFor();
     assert.equal(await failedCard.locator('img[alt="Failed fixture image"]').count(),0,'Broken image glyph remained in finished UI');
     assert.equal(errors.length,0,errors.join('\n'));
-    results.push({engine,width,height,...geometry,...windowed,mp4Playback:true,qualityChangeResumed:true,fullscreenErrorExit:true});
+    results.push({engine,width,height,...geometry,...windowed,mp4Playback:true,qualityChangeResumed:true,fullscreenErrorExit:true,httpFailureRecovered:true});
     await page.close();
   }
   await checkImagePreload(browser,engine);

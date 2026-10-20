@@ -278,3 +278,21 @@ Each step now sources a strict shell bootstrap, selects the exact Node 24.22.0
 executable (using its official checksum-verified Apple Silicon archive when needed),
 and fails immediately if selection or any command fails. The small Node installation
 is cached. This correction preserves all release checks and the 250 ms gate.
+
+
+### Build #23 and HTTP-level media fixture correction — 21 October
+
+Build #23 confirms actual checksum-verified Node 24.22.0 and Xcode 27.1, with
+strict failure handling active. Frontend, Rust and native transport gates pass;
+Mac WebKit still times out waiting for Retry after the test mutates only the
+video DOM source. Simulator and device packaging remain blocked.
+
+The browser fixture now refuses the player's actual registered HTTP media route,
+including probes and fallback renditions, rather than changing the DOM behind
+React's source list. It requires recovery before fullscreen dismissal, waits for
+the browser's asynchronous native fullscreen exit before measuring the compact
+inline panel, restores delivery, and verifies that deliberate Retry resumes real
+MP4 playback. Local Chromium passed all four sizes; all eight layout/article
+cases pass, with the Windows WebKit playback limitation retained. Failed recovery
+now saves its media event sequence and screenshot for diagnosis. No app code or
+release acceptance gate was removed by this fixture correction.
