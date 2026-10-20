@@ -20,6 +20,30 @@ struct NativeMediaArgs: Decodable {
     let locale: String?
 }
 
+/// Audio session IPC must not block UIKit. Serial leases also prevent a late
+/// dismissal from deactivating the next video's session. Keep the iOS 16 API.
+private final class NativePlaybackAudio {
+    static let shared=NativePlaybackAudio()
+    private let queue=DispatchQueue(label:"com.focusfeed.next.playback-audio",qos:.userInitiated)
+    private var owner:UUID?
+    func activate(owner:UUID,ready:@escaping ()->Void) {
+        queue.async {
+            self.owner=owner
+            let session=AVAudioSession.sharedInstance()
+            try? session.setCategory(.playback,mode:.moviePlayback)
+            try? session.setActive(true)
+            DispatchQueue.main.async(execute:ready)
+        }
+    }
+    func deactivate(owner:UUID) {
+        queue.async {
+            guard self.owner == owner else {return}
+            self.owner=nil
+            try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)
+        }
+    }
+}
+
 /// One owner and one completion for all native media. URLs have already been
 /// resolved against the current account's media registrations by Rust.
 final class NativeMediaPresenter {
@@ -40,18 +64,19 @@ final class NativeMediaPresenter {
         if args.items[args.index].kind == "video" {
             guard let url = URL(string:args.items[args.index].url) else { presentationID=nil;completion = nil;return false }
             let video = NativeVideoController()
-            try? AVAudioSession.sharedInstance().setCategory(.playback,mode:.moviePlayback)
-            try? AVAudioSession.sharedInstance().setActive(true)
             let player = AVPlayer(url:url)
             video.player = player;video.modalPresentationStyle = .fullScreen
             player.isMuted = args.muted ?? false
             video.finished = { position,playing in finish(["index":args.index,"position":position,"playing":playing]) }
             video.shouldLoop = args.loop ?? false
             controller = video
-            root.present(video,animated:true) {
-                player.seek(to:CMTime(seconds:max(0,args.position ?? 0),preferredTimescale:600),toleranceBefore:.zero,toleranceAfter:.zero) { _ in
-                    DispatchQueue.main.async {
-                        if video.presentingViewController != nil && !video.isBeingDismissed && (args.playing ?? true) { player.playImmediately(atRate:Float(args.speed ?? 1)) }
+            NativePlaybackAudio.shared.activate(owner:video.audioID) { [weak self,weak video] in
+                guard let self=self,let video=video,self.presentationID == id,self.controller === video else {return}
+                root.present(video,animated:true) {
+                    player.seek(to:CMTime(seconds:max(0,args.position ?? 0),preferredTimescale:600),toleranceBefore:.zero,toleranceAfter:.zero) { _ in
+                        DispatchQueue.main.async {
+                            if video.presentingViewController != nil && !video.isBeingDismissed && (args.playing ?? true) { player.playImmediately(atRate:Float(args.speed ?? 1)) }
+                        }
                     }
                 }
             }
@@ -71,12 +96,16 @@ final class NativeMediaPresenter {
         // A previous viewer must never settle a newer presentation's reply.
         let previous=controller;let reply=completion
         presentationID=nil;completion=nil;controller=nil
+        if let video=previous as? NativeVideoController {
+            video.player?.pause();NativePlaybackAudio.shared.deactivate(owner:video.audioID)
+        }
         previous?.dismiss(animated:false);reply?(["index":0,"position":0,"playing":false])
     }
     func pause() {(controller as? AVPlayerViewController)?.player?.pause()}
 }
 
 private final class NativeVideoController: AVPlayerViewController {
+    let audioID=UUID()
     var finished: ((Double,Bool)->Void)?
     var shouldLoop = false
     private var endObserver: NSObjectProtocol?
@@ -102,7 +131,7 @@ private final class NativeVideoController: AVPlayerViewController {
         let time = player?.currentTime().seconds ?? 0
         let playing = wasPlaying || (player?.rate ?? 0) > 0
         player?.pause();player?.replaceCurrentItem(with:nil)
-        try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)
+        NativePlaybackAudio.shared.deactivate(owner:audioID)
         let done=finished;finished=nil;done?(time.isFinite ? time : 0,playing)
     }
     deinit { if let observer=endObserver {NotificationCenter.default.removeObserver(observer)} }

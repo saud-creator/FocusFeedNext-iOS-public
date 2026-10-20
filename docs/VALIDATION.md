@@ -158,6 +158,24 @@ Chromium passed all four MP4 playback/quality/fullscreen combinations; the
 Windows WebKit decoder limitation remains explicitly unverified locally. Mac
 gates and a verified IPA are still required for this exact batch.
 
+Build #19 passed frontend, Rust, 78 native transport assertions and every Mac
+browser check. Six of seven iOS tests passed; the dedicated first-page test
+recorded 50 ms with non-overlapping cards. The photo test passed actual decoding,
+safe-area controls, zoom, paging, reopening and the repaired inline-image recovery
+assertion. Its final welcome tap failed because the test helper placed the button
+at y=7 behind the sticky 70-point header. The helper now measures that header as
+well as the tab bar, uses the unobscured viewport for drags and requires actual
+hittability. No photo or navigation assertion is removed.
+
+The same corrective batch addresses a simulator runtime warning from synchronous
+audio-session calls on the main thread. Audio activation/deactivation now uses a
+serial worker with presentation-specific leases; playback presentation returns
+to UIKit on the main queue and rejects cancelled owners. A late old dismissal
+cannot deactivate a newer lease. The existing iOS 16 API and deployment minimum
+remain; see [Apple's audio-session activation API](https://developer.apple.com/documentation/avfaudio/avaudiosession/setactive(_:options:)).
+The native video test now also opens and dismisses a second actual player. This
+Swift-only correction requires fresh Mac compilation and UI gates before an IPA.
+
 Candidate simulator fixtures use real PostCard, navigation, welcome and account components, plus actual image/video bytes through the native media proxy. Only opt-in debug simulator builds register loopback fixtures. Device packaging rejects fixture mode, and IPA verification checks version, iOS 16 minimum, scene delegate, architecture, unsigned state and fixture exclusion.
 
 The candidate declares an HTTP exception only for the in-process media proxy at 127.0.0.1. Apple's current ATS documentation requires explicit IP exceptions from iOS 17 onward. IPA verification checks that this exception survives packaging and that global, web-content and AVFoundation arbitrary-load exceptions remain disabled. Actual simulator photo/video decoding remains the delivery gate. See [Apple's IP exception rules](https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity/nsexceptiondomains).

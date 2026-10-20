@@ -122,6 +122,12 @@ final class ReaderUITests: XCTestCase {
         done.tap()
         XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout:5))
+        // A completed audio lease must not deactivate the next presentation.
+        revealAboveTabs(fullScreen,in:app);fullScreen.tap()
+        XCTAssertTrue(app.descendants(matching:.any)["native-video-ready"].waitForExistence(timeout:15),"A dismissed player must allow a fresh playback session")
+        if !done.exists || !done.isHittable {app.descendants(matching:.any)["native-video-ready"].tap()}
+        XCTAssertTrue(done.waitForExistence(timeout:10));done.tap()
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout:5))
         app.terminate()
     }
     func testFailedAccountsSettleAndRetry() {
@@ -153,21 +159,27 @@ final class ReaderUITests: XCTestCase {
     }
     private func revealAboveTabs(_ element:XCUIElement,in app:XCUIApplication,centered:Bool=false) {
         XCTAssertTrue(element.waitForExistence(timeout:5))
-        let top=app.frame.minY+4
+        let header=app.otherElements["section header"].firstMatch
+        XCTAssertTrue(header.exists,"The reader's sticky header must define the unobscured viewport")
+        let top=max(app.frame.minY,header.frame.maxY)+4
         let bottom=app.tabBars.firstMatch.frame.minY-4
         let height=bottom-top
         let targetBottom=centered ? top+height*0.55 : bottom
         for _ in 0..<8 {
             let rect=element.frame
-            if rect.minY>=top && rect.maxY<=targetBottom {return}
+            if rect.minY>=top && rect.maxY<=targetBottom {
+                XCTAssertTrue(element.isHittable,"A control inside the reading viewport must accept touches")
+                return
+            }
             let distance=rect.minY<top ? min(top-rect.minY+12,height*0.3) : -min(rect.maxY-targetBottom+12,height*0.3)
             let origin=app.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0))
-            let start=origin.withOffset(CGVector(dx:0,dy:height*0.5))
+            let start=origin.withOffset(CGVector(dx:0,dy:top-app.frame.minY+height*0.5))
             let end=start.withOffset(CGVector(dx:0,dy:distance))
             // Hold at the end to avoid fling/overshoot around a short target.
             start.press(forDuration:0.05,thenDragTo:end,withVelocity:.slow,thenHoldForDuration:0.2)
         }
-        XCTAssertGreaterThanOrEqual(element.frame.minY,0,"Media controls must not remain above the viewport")
-        XCTAssertLessThanOrEqual(element.frame.maxY,app.tabBars.firstMatch.frame.minY,"Media controls must be reachable above native navigation")
+        XCTAssertGreaterThanOrEqual(element.frame.minY,top,"Media controls must not remain underneath the sticky header")
+        XCTAssertLessThanOrEqual(element.frame.maxY,targetBottom,"Media controls must be reachable above native navigation")
+        XCTAssertTrue(element.isHittable,"Revealed controls must accept touches")
     }
 }
