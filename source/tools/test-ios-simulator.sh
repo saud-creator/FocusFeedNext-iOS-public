@@ -32,4 +32,12 @@ device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d
 xcrun simctl boot "$device" || true
 xcrun simctl bootstatus "$device" -b
 project=$(find src-tauri/gen/apple -maxdepth 1 -name '*.xcodeproj' -print -quit)
-xcodebuild test -project "$project" -scheme FocusFeedUITests -destination "platform=iOS Simulator,id=$device" -resultBundlePath "$origin/dist-ios/SimulatorTests.xcresult" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | tee "$origin/dist-ios/simulator-tests.log"
+set +e
+xcodebuild test -project "$project" -scheme FocusFeedUITests -destination "platform=iOS Simulator,id=$device" -collect-test-diagnostics never -resultBundlePath "$origin/dist-ios/SimulatorTests.xcresult" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | tee "$origin/dist-ios/simulator-tests.log"
+test_status=${PIPESTATUS[0]}
+set -e
+mkdir -p "$origin/dist-ios/simulator-screenshots"
+xcrun xcresulttool export attachments --path "$origin/dist-ios/SimulatorTests.xcresult" --output-path "$origin/dist-ios/simulator-screenshots" || true
+xcrun xcresulttool get test-results summary --path "$origin/dist-ios/SimulatorTests.xcresult" > "$origin/dist-ios/simulator-summary.json" || true
+xcrun simctl spawn "$device" log show --last 5m --style compact --predicate 'process == "focus-feed-next"' > "$origin/dist-ios/simulator-console.log" || true
+exit "$test_status"

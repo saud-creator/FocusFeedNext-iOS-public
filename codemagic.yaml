@@ -83,6 +83,7 @@ workflows:
       - source/dist-ios/*.log
       - source/dist-ios/native-tests/**
       - source/dist-ios/browser-checks/**
+      - source/dist-ios/simulator-screenshots/**
       - source/dist-ios/SimulatorTests.xcresult/**
       - /tmp/xcodebuild_logs/*.log
 

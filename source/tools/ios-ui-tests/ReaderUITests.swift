@@ -2,11 +2,19 @@ import XCTest
 
 final class ReaderUITests: XCTestCase {
     override func setUp() { super.setUp(); continueAfterFailure = false }
+    override func tearDown() {
+        print("Reader UI hierarchy: \(XCUIApplication().debugDescription)")
+        capture("test-final-state")
+        super.tearDown()
+    }
     func testWelcomeAndRotation() {
         let app = XCUIApplication()
+        app.launchArguments=["-AppleLanguages","(en)","-AppleLocale","en_US"]
         app.launch()
         let signIn = app.buttons["Sign in with Twitter"]
-        XCTAssertTrue(signIn.waitForExistence(timeout: 30), "Welcome must finish loading without credentials")
+        let ready=signIn.waitForExistence(timeout:30)
+        capture("welcome-before-assertion")
+        XCTAssertTrue(ready, "Welcome must finish loading without credentials")
         XCTAssertTrue(app.webViews.firstMatch.exists)
         capture("welcome-portrait")
         XCUIDevice.shared.orientation = .landscapeLeft
