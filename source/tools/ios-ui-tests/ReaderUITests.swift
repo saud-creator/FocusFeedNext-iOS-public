@@ -15,7 +15,8 @@ final class ReaderUITests: XCTestCase {
         let ready=signIn.waitForExistence(timeout:30)
         capture("welcome-before-assertion")
         XCTAssertTrue(ready, "Welcome must finish loading without credentials")
-        XCTAssertTrue(app.webViews.firstMatch.exists)
+        XCTAssertTrue(signIn.isHittable)
+        XCTAssertTrue(app.buttons["Settings"].exists)
         capture("welcome-portrait")
         XCUIDevice.shared.orientation = .landscapeLeft
         XCTAssertTrue(signIn.exists)
