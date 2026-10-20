@@ -106,7 +106,11 @@ final class ReaderUITests: XCTestCase {
         revealAboveTabs(closeArticle,in:app);closeArticle.tap()
         XCTAssertFalse(chapter.exists)
         let welcome=app.buttons["Return to welcome"]
-        revealAboveTabs(welcome,in:app);welcome.tap()
+        XCTAssertTrue(welcome.waitForExistence(timeout:5))
+        XCTAssertGreaterThanOrEqual(welcome.frame.height,44)
+        XCTAssertTrue(app.otherElements["section header"].firstMatch.frame.contains(welcome.frame),"Fixture navigation stays in its sticky header")
+        XCTAssertTrue(welcome.isHittable)
+        welcome.tap()
         XCTAssertTrue(app.staticTexts["Fixture welcome without reader navigation"].waitForExistence(timeout:5))
         XCTAssertEqual(app.tabBars.count,0)
         capture("welcome-after-reader")

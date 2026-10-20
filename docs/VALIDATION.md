@@ -331,3 +331,22 @@ local browser cases pass. Four Chromium cases verify real HTTP interruption,
 compact fullscreen dismissal and deliberate replay; Windows WebKit playback
 remains explicitly unverified. Rust/Swift code is unchanged from the previous
 passing gates. The next Mac run must still pass every release stage.
+
+
+### Build #26: simulator fixture navigation
+
+Build #26 passed all 633 frontend tests, 406 Rust tests, 79 native Swift/WebKit
+assertions and all eight Mac browser MP4/article/layout/HTTP-recovery cases. The
+iOS 27.1 Duo simulator passed six of seven tests with no runtime warnings. Its
+controlled first-page measurement was 153 ms against the unchanged 250 ms gate.
+Native photos, article content and article dismissal were exercised successfully.
+
+The remaining failure was the fixture's body-level Return to welcome button:
+after closing the article, its frame remained behind the sticky header at y=-17
+while the test required y>=74. Packaging stopped. The fixture-only navigation
+control now lives in the sticky header, at the leading side away from the Duo's
+floating status region. Its test requires a 44-point target, header containment
+and actual hittability before tapping; the same welcome content and zero-tab-bar
+assertions remain. Shipping app code is unchanged. Local lint and production
+build pass; the ordinary release still excludes the fixture renderer. The next
+run must pass the complete simulator gate before producing an IPA.

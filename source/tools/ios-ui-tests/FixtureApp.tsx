@@ -87,11 +87,10 @@ function FixtureReader({bootstrapAt}:{bootstrapAt:number}) {
   return [...(fixture.scenario==='video'?[video,photos,failed]:[photos,failed,video]),fixtureArticle,...Array.from({length:16},(_,i)=>({...base,id:`fixture-text-${i}`,text:`First page post ${i+5}\n\nA separate authored paragraph.`}))];
   },[fixture]);
   return <main className="overflow-y-auto" style={{height:'calc(100dvh - var(--reader-bottom-inset,0px))'}}>
-    <PageHeader title="Simulator fixture reader" subtitle="English and Arabic media, accounts and safe-area checks"/>
+    <PageHeader title="Simulator fixture reader" subtitle={<div className="flex items-center gap-3"><button className="min-h-11 px-3 shrink-0" aria-label={welcome?'Enter reader':'Return to welcome'} onClick={()=>setWelcome(v=>!v)}>{welcome?'Enter reader':'Welcome'}</button><span>English and Arabic media, accounts and safe-area checks</span></div>}/>
     <p role="status">{paint}</p>
     {delivery && <p>Fixture page ready</p>}
     {delivery && <p>{geometry}</p>}
-    <button className="min-h-11 p-3" onClick={()=>setWelcome(v=>!v)}>{welcome?'Enter reader':'Return to welcome'}</button>
     {welcome ? <p>Fixture welcome without reader navigation</p> : !delivery ? <p role="status">Waiting for the first page</p> : route==='accounts' ? <FollowingManagerPage/> : <div className="p-3"><FeedList posts={firstPage} readIds={unreadFixturePosts}/></div>}
     {paintMs!==null && <div aria-label="Fixture diagnostics"><p>First content render: {Math.round(paintMs)} ms; reader shell: {Math.round(delivery!.shellMs)} ms; {firstPage.length} posts returned</p><p>{paintStages}</p></div>}
     {!welcome && <MobileNavigation unread={0}/>}
