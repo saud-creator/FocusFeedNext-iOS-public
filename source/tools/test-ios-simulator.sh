@@ -28,7 +28,7 @@ if ! find src-tauri/gen/apple -type d -name '*.app' -print -quit | grep -q .; th
   echo "No simulator application was produced (exit $status)" >&2; exit 1
 fi
 ruby tools/configure-ios-uitests.rb
-device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); ids=[x["udid"] for runtime,rows in d["devices"].items() if "iOS-27-0" in runtime for x in rows if x["name"]=="iPhone 17 Pro"]; assert ids,"Missing iOS 27 iPhone 17 Pro simulator";print(ids[0])')
+device=$(python3 tools/select-ios-simulator.py "$origin/dist-ios/simulator-runtime.json")
 xcrun simctl boot "$device" || true
 xcrun simctl bootstatus "$device" -b
 project=$(find src-tauri/gen/apple -maxdepth 1 -name '*.xcodeproj' -print -quit)
