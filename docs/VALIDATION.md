@@ -1,6 +1,6 @@
 # Validation record — 20 October 2026
 
-The editable 0.8.5 import is published on upstream main with its original history. Local source now contains the 0.8.7 repair candidate, incorporating the previous 0.8.6 repairs; candidate changes require their own Mac gates before release. Results below distinguish those states.
+The editable 0.8.5 import is published on upstream main with its original history. The 0.8.7 repair build (087.21), incorporating the previous 0.8.6 repairs, passed all automated release gates and independent IPA verification. Physical-device acceptance remains open. Historical results below distinguish each candidate from the verified release.
 
 ## Published baseline and runner
 
@@ -180,8 +180,44 @@ Candidate simulator fixtures use real PostCard, navigation, welcome and account 
 
 The candidate declares an HTTP exception only for the in-process media proxy at 127.0.0.1. Apple's current ATS documentation requires explicit IP exceptions from iOS 17 onward. IPA verification checks that this exception survives packaging and that global, web-content and AVFoundation arbitrary-load exceptions remain disabled. Actual simulator photo/video decoding remains the delivery gate. See [Apple's IP exception rules](https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity/nsexceptiondomains).
 
+## Verified 0.8.7 release — build 087.21
+
+[Codemagic build #21](https://codemagic.io/app/6ad63fe0fdc2a85dad554aca/build/6ad7a4ff064e933257c2e05f)
+finished successfully on 2026-10-20 from source commit
+`5a076bc01c7fa28cc35bdec86332a9fbeaae2213` on upstream main. Build #20 was
+superseded while queued; the complete audio/background/header corrections were
+tested together in #21. This evidence-only documentation update skips CI.
+
+- Frontend: 625 tests passed, with lint and production build.
+- Rust: 400 tests passed with the locked dependency graph.
+- Native Swift/WebKit transport: 78 assertions passed.
+- Mac browsers: all eight layout/media combinations passed, including real MP4
+  playback and actual image preloading ahead of the clipped reader viewport.
+- iOS 27.1 simulator: seven tests passed, zero failures and no runtime warnings.
+  Coverage includes account failure/retry, authentication cancellation/resume,
+  English/Arabic, large text, reduced motion/transparency, photo decoding/zoom/
+  paging/reopening/safe areas, inline image recovery, native video background/
+  rotation/dismissal/reopening, navigation lifecycle and feed card separation.
+- Controlled first returned-page content: 58 ms against the unchanged 250 ms
+  limit. Reader-shell initialization measured 735 ms separately; this is not a
+  claim about live provider latency or a full cold launch.
+
+The downloaded unsigned IPA was independently checked locally against the CI
+report and checksum: version **0.8.7**, build **087.21**, bundle identifier
+`com.focusfeed.next`, arm64/iPhoneOS 27.1 SDK, iOS 16.0 minimum, 4,398,689 bytes,
+archive CRC passed, no code signatures or provisioning profiles. Fixture
+exclusion, scene lifecycle and narrowly scoped loopback transport configuration
+passed verification. SHA-256:
+
+`3c323051b5da1f96e4b5b9b480c450ea827f8a7ff5940f665ebcc7134a3baf3c`
+
+The local release and reports are retained in `.import/build-21/`; the previous
+verified 0.8.5 baseline remains in `.import/build-11/`. The current unsigned IPA
+requires the existing signing/installation process before physical-device use.
+
 ## Remaining acceptance
 
-The candidate must pass shared Rust tests, native Swift/WebKit fixtures and iOS 27 UI tests before producing a verified IPA. Native photo decoding, paging, zoom, safe-area controls, AVKit dismissal/rotation, authentication retry/cancellation/backgrounding, failed account recovery, English/Arabic, large text and reduced motion/transparency are included in the simulator gates. The controlled first-page paint limit is 250 ms after fixture content returns.
+The automated repair gates passed for the exact source commit above. Future
+functional changes must pass the same gates before replacing this verified IPA.
 
 A physical iOS 27 device and the current account are still required for the 20-minute reading/resource session and live authentication/network acceptance. A follow action must be deliberately selected by the user; the original follow complaint remains unconfirmed. No arbitrary live follow/unfollow action has been performed. New convenience features remain after the repair gates.
