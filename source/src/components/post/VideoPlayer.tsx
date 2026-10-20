@@ -824,7 +824,7 @@ export function VideoPlayer({
             !fullscreen && "max-h-[520px]",
           )}
           onLoadStart={() => setStatus("loading")}
-          onWaiting={() => setStatus("buffering")}
+          onWaiting={() => setStatus(current=>current==='error'?'error':'buffering')}
           onPlaying={() => setStatus("playing")}
           onPlay={(e) => {
             if (autoplaying.current) {
@@ -847,7 +847,9 @@ export function VideoPlayer({
           }}
           onPause={(e) => {
             releasePlayback(e.currentTarget);
-            setStatus("paused");
+            // WebKit may enqueue pause after error, especially on fullscreen
+            // dismissal. Only a new load or deliberate retry clears failure.
+            setStatus(current=>current==='error'?'error':'paused');
           }}
           onTimeUpdate={(e) => {
             setTime(Number.isFinite(e.currentTarget.currentTime) ? e.currentTarget.currentTime : 0);

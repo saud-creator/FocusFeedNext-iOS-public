@@ -14,6 +14,27 @@ Run this after Codemagic's candidate gates and IPA verification pass. Simulator 
 
 Record battery percentage and whether the device heats up, stalls, loses audio control or terminates the app. When developer tools are available, capture memory/CPU at the start, middle and end with repeated media opening/dismissal; check for a persistent upward trend after viewers close. Report the measurements rather than declaring resource use bounded from appearance alone.
 
+## Targeted 0.8.8 checks
+
+Use actual posts and profiles that previously showed the reported problems:
+
+1. Open an article with **Read full article**. Read beyond its teaser, inspect its
+   complete title, headings, paragraphs and pictures, then close and reopen it.
+   Interrupt the connection once and verify **Retry article** recovers.
+2. Refresh a post with attached media. Its provider-generated attachment link
+   should be absent; an ordinary authored website link should remain readable,
+   including in Arabic text. Preserve the author's paragraph breaks.
+3. Open a profile whose bio is visible in X. Compare its bio and counts. Use
+   **Refresh profile details** to retry an incomplete read; unknown data must not
+   become invented zero counts or a claim that the person has no bio.
+4. Replay a previously failing video and check its poster, seek and fullscreen.
+   If it fails, verify a compact recovery panel appears, tap **Retry video**, and
+   record whether the refreshed source plays or an explicit failure remains.
+   Test a lower quality only when a real alternative rendition is offered.
+
+Record the version/build for each result. Automated fixtures establish recovery
+behavior; they cannot establish the availability of every live provider asset.
+
 ## Account relationship check
 
 The originally reported follow problem remains unconfirmed. Deliberately choose a public profile and record its current relationship in X before testing. Use the app's explicit confirmation, verify the resulting server relationship in X, reopen the profile and Accounts, and restore the initial relationship if desired. Do not automatically repeat a write whose result is uncertain.

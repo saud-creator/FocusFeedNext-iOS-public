@@ -261,3 +261,20 @@ media post and confirm its attachment link is absent while authored links remain
 open a profile with a known bio; and replay one previously failing clip, including
 its deliberate Retry action. Record provider refusals separately from successful
 playback. Fixture success cannot establish that every live Twitter asset is available.
+
+
+### Build #22 correction
+
+Build #22 passed frontend checks, all 406 Mac Rust tests and 79 native Swift/WebKit
+assertions. Mac browser testing caught a late WebKit pause event replacing an error
+with paused state after fullscreen failure. Device packaging and simulator testing
+stopped. A local regression reproduced the disappearing Retry control before the
+fix; pause/waiting events now retain terminal failure until a fresh load or explicit
+retry. All 632 frontend tests and eight local browser layout/article cases pass.
+
+Inspection also found Node 26.12.0 in the runner despite its YAML Node 24 selection.
+The toolchain assertion had failed inside a shell that continued to later commands.
+Each step now sources a strict shell bootstrap, selects the exact Node 24.22.0
+executable (using its official checksum-verified Apple Silicon archive when needed),
+and fails immediately if selection or any command fails. The small Node installation
+is cached. This correction preserves all release checks and the 250 ms gate.

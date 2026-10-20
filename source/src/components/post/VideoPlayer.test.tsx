@@ -14,6 +14,14 @@ import { CONTROLS_IDLE_MS } from "@/components/media/useAutoHideControls";
 const CLIP = "https://cdn.example.com/clip.mp4";
 
 describe('registered media recovery',()=>{
+  it('keeps recovery visible when WebKit pauses a failed video',()=>{
+    renderWithProviders(<VideoPlayer media={video()}/>);
+    fireEvent.error(element());
+    expect(screen.getByRole('button',{name:'Retry video'})).toBeInTheDocument();
+    fireEvent.pause(element());
+    expect(screen.getByRole('button',{name:'Retry video'})).toBeInTheDocument();
+    expect(surface()).toHaveStyle({height:'160px'});
+  });
   it('tries one real lower rendition when a reachable best source cannot decode',async()=>{
     useAppStore.setState({prefs:{...defaultPreferences,videoQuality:'best'}});
     vi.spyOn(apiModule,'isTauri').mockReturnValue(true);

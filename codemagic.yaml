@@ -18,12 +18,14 @@ workflows:
         - $HOME/.cargo/git
         - $HOME/Library/Caches/ms-playwright
         - $HOME/Library/Caches/org.swift.swiftpm
+        - $HOME/.cache/focusfeed-node
     environment:
       xcode: 27.1
       node: '24.22.0'
     scripts:
       - name: Check Apple toolchain
         script: |
+          source source/tools/use-ci-node.sh
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
           node --version
@@ -32,6 +34,7 @@ workflows:
           test -f source/tools/test-ios-simulator.sh
       - name: Install locked dependencies
         script: |
+          source source/tools/use-ci-node.sh
           export PATH="$HOME/.cargo/bin:$PATH"
           if ! command -v rustup >/dev/null 2>&1; then
             curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs -o /tmp/rustup-init.sh
@@ -43,6 +46,7 @@ workflows:
           node tools/verify-release.mjs dist-ios/build-metadata.json
       - name: Frontend regression tests
         script: |
+          source source/tools/use-ci-node.sh
           cd source
           npm run lint
           npm run build
@@ -50,16 +54,19 @@ workflows:
         test_report: source/dist-ios/frontend-tests.xml
       - name: Shared Rust tests
         script: |
+          source source/tools/use-ci-node.sh
           export PATH="$HOME/.cargo/bin:$PATH"
           cd source
           set -o pipefail
           cargo test --manifest-path src-tauri/Cargo.toml --lib --locked 2>&1 | tee dist-ios/rust-tests.log
       - name: Native transport fixtures
         script: |
+          source source/tools/use-ci-node.sh
           cd source
           bash tools/test-ios-native.sh
       - name: Browser media and layout regression tests
         script: |
+          source source/tools/use-ci-node.sh
           cd source
           npx playwright install chromium webkit
           node tools/build-browser-fixtures.mjs
@@ -71,11 +78,13 @@ workflows:
           node tools/check-iphone-layout.mjs
       - name: iOS 27 simulator UI tests
         script: |
+          source source/tools/use-ci-node.sh
           export PATH="$HOME/.cargo/bin:$PATH"
           cd source
           bash tools/test-ios-simulator.sh
       - name: Build verified unsigned iPhone IPA
         script: |
+          source source/tools/use-ci-node.sh
           export PATH="$HOME/.cargo/bin:$PATH"
           cd source
           bash tools/build-ios-unsigned.sh "$BUILD_NUMBER"
