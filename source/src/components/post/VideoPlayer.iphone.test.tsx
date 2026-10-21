@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen } from '@testing-library/react';
+import * as apiModule from '@/lib/api';
 import { VideoPlayer } from './VideoPlayer';
 import { renderWithProviders } from '@/test/factories';
 import { defaultPreferences, useAppStore } from '@/stores/useAppStore';
@@ -17,6 +18,15 @@ afterEach(()=>{vi.unstubAllGlobals();vi.restoreAllMocks();});
 const video=()=>screen.getByTestId('video-element') as HTMLVideoElement;
 
 describe('iPhone playback recovery',()=>{
+  it('offers AVKit playback when the inline decoder fails',async()=>{
+    vi.spyOn(apiModule,'isTauri').mockReturnValue(true);
+    const present=vi.spyOn(apiModule.api,'presentIosMedia').mockImplementation(()=>new Promise(()=>{}));
+    renderWithProviders(<VideoPlayer media={clip}/>);
+    video().currentTime=3;
+    fireEvent.error(video());
+    fireEvent.click(screen.getByRole('button',{name:'Open native player'}));
+    expect(present).toHaveBeenCalledExactlyOnceWith([{url:clip.url,kind:'video',alt:undefined}],0,expect.objectContaining({position:3,playing:true}));
+  });
   it('uses native video fullscreen without moving/replacing the decoder and returns on the OS Done event',()=>{
     renderWithProviders(<VideoPlayer media={clip} />);
     const element=video();

@@ -81,8 +81,10 @@ function parseQueryMetadata(script: string) {
 }
 function flagsFor(operation: string) {
   const flags = { ...(operation === 'UserByScreenName' ? profileFeatures : features) };
-  if(operation==='TweetResultByRestId') Object.assign(flags,{articles_preview_enabled:true,responsive_web_twitter_article_tweet_consumption_enabled:true,longform_notetweets_consumption_enabled:true});
   for (const key of requiredFeatures[operation] ?? []) flags[key] = metadataFlags[key] ?? flags[key] ?? false;
+  // Reader capabilities must survive web-client experiment flags. Metadata
+  // still supplies every other required argument, including unknown switches.
+  if(operation!=='UserByScreenName') Object.assign(flags,{articles_preview_enabled:true,responsive_web_twitter_article_tweet_consumption_enabled:true,longform_notetweets_consumption_enabled:true,longform_notetweets_rich_text_read_enabled:true,longform_notetweets_inline_media_enabled:true});
   return flags;
 }
 function observeRateLimit(response: Response) {

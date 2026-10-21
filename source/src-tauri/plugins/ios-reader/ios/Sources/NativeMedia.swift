@@ -157,7 +157,7 @@ private final class NativePhotoPager: UIPageViewController, UIPageViewController
         closeLabel=locale == "ar" ? "إغلاق" : "Close"
         numberFormatter.locale=Locale(identifier:locale)
         let config=URLSessionConfiguration.ephemeral;config.urlCache=nil
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData;config.timeoutIntervalForRequest=20
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData;config.timeoutIntervalForRequest=20;config.timeoutIntervalForResource=30
         session=URLSession(configuration:config)
         super.init(transitionStyle:.scroll,navigationOrientation:.horizontal)
         cache.totalCostLimit=32*1024*1024
@@ -210,6 +210,7 @@ private final class NativePhotoPage:UIViewController,UIScrollViewDelegate {
     private var request:URLSessionDownloadTask?
     private var requestID=UUID()
     private let retry=UIButton(type:.system)
+    private let activity=UIActivityIndicatorView(style:.large)
     var zoomScale:CGFloat {scroll.zoomScale}
     init(item:NativeMediaItem,index:Int,session:URLSession,cache:NSCache<NSURL,UIImage>,retryLabel:String) {
         self.item=item;self.index=index;self.session=session;self.cache=cache;self.retryLabel=retryLabel;super.init(nibName:nil,bundle:nil)
@@ -224,6 +225,8 @@ private final class NativePhotoPage:UIViewController,UIScrollViewDelegate {
         retry.setTitle(retryLabel,for:.normal);retry.accessibilityIdentifier="native-photo-retry"
         retry.translatesAutoresizingMaskIntoConstraints=false;retry.addTarget(self,action:#selector(loadImage),for:.touchUpInside);retry.isHidden=true;view.addSubview(retry)
         NSLayoutConstraint.activate([retry.centerXAnchor.constraint(equalTo:view.safeAreaLayoutGuide.centerXAnchor),retry.centerYAnchor.constraint(equalTo:view.safeAreaLayoutGuide.centerYAnchor),retry.heightAnchor.constraint(greaterThanOrEqualToConstant:44)])
+        activity.translatesAutoresizingMaskIntoConstraints=false;activity.color = .white;activity.hidesWhenStopped=true;view.addSubview(activity)
+        NSLayoutConstraint.activate([activity.centerXAnchor.constraint(equalTo:view.safeAreaLayoutGuide.centerXAnchor),activity.centerYAnchor.constraint(equalTo:view.safeAreaLayoutGuide.centerYAnchor)])
         let tap=UITapGestureRecognizer(target:self,action:#selector(doubleTap(_:)));tap.numberOfTapsRequired=2;scroll.addGestureRecognizer(tap)
         loadImage()
     }
@@ -237,8 +240,8 @@ private final class NativePhotoPage:UIViewController,UIScrollViewDelegate {
     func viewForZooming(in scrollView:UIScrollView)->UIView? {image}
     @objc private func loadImage() {
         guard let url=URL(string:item.url) else{return}
-        if let cached=cache.object(forKey:url as NSURL) {image.image=cached;image.accessibilityIdentifier="native-photo-image";retry.isHidden=true;return}
-        request?.cancel();let id=UUID();requestID=id;retry.isHidden=true;image.accessibilityIdentifier="native-photo-loading"
+        if let cached=cache.object(forKey:url as NSURL) {image.image=cached;image.accessibilityIdentifier="native-photo-image";retry.isHidden=true;activity.stopAnimating();return}
+        request?.cancel();let id=UUID();requestID=id;retry.isHidden=true;activity.startAnimating();image.accessibilityIdentifier="native-photo-loading"
         // Download to a temporary file and downsample directly from it. A
         // large original never becomes an equally large in-memory Data value.
         request=session.downloadTask(with:url) { [weak self] file,response,error in
@@ -248,6 +251,7 @@ private final class NativePhotoPage:UIViewController,UIScrollViewDelegate {
                let source=CGImageSourceCreateWithURL(file as CFURL,nil),let cg=CGImageSourceCreateThumbnailAtIndex(source,0,[kCGImageSourceCreateThumbnailFromImageAlways:true,kCGImageSourceCreateThumbnailWithTransform:true,kCGImageSourceShouldCacheImmediately:true,kCGImageSourceThumbnailMaxPixelSize:2048] as CFDictionary) {decoded=UIImage(cgImage:cg)}
             DispatchQueue.main.async {
                 guard let self=self,self.requestID==id else{return}
+                self.activity.stopAnimating()
                 self.image.image=decoded;self.retry.isHidden=decoded != nil
                 self.image.accessibilityIdentifier=decoded == nil ? "native-photo-failed" : "native-photo-image"
                 if let decoded=decoded {self.cache.setObject(decoded,forKey:url as NSURL,cost:Int(decoded.size.width*decoded.size.height*4))}

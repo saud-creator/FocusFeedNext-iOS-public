@@ -164,11 +164,8 @@ pub fn article(raw: &Value) -> Option<ArticleDocument> {
 /// Remove only provider-identified attachment wrappers; expand ordinary URLs.
 pub fn text(raw: &Value, original: &str) -> String {
     let mut links = std::collections::HashMap::<String, String>::new();
-    for item in raw
-        .pointer("/legacy/extended_entities/media")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
+    for item in [raw.pointer("/legacy/extended_entities/media"),raw.pointer("/legacy/entities/media")]
+        .into_iter().flatten().filter_map(Value::as_array).flatten()
     {
         if let Some(url) = item["url"].as_str() {
             links.insert(url.into(), String::new());
@@ -193,7 +190,12 @@ pub fn text(raw: &Value, original: &str) -> String {
                 continue;
             };
             let expanded = item["expanded_url"].as_str().unwrap_or(short);
-            let represented = quote == Some(expanded)
+            let own_post = reqwest::Url::parse(expanded).ok().is_some_and(|url| {
+                matches!(url.host_str(),Some("x.com"|"twitter.com"|"www.x.com"|"www.twitter.com")) && url.path_segments().is_some_and(|mut parts| {
+                    let _author=parts.next(); parts.next()==Some("status") && parts.next()==raw["rest_id"].as_str() && raw["rest_id"].is_string()
+                })
+            });
+            let represented = own_post || quote == Some(expanded)
                 || (raw
                     .pointer("/article/article_results/result/title")
                     .and_then(Value::as_str)
@@ -215,9 +217,10 @@ pub fn text(raw: &Value, original: &str) -> String {
         .split_inclusive(char::is_whitespace)
         .map(|part| {
             let token = part.trim_end_matches(char::is_whitespace);
+            let bare=token.trim_matches(|c:char| matches!(c,'('|')'|'['|']'|'{'|'}'|','|'.'|'!'|'?'|';'|':'|'،'|'؛'|'؟'));
             links
-                .get(token)
-                .map(|replacement| format!("{replacement}{}", &part[token.len()..]))
+                .get(bare)
+                .map(|replacement| {let start=token.find(bare).unwrap_or(0);format!("{}{replacement}{}{}",&token[..start],&token[start+bare.len()..],&part[token.len()..])})
                 .unwrap_or_else(|| part.into())
         })
         .collect::<String>()
@@ -240,6 +243,11 @@ mod tests {
             text(&raw, "Keep https://t.co/unknown"),
             "Keep https://t.co/unknown"
         );
+    }
+    #[test]
+    fn attachment_punctuation_and_self_wrappers_do_not_leak_into_prose() {
+        let raw=json!({"rest_id":"123","legacy":{"entities":{"media":[{"url":"https://t.co/photo"}],"urls":[{"url":"https://t.co/self","expanded_url":"https://x.com/author/status/123?s=20"},{"url":"https://t.co/other","expanded_url":"https://example.com"}]}}});
+        assert_eq!(text(&raw,"Hello\n\nhttps://t.co/photo، https://t.co/self https://t.co/other"),"Hello\n\n،  https://example.com");
     }
     #[test]
     fn articles_keep_full_titles_headings_and_authored_breaks() {

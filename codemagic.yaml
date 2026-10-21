@@ -89,7 +89,7 @@ workflows:
           cd source
           bash tools/build-ios-unsigned.sh "$BUILD_NUMBER"
           version=$(node -p "require('./package.json').version")
-          python3 tools/verify-ipa.py dist-ios/FocusFeedNext-unsigned.ipa --version "$version" --output dist-ios/ipa-verification.json
+          python3 tools/verify-ipa.py dist-ios/FocusFeedNext-unsigned.ipa --version "$version" --frontend-dir dist --output dist-ios/ipa-verification.json
     artifacts:
       - source/dist-ios/*.ipa
       - source/dist-ios/*.sha256

@@ -48,7 +48,7 @@ export function PostActions({
   onCopyText: () => void;
   onAddToGroup?: () => void;
   postUrl?: string | null;
-  onCopyLink?: () => void;
+  onCopyLink?: () => void | Promise<void>;
   isBookmark?: boolean;
   onRemoveBookmark?: () => Promise<void>;
   author?: Author;
@@ -67,12 +67,19 @@ export function PostActions({
     window.setTimeout(() => setCopied(null), 1400);
   };
 
-  const copyLink = () => {
+  const [copyError,setCopyError]=useState(false);
+  const copyLink = async () => {
     if (!postUrl) return;
-    if (onCopyLink) onCopyLink();
-    else void navigator.clipboard?.writeText(postUrl);
-    setCopied("link");
-    window.setTimeout(() => setCopied(null), 1400);
+    setCopyError(false);setCopied(null);
+    try {
+      if (onCopyLink) await onCopyLink();
+      else {
+        if (!navigator.clipboard) throw new Error("Clipboard unavailable");
+        await navigator.clipboard.writeText(postUrl);
+      }
+      setCopied("link");
+      window.setTimeout(() => setCopied(null), 1400);
+    } catch {setCopyError(true);}
   };
 
   const confirmRemove = async () => {
@@ -95,7 +102,7 @@ export function PostActions({
   };
 
   return (
-    <div data-testid="post-actions" className="flex items-center gap-1 mt-2.5">
+    <div data-testid="post-actions" className="flex flex-wrap items-center gap-1 mt-2.5">
       <Tip label={read ? t("post.markUnread") : t("post.markRead")}>
         <Button
           variant="ghost"
@@ -119,6 +126,9 @@ export function PostActions({
           <Copy />
         </Button>
       </Tip>
+
+      {postUrl && <Button variant="ghost" size="sm" className="min-h-11 whitespace-normal text-start" onClick={()=>void copyLink()} aria-label={t("post.copyOriginalUrl")}><Link />{t("post.copyOriginalUrl")}</Button>}
+      {copyError && <span role="alert" className="text-xs text-bad">{t("post.copyFailed")}</span>}
 
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
@@ -177,7 +187,7 @@ export function PostActions({
 
       {isIphone && author && <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
         <DialogContent title={t('account.controls')}>
-          <p className="mb-4 text-sm" dir="auto">{author.displayName} · @{author.username}</p>
+          <p className="mb-4 text-sm" dir="auto">{author.displayName} Ã‚Â· @{author.username}</p>
           {accountOpen && <FollowButton account={author} />}
           <div className="mt-4"><CreatorSubscription username={author.username} /></div>
         </DialogContent>

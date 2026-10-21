@@ -12,7 +12,7 @@ export function ArticleReader({post,onOpenProfile}:{post:Post;onOpenProfile?: (u
   const content=useQuery({queryKey:['postContent',post.id],queryFn:()=>api.postContent(post.id),enabled:open,retry:false,staleTime:300000});
   const article=content.data?.article;
   return <section className="mt-2 rounded-lg border border-edge bg-surface-1 p-3" aria-label={t('post.article')}>
-    <div className="flex gap-2 items-start"><FileText className="size-5 shrink-0 text-accent" aria-hidden/><div className="min-w-0"><span className="text-xs text-ink-mute">{t('post.article')}</span><h3 className="font-semibold text-base leading-snug break-words" dir="auto">{article?.title??post.articleTitle??t('post.article')}</h3></div></div>
+    <div className="flex gap-2 items-start"><FileText className="size-5 shrink-0 text-accent" aria-hidden/><div className="min-w-0"><span className="text-xs text-ink-mute">{t('post.article')}</span><h3 className="font-semibold text-base leading-snug break-words" dir="auto"><button type="button" className="text-start min-h-11 w-full" aria-expanded={open} onClick={()=>setOpen(v=>!v)}>{article?.title??post.articleTitle??t('post.article')}</button></h3></div></div>
     <PostText text={content.data?.post.text??post.text} postUrl={post.url} onOpenProfile={onOpenProfile} className="mt-2"/>
     <button type="button" className="min-h-11 text-accent text-sm" aria-expanded={open} onClick={()=>setOpen(v=>!v)}>{t(open?'article.close':'article.read')}</button>
     {open && <div className="space-y-4 border-t border-edge pt-4" data-testid="article-body">

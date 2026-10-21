@@ -369,11 +369,11 @@ fn parse_author(raw: &Value) -> AppResult<Author> {
     let id = string(raw, "rest_id").or_else(|| string(legacy, "id_str")).ok_or_else(|| AppError::new(ErrorCode::ProviderUnavailable, "Profile ID was missing."))?;
     Ok(Author { id, username, display_name: string(core, "name").or_else(|| string(legacy, "name")).unwrap_or_default(),
         avatar_url: string(&raw["avatar"], "image_url").or_else(|| string(legacy, "profile_image_url_https")),
-        banner_url: string(legacy, "profile_banner_url"), verified: raw["is_blue_verified"].as_bool().unwrap_or(false) || legacy["verified"].as_bool().unwrap_or(false),
-        bio: string(&raw["profile_bio"], "description").or_else(||string(legacy,"description")), followers_count: count(&legacy["followers_count"]), following_count: count(&legacy["friends_count"]),
+        banner_url: string(legacy, "profile_banner_url"), verified: raw["is_blue_verified"].as_bool().unwrap_or(false) || legacy["verified"].as_bool().unwrap_or(false) || raw.pointer("/verification/verified").and_then(Value::as_bool).unwrap_or(false),
+        bio: string(&raw["profile_bio"], "description").filter(|s|!s.trim().is_empty()).or_else(||string(legacy,"description")).or_else(||string(&raw["profile_bio"],"description")), followers_count: count(raw.pointer("/relationship_counts/followers").unwrap_or(&legacy["followers_count"])), following_count: count(raw.pointer("/relationship_counts/following").unwrap_or(&legacy["friends_count"])),
         location: string(&raw["location"], "location").or_else(|| string(legacy, "location")),
         website: legacy.pointer("/entities/url/urls/0/expanded_url").and_then(Value::as_str).map(str::to_owned),
-        joined_at: date(&core["created_at"]).or_else(|| date(&legacy["created_at"])), posts_count: legacy["statuses_count"].as_u64() })
+        joined_at: date(&core["created_at"]).or_else(|| date(&legacy["created_at"])), posts_count: count(raw.pointer("/tweet_counts/tweets").unwrap_or(&legacy["statuses_count"])) })
 }
 fn media(raw: &Value) -> Vec<PostMedia> {
     let Some(rows) = raw.pointer("/legacy/extended_entities/media").and_then(Value::as_array) else { return Vec::new() };
@@ -446,6 +446,11 @@ mod tests {
         let raw=json!({"rest_id":"12","core":{"name":"Author","screen_name":"author"},"profile_bio":{"description":"نبذة\nSecond line"},"legacy":{"followers_count":"12,400","friends_count":0}});
         let author=parse_author(&raw).unwrap();assert_eq!(author.bio.as_deref(),Some("نبذة\nSecond line"));assert_eq!(author.followers_count,Some(12400));assert_eq!(author.following_count,Some(0));
         let minimal=parse_author(&json!({"rest_id":"12","core":{"screen_name":"author"}})).unwrap();assert!(minimal.bio.is_none());assert!(minimal.followers_count.is_none());
+    }
+    #[test] fn migrated_profiles_need_no_legacy_object_and_preserve_actual_zero() {
+        let raw=json!({"rest_id":"12","core":{"name":"Author","screen_name":"author"},"profile_bio":{"description":"Real bio"},"relationship_counts":{"followers":0,"following":"18"},"tweet_counts":{"tweets":7},"verification":{"verified":true},"legacy":{"followers_count":999}});
+        let a=parse_author(&raw).unwrap();assert_eq!(a.bio.as_deref(),Some("Real bio"));assert_eq!(a.followers_count,Some(0));assert_eq!(a.following_count,Some(18));assert_eq!(a.posts_count,Some(7));assert!(a.verified);
+        let a=parse_author(&json!({"rest_id":"12","core":{"screen_name":"author"},"profile_bio":{"description":""},"legacy":{"description":"Still available"}})).unwrap();assert_eq!(a.bio.as_deref(),Some("Still available"));
     }
     #[test] fn uncertain_write_uses_one_read_and_never_repeats_the_write() {
         let mut reads=0;

@@ -387,3 +387,46 @@ Physical-device/current-account acceptance remains pending. Use the targeted
 attachment URLs, a known profile bio and a previously failing live video. No
 follow/unfollow action was performed, and provider availability cannot be
 established for every live asset by controlled fixtures.
+
+
+## 0.8.9 follow-up candidate — 21 October 2026
+
+The user reports that the supplied failures persist in installed 0.8.8/088.27.
+Treat the live failures as unresolved by the earlier fixture-only results.
+
+This batch adds a visible, localized Copy original post URL action with truthful
+clipboard failure feedback. Provider normalization also handles media wrappers
+from entities.media, punctuation and shortened self-permalinks while preserving
+unrelated authored destinations and paragraph breaks. Article headings open the
+reader, and required reader content flags override web-client experiments after
+metadata resolution. The native fixture deliberately supplies false article
+experiments and rejects requests that fail to request article content.
+
+Profile parsing covers migrated relationship_counts, tweet_counts and
+verification without inventing absent values, plus a populated legacy bio when
+the modern bio is empty. These migrated fields are documented in the upstream
+[go-twitter parser](https://github.com/anatolykoptev/go-twitter/blob/main/parsers.go).
+
+Refused/expired video sources receive at most one automatic single-post source
+refresh, independent of one registration renewal. Deliberate retries remain
+available, including when no playable source was returned. Visible stalled
+loads settle after 20 seconds; paused/offscreen/background media do not. Inline
+failures expose AVKit directly with playhead preserved. Photo previews show
+loading feedback, settle stalled loads, and retry fresh provider data. Native
+photos show a progress indicator and impose a 30-second total resource deadline.
+
+Local checks: 638 frontend tests passed, followed by 9 targeted action/iPhone
+checks including the additional native-fallback regression (639 total cases in
+the pending complete CI suite). Lint and production build passed, with existing
+non-blocking lint warnings; 408 Rust tests passed. Eight Windows browser layouts,
+articles and preload checks passed; four Chromium cases verified real MP4
+playback/failure/retry/fullscreen. Four Windows WebKit MP4 cases remain explicitly
+unverified because that host cannot decode the fixture; all eight must pass on
+macOS. Local controlled first-content results ranged from 52 to 96 ms.
+
+The IPA verifier now checks content-hashed production renderer asset names in
+the actual Mach-O. Locally it accepted all 25 matching assets in retained build
+27 and rejected that archive against the current renderer output. This catches
+stale packaged UI even if the plist version is correct. Codemagic packaging is
+still gated by every test stage. This candidate has not yet passed macOS/iOS
+checks; one combined main push is intended to conserve runner credits.

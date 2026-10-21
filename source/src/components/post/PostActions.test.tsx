@@ -25,6 +25,17 @@ describe("PostActions", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 
+  it("exposes the original URL below a post and reports clipboard rejection", async()=>{
+    const copy=vi.fn().mockRejectedValueOnce(new Error('denied')).mockResolvedValue(undefined);
+    renderWithProviders(<PostActions read={false} onToggleRead={vi.fn()} onHide={vi.fn()} onCopyText={vi.fn()} postUrl="https://x.com/alice/status/123" onCopyLink={copy}/>);
+    await userEvent.click(screen.getByRole('button',{name:'Copy original post URL'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not copy');
+    expect(screen.queryByText('Post link copied')).toBeNull();
+    await userEvent.click(screen.getByRole('button',{name:'Copy original post URL'}));
+    expect(await screen.findByText('Post link copied')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it("requires confirmation before removing a bookmark", async () => {
     const user = userEvent.setup();
     const remove = vi.fn().mockResolvedValue(undefined);

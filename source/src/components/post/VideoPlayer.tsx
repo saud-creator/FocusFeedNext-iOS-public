@@ -110,6 +110,7 @@ export function VideoPlayer({
   const retryInFlight=useRef(false);
   const recoveredRegistration=useRef(false);
   const formatFallback=useRef(false);
+  const refreshedSource=useRef(false);
   // A GIF is always silent; ordinary video starts from whatever the reader
   // last chose in this session.
   const [muted, setMuted] = useState(isGif || sessionMuted());
@@ -394,8 +395,7 @@ export function VideoPlayer({
 
   const onError = useCallback(() => {
     const code = ref.current?.error?.code;
-    // Try the next candidate before declaring failure — but only when there
-    // genuinely is one. On live data there is exactly one source.
+    // Try only genuine variants. Provider refresh below is separately bounded.
     if (policy.videoQuality !== 'best' && sourceIndex + 1 < sources.length) {
       setStatus('idle');
       setSourceIndex((i) => i + 1);
@@ -427,17 +427,28 @@ export function VideoPlayer({
           return;
         }
         setErrorKind(classifyProxyFailure(code));
-        if(code===404 && onRecover && !recoveredRegistration.current) {
-          recoveredRegistration.current=true;
+        const expiredRegistration=code===404 && !recoveredRegistration.current;
+        const expiredSource=[403,410].includes(code) && !refreshedSource.current;
+        if((expiredRegistration || expiredSource) && onRecover) {
+          if(expiredRegistration) recoveredRegistration.current=true;
+          if(expiredSource) refreshedSource.current=true;
           if(retryInFlight.current) return;
           retryInFlight.current=true;setRetrying(true);
-          try {await onRecover(false);if(!probe.signal.aborted){setStatus('idle');setNonce(n=>n+1);}}
+          try {await onRecover(expiredSource);if(!probe.signal.aborted){setStatus('idle');setNonce(n=>n+1);}}
           finally {retryInFlight.current=false;setRetrying(false);}
         }
       })
       .catch(() => { if (!probe.signal.aborted) setErrorKind("network"); })
       .finally(() => window.clearTimeout(deadline));
   }, [sourceIndex, sources, policy.videoQuality, wake,onRecover]);
+
+  // WebKit can stall without emitting an error. Only watch active visible
+  // loading; paused/background/offscreen media must never time out.
+  useEffect(()=>{
+    if(!mounted || (!inViewport && !fullscreen) || !["loading","buffering"].includes(status)) return;
+    const timer=window.setTimeout(()=>{onError();},20000);
+    return ()=>window.clearTimeout(timer);
+  },[mounted,inViewport,fullscreen,status,time,onError]);
 
   const retry = async () => {
     if (retryInFlight.current) return;
@@ -580,8 +591,8 @@ export function VideoPlayer({
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setShowSpeed(false);
     if (isIphone && isTauri() && src) {
-      const position=ref.current?.currentTime ?? 0;
-      const playing=ref.current ? !ref.current.paused : false;
+      const position=ref.current?.currentTime ?? resumeAt.current;
+      const playing=status==='error' || (ref.current ? !ref.current.paused : false);
       ref.current?.pause();
       void presentNativeMedia([{url:src,kind:'video',alt:media.alt}],0,{position,playing,speed,muted,loopPlayback:loop}).then(result=>{
         if(!result || nativeRequestId.current!==requestId) return;
@@ -629,7 +640,7 @@ export function VideoPlayer({
       // A host can detach the frame during the transition; fullscreen itself
       // is still valid and the controls remain reachable by pointer.
     }
-  }, [isIphone, src, media.alt, speed, muted, loop, presentNativeMedia]);
+  }, [isIphone, src, media.alt, speed, muted, loop, status, presentNativeMedia]);
 
   const toggleFullscreen = useCallback(() => {
     if (fullscreen) exit();
@@ -756,6 +767,7 @@ export function VideoPlayer({
                 ? t("post.video.error.proxyUnavailable.desc")
                 : t("post.video.previewOnly.desc")}
             </p>
+            {onRecover && <button type="button" className="min-h-11 px-3 text-accent" onClick={()=>void retry()} disabled={retrying}>{t("post.video.retry")}</button>}
           </div>
         </div>
       </div>
@@ -831,6 +843,7 @@ export function VideoPlayer({
             !fullscreen && "max-h-[520px]",
           )}
           onLoadStart={() => setStatus(current=>current==='error'?'error':'loading')}
+          onStalled={()=>setStatus(current=>current==='playing' || current==='loading'?'buffering':current)}
           onWaiting={() => setStatus(current=>current==='error'?'error':'buffering')}
           onPlaying={() => setStatus(current=>current==='error'?'error':'playing')}
           onPlay={(e) => {
@@ -931,6 +944,7 @@ export function VideoPlayer({
                 <RotateCcw className="size-3.5" />
                 {t("post.video.retry")}
               </button>
+              {isIphone && isTauri() && <button type="button" className="min-h-11 text-xs text-white underline" onClick={enter}>{t("post.video.nativePlayer")}</button>}
               {sourceIndex + 1 < sources.length && <button type="button" className="min-h-11 text-xs text-white underline" onClick={() => {
                 resumeAt.current = ref.current?.currentTime ?? resumeAt.current;
                 setSourceIndex(index => index+1); setStatus('idle'); setNonce(value=>value+1);

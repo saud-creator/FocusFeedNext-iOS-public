@@ -3,6 +3,7 @@ import argparse, hashlib, json, plistlib, struct, zipfile
 from pathlib import Path
 parser = argparse.ArgumentParser()
 parser.add_argument('ipa',type=Path);parser.add_argument('--version',default=json.loads(Path(__file__).resolve().parents[1].joinpath('package.json').read_text())['version']);parser.add_argument('--output',type=Path)
+parser.add_argument('--frontend-dir',type=Path);parser.add_argument('--frontend-manifest',type=Path)
 args=parser.parse_args()
 with zipfile.ZipFile(args.ipa) as archive:
     assert archive.testzip() is None, 'Archive CRC failure'
@@ -35,6 +36,16 @@ with zipfile.ZipFile(args.ipa) as archive:
         assert size>=8 and offset+size<=len(executable), 'Malformed load command'
         commands.append(command);offset+=size
     assert 0x1d not in commands, 'Mach-O code signature present'
+    # Verify the actual archive carries this build's content-hashed renderer
+    # filenames. A correct plist version alone cannot identify stale UI assets.
+    frontend=[]
+    if args.frontend_dir:
+        frontend=sorted(str(p.relative_to(args.frontend_dir)).replace('\\','/') for p in args.frontend_dir.joinpath('assets').glob('*') if p.suffix in ('.js','.css'))
+        assert frontend, 'No production renderer assets found'
+    elif args.frontend_manifest:
+        frontend=json.loads(args.frontend_manifest.read_text(encoding='utf-8'))['frontendAssets']
+    for asset in frontend:
+        assert asset.encode() in executable, f'Current renderer asset missing from executable: {asset}'
     native_images=0
     for name in names:
         if name.endswith('/'):continue
@@ -46,6 +57,6 @@ with zipfile.ZipFile(args.ipa) as archive:
     report={'version':info['CFBundleShortVersionString'],'build':info['CFBundleVersion'],'bundleIdentifier':info['CFBundleIdentifier'],
             'platforms':info['CFBundleSupportedPlatforms'],'minimumOS':info.get('MinimumOSVersion'),'sdk':info.get('DTSDKName'),
             'architecture':'arm64','proMotionOptIn':True,'zipEntries':len(names),'nativeImagesChecked':native_images,'archiveCRC':'passed',
-            'codeSignatures':0,'provisioningProfiles':0,'bytes':args.ipa.stat().st_size,'sha256':hashlib.sha256(args.ipa.read_bytes()).hexdigest()}
+            'frontendAssets':frontend,'codeSignatures':0,'provisioningProfiles':0,'bytes':args.ipa.stat().st_size,'sha256':hashlib.sha256(args.ipa.read_bytes()).hexdigest()}
 if args.output:args.output.write_text(json.dumps(report,indent=2),encoding='utf-8')
 print(json.dumps(report,indent=2))

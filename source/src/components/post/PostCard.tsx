@@ -191,7 +191,7 @@ function PostCardImpl({
             postUrl={postUrl}
             onCopyLink={
               postUrl
-                ? () => void navigator.clipboard?.writeText(postUrl)
+                ? () => { if (!navigator.clipboard) return Promise.reject(new Error("Clipboard unavailable")); return navigator.clipboard.writeText(postUrl); }
                 : undefined
             }
             isBookmark={isBookmark}

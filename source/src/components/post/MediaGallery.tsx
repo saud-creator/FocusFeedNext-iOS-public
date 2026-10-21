@@ -49,6 +49,13 @@ function LazyFeedImage({
 }) {
   const frame = useRef<HTMLImageElement>(null);
   const [nearby, setNearby] = useState(false);
+  const [settled,setSettled]=useState(false);
+  const failure=useRef(onError);failure.current=onError;
+  useEffect(()=>{
+    if(!nearby || settled) return;
+    const timer=window.setTimeout(()=>{setSettled(true);failure.current?.();},20000);
+    return ()=>window.clearTimeout(timer);
+  },[nearby,settled]);
   const { isIphone } = usePlatform();
   const policy = useEffectivePolicy(isIphone);
 
@@ -82,8 +89,8 @@ function LazyFeedImage({
       draggable={false}
       style={style}
       data-media-lazy="true"
-      onError={onError}
-      onLoad={event=>onLoad?.(event.currentTarget.naturalWidth,event.currentTarget.naturalHeight)}
+      onError={()=>{setSettled(true);onError?.();}}
+      onLoad={event=>{setSettled(true);onLoad?.(event.currentTarget.naturalWidth,event.currentTarget.naturalHeight);}}
     />
   );
 }
@@ -107,6 +114,7 @@ function ImageTile({media, onOpen, onRecover, adaptive, single, spanFull}: {medi
     style={single || adaptive ? {aspectRatio:String(ratio),maxHeight:adaptive ? undefined : SINGLE_MAX_HEIGHT} : {height:'100%'}}
     aria-busy={status==='loading'}
     aria-label={media.alt ? t('post.media.openImageAlt',{alt:media.alt}) : t('post.media.openImage')}>
+    {status==='loading' && <span role="status" className="absolute inset-0 grid place-items-center p-3 text-xs text-ink-mute">{t('post.media.loadingImage')}</span>}
     <LazyFeedImage key={`${media.url}:${attempt}`} media={media} onLoad={(width,height)=>{if(width>0 && height>0)setIntrinsicRatio(width/height);setStatus('loaded');}} onError={()=>setStatus('failed')} style={{width:'100%',height:'100%',objectFit:'contain',visibility:status==='loaded'?'visible':'hidden'}}/>
   </button>;
 }
@@ -194,7 +202,7 @@ export function MediaGallery({
               : { gridTemplateRows: `repeat(${rows}, ${isIphone ? 'clamp(120px, 35vw, 180px)' : `${GRID_ROW_HEIGHT}px`})` }
           }
         >
-          {images.map((m, i) => <ImageTile key={`${m.url}:${i}`} media={m} single={single} adaptive={isIphone} spanFull={images.length===3 && i===0} onRecover={recover} onOpen={()=>void openImage(i)}/>)}
+          {images.map((m, i) => <ImageTile key={`${m.url}:${i}`} media={m} single={single} adaptive={isIphone} spanFull={images.length===3 && i===0} onRecover={()=>recover(true)} onOpen={()=>void openImage(i)}/>)}
         </div>
       ) : null}
 

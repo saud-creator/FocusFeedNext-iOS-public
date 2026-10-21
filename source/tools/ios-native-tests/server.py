@@ -53,10 +53,10 @@ class Handler(BaseHTTPRequestHandler):
             content = b'{}'
             if parsed.path == '/home':
                 content_type = 'text/html'
-                content = engine_home.replace('</head>', '<script src="https://abs.twimg.com/responsive-web/client-web/main.fixture.js"></script><script>var config={"fixture_new_required_enabled":{"value":true}}</script></head>').encode()
+                content = engine_home.replace('</head>', '<script src="https://abs.twimg.com/responsive-web/client-web/main.fixture.js"></script><script>var config={"fixture_new_required_enabled":{"value":true},"articles_preview_enabled":{"value":false},"responsive_web_twitter_article_tweet_consumption_enabled":{"value":false},"longform_notetweets_consumption_enabled":{"value":false}}</script></head>').encode()
             elif parsed.path.endswith('/main.fixture.js'):
                 content_type = 'application/javascript'
-                content = b'queryId:"fixture-current-latest",operationName:"HomeLatestTimeline",operationType:"query",metadata:{featureSwitches:["fixture_new_required_enabled"]};queryId:"fixture-current-bookmarks",operationName:"Bookmarks";queryId:"fixture-current-following",operationName:"Following"'
+                content = b'queryId:"fixture-current-latest",operationName:"HomeLatestTimeline",operationType:"query",metadata:{featureSwitches:["fixture_new_required_enabled","articles_preview_enabled","responsive_web_twitter_article_tweet_consumption_enabled"]};queryId:"fixture-current-bookmarks",operationName:"Bookmarks";queryId:"fixture-current-following",operationName:"Following"'
             elif parsed.path.startswith('/responsive-web/client-web/'):
                 content_type = 'application/javascript'
                 content = b'(keyBytes[0],16)(keyBytes[1],16)'
@@ -64,7 +64,7 @@ class Handler(BaseHTTPRequestHandler):
                 flags = json.loads(parse_qs(parsed.query).get('features', ['{}'])[0])
                 valid = 'auth_token=fixture-only' in self.headers.get('Cookie','') and self.headers.get('x-csrf-token') == 'fixture-rotated' and 'ct0=fixture-rotated' in self.headers.get('Cookie','') and len(self.headers.get('x-client-transaction-id','')) > 20
                 if parsed.path.endswith('/HomeLatestTimeline'):
-                    valid = valid and '/fixture-current-latest/' in parsed.path and flags.get('fixture_new_required_enabled') is True
+                    valid = valid and '/fixture-current-latest/' in parsed.path and flags.get('fixture_new_required_enabled') is True and flags.get('articles_preview_enabled') is True and flags.get('responsive_web_twitter_article_tweet_consumption_enabled') is True
                     content = Path(__file__).with_name('timeline.json').read_bytes()
                 elif parsed.path.endswith('/Bookmarks'):
                     valid = valid and '/fixture-current-bookmarks/' in parsed.path
@@ -78,7 +78,7 @@ class Handler(BaseHTTPRequestHandler):
                 elif parsed.path.endswith('/TweetResultByRestId'):
                     toggles=json.loads(parse_qs(parsed.query).get('fieldToggles',['{}'])[0])
                     variables=json.loads(parse_qs(parsed.query).get('variables',['{}'])[0])
-                    valid=valid and toggles.get('withArticleRichContentState') is True and toggles.get('withArticlePlainText') is True and variables.get('tweetId')=='123'
+                    valid=valid and toggles.get('withArticleRichContentState') is True and toggles.get('withArticlePlainText') is True and variables.get('tweetId')=='123' and flags.get('articles_preview_enabled') is True and flags.get('longform_notetweets_consumption_enabled') is True
                     content=b'{"data":{"tweetResult":{"result":{"article":{"article_results":{"result":{"title":"Fixture article","content_state":{"blocks":[{"type":"header-two","text":"Full article heading"}]}}}}}}}}'
                 if not valid: status = 401
             if parsed.path.startswith('/responsive-web/client-web/') and any(self.headers.get(h) for h in ['Cookie','authorization','x-csrf-token']): status = 403
