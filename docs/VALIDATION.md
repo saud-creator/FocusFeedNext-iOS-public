@@ -439,3 +439,40 @@ No Rust, Swift, simulator or packaging stage ran. Eight affected legacy lines
 in that test file were restored using explicit UTF-8; every edited tracked text
 file was audited against its prior Unicode content. The full local suite passed all 639 tests in 49 files before the corrective main commit. App implementation is unchanged by this
 encoding-only correction; no failing assertion was removed or relaxed.
+
+
+## Verified 0.8.9 follow-up release — build 089.29
+
+[Codemagic build #29](https://codemagic.io/app/6ad63fe0fdc2a85dad554aca/build/6ad836f5064e933257c7df7f)
+finished in 18m 14s on M2 from main commit
+`01a82db77a57d69975f5e8605b74f817620ab239`. Xcode 27.1 and pinned Node 24.22.0.
+The preceding encoding-only failed run stopped at 1m 28s, before native work.
+No additional runner use is needed for this evidence-only documentation update.
+
+- Frontend: 639/639 tests, 49 files, zero failures/errors; lint and production build
+  passed (existing non-blocking lint warnings remain).
+- Rust: 408/408. Native transport/Swift/WebKit: 79 assertions, fixture traffic only.
+- All eight Mac Chromium/WebKit cases verified real MP4 playback, quality
+  resumption, fullscreen error dismissal, actual HTTP failure/retry, articles,
+  virtualized layout and image preload. Controlled first-post render: 22.2–69.2 ms.
+- iOS 27.1 iPhone Duo simulator: 7/7 passed, zero skipped, failed or runtime-warning
+  entries. Native photo/AVKit lifecycle, Arabic/large text/rotation, article
+  reading/dismissal, accounts and sign-in recovery passed. Returned first-page
+  content: 70 ms (250 ms gate); reader shell measured separately: 179 ms.
+- IPA: version 0.8.9, build 089.29, 4,446,518 bytes, arm64, iPhoneOS 27.1 SDK,
+  iOS 16.0 minimum. CRC/scene/ATS/ProMotion and fixture-exclusion checks pass.
+  One native image checked; no code signatures or provisioning profiles.
+  All 25 current content-hashed renderer asset names occur in the device executable.
+- Independently downloaded IPA passes the verifier; its report exactly equals
+  Codemagic's report. SHA-256:
+  `9af88c689c932524cf69678d0122d5c7222dcf67d17e3c17ac3a3c6f2eb35574`.
+
+Retained IPA, checksum, independent verification, build metadata, tests, exported
+simulator screenshots and green-run proof are under ignored `.import/build-29/`.
+Earlier verified artifacts are retained. Delivery remains unsigned as requested.
+The article and native photo screenshots were visually inspected.
+
+These gates verify controlled behavior and packaging, not availability of every
+live Twitter asset. The user's actual account, known profile bios/articles,
+previously refused videos and 20-minute physical-device reading session still
+require the targeted device acceptance checks. No follow/unfollow was performed.

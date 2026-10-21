@@ -14,7 +14,7 @@ Run this after Codemagic's candidate gates and IPA verification pass. Simulator 
 
 Record battery percentage and whether the device heats up, stalls, loses audio control or terminates the app. When developer tools are available, capture memory/CPU at the start, middle and end with repeated media opening/dismissal; check for a persistent upward trend after viewers close. Report the measurements rather than declaring resource use bounded from appearance alone.
 
-## Targeted 0.8.8 checks
+## Targeted 0.8.9 checks
 
 Use actual posts and profiles that previously showed the reported problems:
 
@@ -24,6 +24,8 @@ Use actual posts and profiles that previously showed the reported problems:
 2. Refresh a post with attached media. Its provider-generated attachment link
    should be absent; an ordinary authored website link should remain readable,
    including in Arabic text. Preserve the author's paragraph breaks.
+   Use **Copy original post URL** below the card and paste it to verify the exact
+   original post; a rejected copy must show an error rather than success.
 3. Open a profile whose bio is visible in X. Compare its bio and counts. Use
    **Refresh profile details** to retry an incomplete read; unknown data must not
    become invented zero counts or a claim that the person has no bio.
@@ -31,6 +33,9 @@ Use actual posts and profiles that previously showed the reported problems:
    If it fails, verify a compact recovery panel appears, tap **Retry video**, and
    record whether the refreshed source plays or an explicit failure remains.
    Test a lower quality only when a real alternative rendition is offered.
+   On an inline failure, try **Open native player** and verify its playhead and
+   dismissal. Interrupt a transfer and confirm the compact retry state appears.
+   Repeat with photo loading/retry, native progress indication, zoom and paging.
 
 Record the version/build for each result. Automated fixtures establish recovery
 behavior; they cannot establish the availability of every live provider asset.

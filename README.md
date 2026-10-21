@@ -2,7 +2,7 @@
 
 This workspace combines the pinned main snapshot of
 [saud-creator/FocusFeedNext-iOS](https://github.com/saud-creator/FocusFeedNext-iOS)
-with its newer **0.8.5 stability source**, followed by the **verified 0.8.8 article/profile/media repair build (088.27)**. The editable application is in
+with its newer **0.8.5 stability source**, followed by the **verified 0.8.9 article/profile/media follow-up build (089.29)**. The editable application is in
 `source/`: React/TypeScript, a shared Rust/Tauri backend, and an iOS
 Swift/WebKit plugin.
 
@@ -42,7 +42,7 @@ npm ci
 npm run check
 cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
 bash tools/build-ios-unsigned.sh 1
-python3 tools/verify-ipa.py dist-ios/FocusFeedNext-unsigned.ipa --version 0.8.8 --output dist-ios/ipa-verification.json
+python3 tools/verify-ipa.py dist-ios/FocusFeedNext-unsigned.ipa --version 0.8.9 --output dist-ios/ipa-verification.json
 ```
 
 The root `bash build-ios-unsigned.sh 1` command delegates to the same source
