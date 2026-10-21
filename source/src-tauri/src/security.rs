@@ -65,6 +65,12 @@ pub fn validate_x_url(url: &str) -> Option<&str> {
 ///
 /// These can point anywhere, so the rule is only that the scheme cannot launch
 /// a local file or a custom protocol handler.
+pub fn validated_external_url(url:&str)->Option<String> {
+    if url.len()>8192 || url.chars().any(char::is_control) {return None;}
+    let parsed=reqwest::Url::parse(url.trim()).ok()?;
+    (matches!(parsed.scheme(),"https"|"http") && parsed.host_str().is_some() && parsed.username().is_empty() && parsed.password().is_none()).then(||parsed.to_string())
+}
+
 pub fn is_safe_external_url(url: &str) -> bool {
     let t = url.trim();
     if t.chars().any(|c| c.is_control()) {
@@ -717,5 +723,14 @@ mod tests {
         let out = sanitize(s);
         assert!(out.contains("已安装但未认证"));
         assert!(!out.contains("秘密值"), "{out}");
+    }
+}
+
+#[cfg(test)]
+mod web_destination_tests {
+    use super::*;
+    #[test] fn external_destinations_are_urls_not_commands_or_executable_schemes() {
+        assert_eq!(validated_external_url("https://example.com/story?q=1").as_deref(),Some("https://example.com/story?q=1"));
+        for value in ["javascript:alert(1)","file:///tmp/a","https://user:pass@example.com","https://example.com\nignored","https://","data:text/html,a"] {assert!(validated_external_url(value).is_none(),"{value}");}
     }
 }

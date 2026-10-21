@@ -481,6 +481,16 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
     @objc func connectionMetrics(_ invoke: Invoke) {
         DispatchQueue.main.async { invoke.resolve(["samples": self.connectionTimings]) }
     }
+    @objc func openExternal(_ invoke: Invoke) throws {
+        struct Args:Decodable {let url:String}
+        let args=try invoke.parseArgs(Args.self)
+        guard args.url.utf8.count<=8192,let url=URL(string:args.url),["https","http"].contains(url.scheme?.lowercased() ?? ""),url.host != nil,url.user == nil,url.password == nil else {rejectNative(invoke,"Unsupported link.");return}
+        DispatchQueue.main.async {
+            UIApplication.shared.open(url,options:[:]) {opened in
+                if opened {invoke.resolve()} else {rejectNative(invoke,"The link could not open.")}
+            }
+        }
+    }
     @objc func openProfile(_ invoke: Invoke) throws {
         let args = try invoke.parseArgs(ProfileArgs.self)
         guard !args.username.isEmpty, args.username.count <= 15, args.username.utf8.allSatisfy({ ($0 >= 65 && $0 <= 90) || ($0 >= 97 && $0 <= 122) || ($0 >= 48 && $0 <= 57) || $0 == 95 }), let url = URL(string: "https://x.com/\(args.username)") else { rejectNative(invoke,"Unsupported request."); return }
@@ -665,7 +675,7 @@ class IosReaderPlugin: Plugin, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieS
     }
     @objc func request(_ invoke: Invoke) throws {
         let args = try invoke.parseArgs(RequestArgs.self)
-        let allowed = ["Me", "TweetResultByRestId", "HomeTimeline", "HomeLatestTimeline", "Bookmarks", "UserByScreenName", "UserTweets", "Following", "ListLatestTweetsTimeline", "DeleteBookmark", "Follow", "Unfollow"]
+        let allowed = ["Me", "TweetDetail", "TweetResultByRestId", "HomeTimeline", "HomeLatestTimeline", "Bookmarks", "UserByScreenName", "UserTweets", "Following", "ListLatestTweetsTimeline", "DeleteBookmark", "Follow", "Unfollow"]
         guard allowed.contains(args.operation), args.authToken.count <= 512, args.ct0.count <= 512 else { rejectNative(invoke, "Unsupported request."); return }
         DispatchQueue.main.async {
             // A health/feed request from the previous session must not replace

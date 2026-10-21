@@ -88,6 +88,9 @@ impl ProviderCapabilities {
 /// 0.5.0: `search_posts` and `search_posts_tab` went with the Search page, so
 /// the one free-text path into X no longer exists anywhere in the app.
 pub trait XDataProvider: Send + Sync {
+    fn get_post_replies(&self,_id:&str,_cursor:Option<String>)->AppResult<FeedPage> {
+        Err(AppError::new(ErrorCode::ProviderUnavailable,"Comments are unavailable from this provider."))
+    }
     fn get_post_content(&self,_id:&str)->AppResult<PostContent> {
         Err(AppError::new(ErrorCode::ProviderUnavailable,"Full post content is unavailable from this provider."))
     }

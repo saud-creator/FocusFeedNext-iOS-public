@@ -163,6 +163,14 @@ fn response_body_inner(result: Value) -> AppResult<Value> {
     Ok(body)
 }
 impl XDataProvider for NativeIosProvider {
+    fn get_post_replies(&self,id:&str,cursor:Option<String>)->AppResult<FeedPage> {
+        let id=crate::security::clean_numeric_id(id).ok_or_else(||AppError::new(ErrorCode::BlockedOperation,"Invalid post ID."))?;
+        let _budget=ReadBudgetGuard::new();
+        let first=cursor.is_none();
+        let mut vars=json!({"focalTweetId":id,"count":20,"referrer":"tweet","with_rux_injections":false,"includePromotedContent":false,"rankingMode":"Relevance","withCommunity":true,"withQuickPromoteEligibilityTweetFields":true,"withBirdwatchNotes":true,"withVoice":true});
+        if let Some(cursor)=cursor {vars["cursor"]=cursor.into();}
+        parse_replies(&self.request("TweetDetail",vars)?,&id,first)
+    }
     fn get_post_content(&self,id:&str)->AppResult<PostContent> {
         if id.is_empty() || id.len()>32 || !id.bytes().all(|b|b.is_ascii_digit()) {return Err(AppError::new(ErrorCode::BlockedOperation,"Invalid post ID."));}
         let _budget=ReadBudgetGuard::new();
@@ -439,6 +447,29 @@ fn parse_page(data: &Value) -> AppResult<FeedPage> {
     Ok(FeedPage { posts, cursor, fetched_at: chrono::Utc::now().to_rfc3339(), provider: "ios-direct".into(), from_cache: false })
 }
 
+/// Conversation cursors belong to the outer timeline, never a nested reply module.
+fn parse_replies(data:&Value,id:&str,first:bool)->AppResult<FeedPage> {
+    let instructions=data.pointer("/data/threaded_conversation_with_injections_v2/instructions")
+        .or_else(||data.pointer("/data/threaded_conversation_with_injections/instructions"))
+        .or_else(||data.pointer("/data/tweetResult/result/timeline/instructions"))
+        .filter(|v|v.is_array()).ok_or_else(||AppError::new(ErrorCode::SchemaChanged,"Comments could not be read. Try again later."))?;
+    let mut page=parse_page(&json!({"instructions":instructions}))?;
+    let focal=data.pointer("/data/tweetResult/result").and_then(|v|parse_post(v,false)).is_some_and(|p|p.id==id);
+    if first && !focal && !page.posts.iter().any(|post|post.id==id) {return Err(AppError::new(ErrorCode::ProviderUnavailable,"The original post is unavailable. Comments could not be loaded."));}
+    page.posts.retain(|post|post.in_reply_to.as_deref()==Some(id) && !post.is_promoted && !post.is_repost);
+    page.posts.truncate(20);
+    page.cursor=None;
+    for instruction in instructions.as_array().unwrap() {
+        for entry in instruction["entries"].as_array().into_iter().flatten().chain(instruction.get("entry")) {
+            let content=&entry["content"];
+            if matches!(content["cursorType"].as_str(),Some("Bottom"|"ShowMoreThreads")) {
+                page.cursor=content["value"].as_str().filter(|s|!s.is_empty() && s.len()<=4096).map(str::to_owned);
+            }
+        }
+    }
+    Ok(page)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -534,5 +565,31 @@ mod tests {
         let data=json!({"data":{"home":{"instructions":[{"entries":[{"content":{"itemContent":{"tweet_results":{"result":tweet}}}},{"content":{"cursorType":"Bottom","value":"next"}}]}]}}});
         let page=parse_page(&data).unwrap(); assert_eq!(page.posts.len(),1); assert_eq!(page.cursor.as_deref(),Some("next"));
         assert_eq!(page.posts[0].text,"hello & مرحبا"); assert_eq!(page.posts[0].media[0].variants.len(),2); assert_eq!(page.posts[0].media[0].variants[0].label,"720p");
+    }
+}
+
+#[cfg(test)]
+mod conversation_tests {
+    use super::*;
+    fn row(id:&str,parent:Option<&str>)->Value {
+        json!({"itemContent":{"tweet_results":{"result":{"rest_id":id,"legacy":{"full_text":format!("Post {id}"),"created_at":"Fri Oct 09 12:00:00 +0000 2026","in_reply_to_status_id_str":parent},"core":{"user_results":{"result":{"rest_id":"42","core":{"screen_name":"reader","name":"Reader"}}}}}}}})
+    }
+    #[test] fn comments_exclude_ancestors_recommendations_duplicates_and_nested_cursors() {
+        let rows=json!({"data":{"threaded_conversation_with_injections_v2":{"instructions":[{"entries":[
+            {"content":row("123",None)},
+            {"content":{"items":[{"item":row("124",Some("123"))},{"item":row("124",Some("123"))},{"item":row("125",Some("124"))},{"item":row("999",None)},{"cursorType":"Bottom","value":"nested-do-not-follow"}]}},
+            {"content":{"cursorType":"Bottom","value":"outer-page"}}
+        ]}]}}});
+        let page=parse_replies(&rows,"123",true).unwrap();assert_eq!(page.posts.len(),1);assert_eq!(page.posts[0].id,"124");assert_eq!(page.cursor.as_deref(),Some("outer-page"));
+        let mut focal=row("123",None)["itemContent"]["tweet_results"]["result"].clone();
+        focal["timeline"]=json!({"instructions":[{"entries":[{"content":row("124",Some("123"))}]}]});
+        let alternate=json!({"data":{"tweetResult":{"result":focal}}});
+        assert_eq!(parse_replies(&alternate,"123",true).unwrap().posts[0].id,"124");
+    }
+    #[test] fn missing_or_deleted_original_is_not_a_successful_empty_first_page() {
+        assert!(parse_replies(&json!({}),"123",true).is_err());
+        let empty=json!({"data":{"threaded_conversation_with_injections":{"instructions":[{"entries":[]}]}}});
+        assert!(parse_replies(&empty,"123",true).is_err());
+        assert!(parse_replies(&empty,"123",false).unwrap().posts.is_empty());
     }
 }

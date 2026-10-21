@@ -14,6 +14,17 @@ import { CONTROLS_IDLE_MS } from "@/components/media/useAutoHideControls";
 const CLIP = "https://cdn.example.com/clip.mp4";
 
 describe('registered media recovery',()=>{
+  it('retries registered bytes even if the optional fresh-post request fails',async()=>{
+    const recover=vi.fn().mockRejectedValue(new Error('provider busy'));
+    renderWithProviders(<VideoPlayer media={video()} onRecover={recover}/>);
+    const failed=element();fireEvent.error(failed);
+    await userEvent.click(screen.getByRole('button',{name:'Retry video'}));
+    await waitFor(()=>expect(element()).not.toBe(failed));
+    fireEvent.loadedMetadata(element());
+    expect(screen.getByRole('button',{name:'Play'})).toBeEnabled();
+    expect(recover).toHaveBeenCalledExactlyOnceWith(true);
+  });
+
   it('refreshes a refused source once without replaying an account write',async()=>{
     vi.spyOn(apiModule,'isTauri').mockReturnValue(true);
     const probe=vi.spyOn(apiModule.api,'probeMedia').mockResolvedValue(403);

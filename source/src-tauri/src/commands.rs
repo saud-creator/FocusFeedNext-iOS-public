@@ -1680,6 +1680,49 @@ pub fn get_post(state: Sh<'_>, id: String) -> Result<Option<Post>, AppError> {
     Ok(found)
 }
 
+fn validate_bookmark_comments(db:&Db,id:&str,cursor:Option<&str>)->AppResult<String> {
+    let id=security::clean_numeric_id(id).ok_or_else(||AppError::new(ErrorCode::BlockedOperation,"Invalid post ID."))?;
+    if cursor.is_some_and(|s|s.is_empty() || s.len()>4096 || s.chars().any(char::is_control)) {return Err(AppError::new(ErrorCode::BlockedOperation,"Invalid comments cursor."));}
+    if db.bookmark_position(&id)?.is_none() {return Err(AppError::new(ErrorCode::BlockedOperation,"Open comments from a loaded bookmark."));}
+    Ok(id)
+}
+
+/// Comments are an on-demand read belonging to a currently loaded X bookmark.
+#[tauri::command]
+pub async fn get_bookmark_replies(state:Sh<'_>,id:String,cursor:Option<String>)->Result<FeedPage,AppError> {
+    state.guard()?;
+    let id=validate_bookmark_comments(&state.db,&id,cursor.as_deref())?;
+    let _foreground=state.inner().foreground_request();let epoch=state.account_epoch();let st=state.inner().clone();
+    let mut page=tauri::async_runtime::spawn_blocking(move || {
+        st.ensure_account_epoch(epoch)?;
+        let page=st.background_provider()?.get_post_replies(&id,cursor)?;
+        st.ensure_account_epoch(epoch)?;
+        Ok::<_,AppError>(page)
+    }).await.map_err(|_|AppError::new(ErrorCode::ProviderUnavailable,"Comments loading ended."))??;
+    let _commit=state.account_commit.lock().unwrap();state.ensure_account_epoch(epoch)?;
+    state.proxy_page(&mut page);Ok(page)
+}
+
+#[tauri::command]
+pub async fn open_external_url(url:String)->Result<(),AppError> {
+    let url=security::validated_external_url(&url).ok_or_else(||AppError::new(ErrorCode::BlockedOperation,"Unsupported web link."))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(target_os="ios")]
+        {return crate::providers::native_ios::native_call::<serde_json::Value>("openExternal",serde_json::json!({"url":url})).map(|_|());}
+        #[cfg(not(target_os="ios"))]
+        {
+            use std::process::Command;
+            #[cfg(target_os="windows")]
+            let mut command={use std::os::windows::process::CommandExt;let mut c=Command::new("rundll32.exe");c.arg("url.dll,FileProtocolHandler");c.creation_flags(0x08000000);c};
+            #[cfg(target_os="macos")]
+            let mut command={let mut c=Command::new("/usr/bin/open");c.arg("--");c};
+            #[cfg(not(any(target_os="windows",target_os="macos")))]
+            let mut command=Command::new("xdg-open");
+            command.arg(url).spawn().map(|_|()).map_err(|_|AppError::new(ErrorCode::ProviderUnavailable,"The web link could not open."))
+        }
+    }).await.map_err(|_|AppError::new(ErrorCode::ProviderUnavailable,"The web link could not open."))?
+}
+
 /// Fetch one explicitly opened article or manually retried clip; never traverse a feed.
 #[tauri::command]
 pub async fn refresh_post_content(state:Sh<'_>,id:String)->Result<crate::models::PostContent,AppError> {
@@ -4908,4 +4951,19 @@ pub async fn share_connection_report() -> Result<(),AppError> {
     tauri::async_runtime::spawn_blocking(|| crate::providers::native_ios::native_call::<serde_json::Value>("shareConnectionReport",serde_json::json!({})))
         .await.map_err(|_|AppError::new(ErrorCode::ProviderUnavailable,"The report could not be shared."))??;
     Ok(())
+}
+
+#[cfg(test)]
+mod bookmark_comment_access_tests {
+    use super::*;
+    #[test] fn only_loaded_bookmarks_accept_bounded_comment_reads() {
+        let db=Db::in_memory().unwrap();
+        assert!(validate_bookmark_comments(&db,"123",None).is_err());
+        db.record_bookmark_order(&["123".into()]).unwrap();
+        assert_eq!(validate_bookmark_comments(&db,"123",Some("cursor-a")).unwrap(),"123");
+        assert!(validate_bookmark_comments(&db,"123",Some("")).is_err());
+        assert!(validate_bookmark_comments(&db,"123",Some("a\nb")).is_err());
+        assert!(validate_bookmark_comments(&db,"123",Some(&"a".repeat(4097))).is_err());
+        assert!(validate_bookmark_comments(&db,"not-a-post",None).is_err());
+    }
 }

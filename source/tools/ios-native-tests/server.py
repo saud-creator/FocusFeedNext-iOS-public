@@ -75,6 +75,10 @@ class Handler(BaseHTTPRequestHandler):
                 elif parsed.path.endswith('/UserByScreenName'):
                     valid = valid and flags.get('subscriptions_verification_info_verified_since_enabled') is True
                     content = b'{"data":{"user":{"result":{"rest_id":"42","core":{"screen_name":"fixture","name":"Fixture"},"legacy":{"following":true}}}}}'
+                elif parsed.path.endswith('/TweetDetail'):
+                    variables=json.loads(parse_qs(parsed.query).get('variables',['{}'])[0])
+                    valid=valid and variables.get('focalTweetId')=='123' and variables.get('cursor')=='comments-page-2'
+                    content=b'{"data":{"threaded_conversation_with_injections_v2":{"instructions":[{"fixture":"Fixture comment"}]}}}'
                 elif parsed.path.endswith('/TweetResultByRestId'):
                     toggles=json.loads(parse_qs(parsed.query).get('fieldToggles',['{}'])[0])
                     variables=json.loads(parse_qs(parsed.query).get('variables',['{}'])[0])

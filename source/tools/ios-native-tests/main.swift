@@ -232,6 +232,8 @@ func engineRequest(_ operation:String,_ variables:[String:Any],_ id:String)->[St
 }
 let profile=engineRequest("UserByScreenName",["screen_name":"fixture"],"2")
 check(profile["status"] as? Int == 200,"profile request carries operation-specific features")
+let comments=engineRequest("TweetDetail",["focalTweetId":"123","count":20,"cursor":"comments-page-2"],"60")
+check(comments["status"] as? Int == 200 && String(describing:comments["body"]!).contains("Fixture comment"),"comments use the bounded native conversation operation and cursor")
 let article=engineRequest("TweetResultByRestId",["tweetId":"123"],"3")
 check(article["status"] as? Int == 200 && String(describing:article["body"]!).contains("Full article heading"),"article reads request full content through bounded native HTTP")
 let timeline = engineRequest("HomeLatestTimeline",["count":30],"4")

@@ -488,6 +488,8 @@ export const api = {
   // interface opens a browser, so the backend no longer exposes a command that
   // could — see the note above `get_data_dir` in commands.rs.
   post: (id: string) => invoke<Post | null>("get_post", { id }),
+  bookmarkReplies: (id:string,cursor:string|null)=>invoke<{posts:Post[];cursor:string|null}>("get_bookmark_replies",{id,cursor}),
+  openExternal: (url:string)=>invoke<void>("open_external_url",{url}),
   postContent: (id:string) => invoke<PostContent>("refresh_post_content",{id}),
   probeMedia: (url:string) => invoke<number>("probe_media",{url}),
   /**

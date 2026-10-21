@@ -68,6 +68,8 @@ export function Lightbox({
   const [current, setCurrent] = useState(index);
   const [zoom, setZoom] = useState(MIN_ZOOM);
   const [offset, setOffset] = useState<Offset>(NO_OFFSET);
+  const touch=useRef<{x:number;y:number;offset:Offset}|null>(null);
+  const [dismissY,setDismissY]=useState(0);
   const [dragging, setDragging] = useState(false);
   /** The image's own pixel size, once it has actually loaded. */
   const [loadedSize, setLoadedSize] = useState<Size | null>(null);
@@ -341,8 +343,25 @@ export function Lightbox({
         data-testid="lightbox-stage"
         className="absolute inset-0 grid place-items-center overflow-hidden select-none"
         style={{
+          touchAction:"none", transform:`translateY(${dismissY}px)`,
           cursor: dragging ? "grabbing" : pannable ? "grab" : "zoom-in",
         }}
+        onTouchStart={e=>{touch.current=e.touches.length===1?{x:e.touches[0].clientX,y:e.touches[0].clientY,offset}:null;}}
+        onTouchMove={e=>{
+          const start=touch.current;
+          if(!start || e.touches.length!==1){touch.current=null;setDismissY(0);return;}
+          const dx=e.touches[0].clientX-start.x,dy=e.touches[0].clientY-start.y;
+          if(zoom>MIN_ZOOM+0.01)setOffset(clampPan({x:start.offset.x+dx,y:start.offset.y+dy},natural,viewport,zoom));
+          else if(dy>0 && dy>Math.abs(dx)*1.2)setDismissY(dy);
+        }}
+        onTouchEnd={e=>{
+          const start=touch.current;touch.current=null;setDismissY(0);
+          if(!start || !e.changedTouches[0] || zoom>MIN_ZOOM+0.01)return;
+          const dx=e.changedTouches[0].clientX-start.x,dy=e.changedTouches[0].clientY-start.y;
+          if(dy>80 && dy>Math.abs(dx)*1.2)onClose();
+          else if(Math.abs(dx)>70 && Math.abs(dx)>Math.abs(dy)*1.2)go(dx<0?1:-1);
+        }}
+        onTouchCancel={()=>{touch.current=null;setDismissY(0);}}
         onMouseDown={onStageMouseDown}
         onClick={onStageClick}
         onDoubleClick={() =>

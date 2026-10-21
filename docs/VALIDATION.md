@@ -476,3 +476,48 @@ These gates verify controlled behavior and packaging, not availability of every
 live Twitter asset. The user's actual account, known profile bios/articles,
 previously refused videos and 20-minute physical-device reading session still
 require the targeted device acceptance checks. No follow/unfollow was performed.
+
+
+## 0.9.0 candidate — links, bookmark comments and photo dismissal
+
+All requested changes are batched before a main push. Ordinary HTTP(S) links in
+post text now open the default browser, using a validated native command on iOS
+and an argument-based OS opener on desktop. Sentence punctuation stays outside
+links; executable schemes and embedded credentials are refused. Link-open
+failure is shown, while self/attachment URL cleanup and original-post copying
+remain available.
+
+Only bookmark cards expose View comments. The first page is requested on demand,
+with 20 direct comments per page and at most five retained pages. Partial results
+survive failures, repeated cursors stop, and the original post can be opened for
+more. Replies include their media, quoted posts and articles. Native TweetDetail
+transport uses the existing account generation/deadline/metadata pipeline;
+backend access requires a currently loaded bookmark. Reply data never enters
+ordinary feed membership or persistent storage. The desktop CLI adapter reports
+comments unavailable rather than inventing a supported operation. Response and
+cursor shapes follow the primary upstream
+[twitter-cli client](https://github.com/public-clis/twitter-cli/blob/main/twitter_cli/client.py).
+
+Photo swipe-down dismissal is recognized together with the native image scroll
+gesture at fit scale; zoomed panning and horizontal paging remain separate. The
+web fallback supports downward dismissal and fitted horizontal paging. The
+simulator photo test now performs an actual swipe-down after reopening. A new
+simulator case covers comment failure/retry/pagination, a clickable URL and
+comment controls disappearing outside Saved. Swift fixtures cover TweetDetail.
+
+Video retry now attempts the registered stream even when optional fresh-post
+metadata fails. A refused rendition can fall back once to a real alternative;
+folded numeric playback diagnostics expose no URLs or credentials. Compact
+failure controls remain scrollable at large text sizes. The user's latest
+answer did not supply an error or affected post URL, so the specific remaining
+live video failure has not been reproduced; this release fixes the concrete
+retry defect and tests controlled failures.
+
+Local validation: 648 frontend tests, 412 Rust tests, lint and production build
+passed; final affected media/comment suites passed 63 checks. Eight Windows
+browser layouts/articles/recovery/preload cases passed, including four real MP4
+Chromium cases. Windows WebKit MP4 remains explicitly unverified; the Mac gate
+must verify all eight. Controlled local first-post rendering: 42.9–145 ms.
+An accidental dependency-version replacement was caught by the local locked
+Cargo check and corrected before commit; no dependency was upgraded. A Unicode
+audit found no unintended re-encoding. macOS/iOS gates are pending.

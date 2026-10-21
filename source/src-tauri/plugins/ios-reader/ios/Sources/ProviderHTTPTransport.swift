@@ -15,7 +15,7 @@ final class ProviderHTTPBridge: NSObject, WKScriptMessageHandlerWithReply {
 /// A single bounded HTTP request. Cookies and authentication stay native, and
 /// downloaded HTML/JS are returned as text data, never executed by this class.
 final class ProviderHTTPTransport: NSObject, URLSessionDataDelegate {
-    static let operations = ["Me", "TweetResultByRestId", "HomeTimeline", "HomeLatestTimeline", "Bookmarks", "UserByScreenName", "UserTweets", "Following", "ListLatestTweetsTimeline", "DeleteBookmark", "Follow", "Unfollow"]
+    static let operations = ["Me", "TweetDetail", "TweetResultByRestId", "HomeTimeline", "HomeLatestTimeline", "Bookmarks", "UserByScreenName", "UserTweets", "Following", "ListLatestTweetsTimeline", "DeleteBookmark", "Follow", "Unfollow"]
     static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
     static func permits(_ url: URL, method: String, operation: String) -> Bool {
         guard operations.contains(operation), url.scheme == "https", url.port == nil || url.port == 443,

@@ -1,6 +1,10 @@
 import { useMemo, useState } from "react";
 import { cn, isRtlText } from "@/lib/utils";
 
+import {api,isTauri} from "@/lib/api";
+import {useI18n} from "@/i18n";
+import {externalUrl,trimUrlPunctuation} from "@/lib/externalUrl";
+
 const URL_RE = /(https?:\/\/[^\s]+)/g;
 const MENTION_RE = /(^|\s)(@[A-Za-z0-9_]{1,20})/g;
 const TAG_RE = /(^|\s)(#[\p{L}0-9_]+)/gu;
@@ -38,9 +42,9 @@ export function tokenize(text: string): Segment[] {
   for (const m of text.matchAll(URL_RE)) {
     marks.push({
       start: m.index!,
-      end: m.index! + m[0].length,
+      end: m.index! + trimUrlPunctuation(m[0]).length,
       kind: "url",
-      value: m[0],
+      value: trimUrlPunctuation(m[0]),
     });
   }
   for (const m of text.matchAll(MENTION_RE)) {
@@ -95,6 +99,8 @@ export function PostText({
   postUrl?: string | null;
   className?: string;
 }) {
+  const {t}=useI18n();
+  const [linkError,setLinkError]=useState(false);
   const [expanded, setExpanded] = useState(false);
   const rtl = useMemo(() => isRtlText(text), [text]);
   const isLong = collapsible && text.length > COLLAPSE_AT;
@@ -136,19 +142,20 @@ export function PostText({
       >
         {segments.map((seg, i) => {
           if (seg.kind === "url") {
-            // Shown, not clickable. Nothing in this app opens a browser any
-            // more, and a link that looks like a link and does nothing is
-            // worse than plain text. It is still tokenised so the address
-            // stays visible and selectable — the reader can copy it if they
-            // genuinely want to leave.
+            const url=externalUrl(seg.value);
+            if(!url) return <span key={i}>{seg.value}</span>;
             return (
-              <span
+              <a href={url} target="_blank" rel="noopener noreferrer" onClick={event=>{
+                if(!isTauri())return;
+                event.preventDefault();setLinkError(false);
+                void api.openExternal(url).catch(()=>setLinkError(true));
+              }}
                 key={i}
                 dir="ltr" style={{unicodeBidi:"isolate"}}
                 className="text-ink-dim break-all underline decoration-edge-strong decoration-dotted underline-offset-2"
               >
                 {seg.value.replace(/^https?:\/\//, "")}
-              </span>
+              </a>
             );
           }
           if (seg.kind === "mention") {
@@ -174,6 +181,7 @@ export function PostText({
         })}
       </p>
 
+      {linkError && <p role="alert" className="text-xs text-bad">{t("post.linkFailed")}</p>}
       {isLong ? (
         <button
           type="button"

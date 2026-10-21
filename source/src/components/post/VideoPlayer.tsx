@@ -105,6 +105,7 @@ export function VideoPlayer({
     resolveQualityIndex(qualities, policy.videoQuality),
   );
   const [status, setStatus] = useState<Status>("idle");
+  const [failureDetail,setFailureDetail]=useState<{media:number|null;http:number|null}>({media:null,http:null});
   const [errorKind, setErrorKind] = useState<VideoErrorKind>("unknown");
   const [retrying,setRetrying]=useState(false);
   const retryInFlight=useRef(false);
@@ -401,6 +402,7 @@ export function VideoPlayer({
       setSourceIndex((i) => i + 1);
       return;
     }
+    setFailureDetail({media:code??null,http:null});
     const fallback = classifyMediaError(code);
     resumePlaying.current=false;
     setErrorKind(fallback);
@@ -419,12 +421,17 @@ export function VideoPlayer({
     void (isTauri()?api.probeMedia(url):fetch(url, { method: "HEAD", signal:probe.signal }).then(res=>res.status))
       .then(async code => {
         if(probe.signal.aborted) return;
+        setFailureDetail(detail=>({...detail,http:code}));
         if(code>=200 && code<300) {
           if((ref.current?.error?.code===3 || ref.current?.error?.code===4) && sourceIndex+1<sources.length && !formatFallback.current) {
             formatFallback.current=true;resumeAt.current=ref.current?.currentTime??resumeAt.current;
             setSourceIndex(index=>index+1);setStatus('idle');
           }
           return;
+        }
+        if([403,416,500,502,503,504].includes(code) && sourceIndex+1<sources.length && !formatFallback.current) {
+          formatFallback.current=true;resumeAt.current=ref.current?.currentTime??resumeAt.current;
+          setSourceIndex(index=>index+1);setStatus('idle');return;
         }
         setErrorKind(classifyProxyFailure(code));
         const expiredRegistration=code===404 && !recoveredRegistration.current;
@@ -456,7 +463,10 @@ export function VideoPlayer({
     autoplayRequested.current = false;
     errorProbe.current?.abort();
     try {
-      if(onRecover) await onRecover(true);
+      if(onRecover) {
+        try {await onRecover(true);}
+        catch(error) {if(!src)throw error;}
+      }
       setSourceIndex(resolveQualityIndex(qualities, policy.videoQuality));
       setErrorKind("unknown");setStatus("idle");setNonce(n=>n+1);
     } catch {setStatus('error');setErrorKind('network');}
@@ -927,13 +937,14 @@ export function VideoPlayer({
 
       {status === "error" ? (
         <div
-          className="absolute inset-0 grid place-items-center bg-black/75 text-center px-6"
+          className="absolute inset-0 flex flex-col overflow-y-auto bg-black/75 text-center px-6 py-2"
           onClick={(e) => e.stopPropagation()}
         >
-          <div>
+          <div className="my-auto shrink-0">
             <p className="text-white/90 text-sm">
               {t(videoErrorKey(errorKind))}
             </p>
+            <details className="mt-1 text-xs text-white/60"><summary className="cursor-pointer">{t('post.video.details')}</summary><p>{t('post.video.detailCodes',{media:failureDetail.media??'—',http:failureDetail.http??'—'})}</p></details>
             <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-0">
               <button
                 type="button"

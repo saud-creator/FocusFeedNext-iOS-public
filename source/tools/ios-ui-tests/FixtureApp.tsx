@@ -84,6 +84,7 @@ function FixtureReader({bootstrapAt}:{bootstrapAt:number}) {
   const photos={...base,media:[{kind:'image' as const,url:fixture.image,width:128,height:128,alt:'Fixture photograph',variants:[]},{kind:'image' as const,url:fixture.image,width:128,height:128,alt:'Second fixture photograph',variants:[]}]};
   const video={...base,id:'fixture-video',text:'Native video playback',media:[{kind:'video' as const,url:fixture.video,width:320,height:284,alt:'Fixture video',variants:[]}]};
   const failed={...base,id:'fixture-failed',text:'Recoverable image failure',media:[{kind:'image' as const,url:fixture.failedImage,width:1600,height:1200,alt:'Failed fixture',variants:[]}]};
+  if(fixture.scenario==='comments')return [{...base,id:'12345',text:'Bookmark comment fixture. https://example.com/story'},...Array.from({length:19},(_,i)=>({...base,id:`comment-fixture-${i}`,text:`Other saved post ${i+1}`}))];
   return [...(fixture.scenario==='video'?[video,photos,failed]:[photos,failed,video]),fixtureArticle,...Array.from({length:16},(_,i)=>({...base,id:`fixture-text-${i}`,text:`First page post ${i+5}\n\nA separate authored paragraph.`}))];
   },[fixture]);
   return <main className="overflow-y-auto" style={{height:'calc(100dvh - var(--reader-bottom-inset,0px))'}}>
@@ -91,7 +92,7 @@ function FixtureReader({bootstrapAt}:{bootstrapAt:number}) {
     <p role="status">{paint}</p>
     {delivery && <p>Fixture page ready</p>}
     {delivery && <p>{geometry}</p>}
-    {welcome ? <p>Fixture welcome without reader navigation</p> : !delivery ? <p role="status">Waiting for the first page</p> : route==='accounts' ? <FollowingManagerPage/> : <div className="p-3"><FeedList posts={firstPage} readIds={unreadFixturePosts}/></div>}
+    {welcome ? <p>Fixture welcome without reader navigation</p> : !delivery ? <p role="status">Waiting for the first page</p> : route==='accounts' ? <FollowingManagerPage/> : <div className="p-3"><FeedList posts={firstPage} readIds={unreadFixturePosts} bookmarkMode={fixture?.scenario==='comments' && route==='bookmarks'}/></div>}
     {paintMs!==null && <div aria-label="Fixture diagnostics"><p>First content render: {Math.round(paintMs)} ms; reader shell: {Math.round(delivery!.shellMs)} ms; {firstPage.length} posts returned</p><p>{paintStages}</p></div>}
     {!welcome && <MobileNavigation unread={0}/>}
   </main>;
@@ -110,7 +111,13 @@ export async function testApplication(normal:ReactElement) {
   document.documentElement.style.setProperty('--reading-scale',fixture.scenario==='large-text'?'1.5':'1');
   document.documentElement.dataset.reduceMotion=String(fixture.scenario==='large-text');
   document.documentElement.dataset.reduceTransparency=String(fixture.scenario==='large-text');
-  useAppStore.setState({route:fixture.scenario==='accounts'?'accounts':'following',prefs:{...defaultPreferences,language:arabic?'ar':'en',autoplay:'off',theme:'dark',readingSize:fixture.scenario==='large-text'?150:100}});
+  useAppStore.setState({route:fixture.scenario==='accounts'?'accounts':fixture.scenario==='comments'?'bookmarks':'following',prefs:{...defaultPreferences,language:arabic?'ar':'en',autoplay:'off',theme:'dark',readingSize:fixture.scenario==='large-text'?150:100}});
+  let commentReads=0;
+  api.bookmarkReplies=async(id,cursor)=>{
+    if(id!=='12345')return {posts:[],cursor:null};
+    if(++commentReads===1)throw new Error('Controlled comment failure');
+    return {posts:[{...fixtureArticle,id:cursor?'12347':'12346',text:cursor?'Second fixture comment':'First fixture comment',isArticle:false,articleTitle:null,inReplyTo:id}],cursor:cursor?null:'next-comments'};
+  };
   let retried=false;
   api.followingSnapshot=async()=>({accounts:[],complete:retried,syncing:false,state:retried?'complete':'failed',lastError:retried?null:'Fixture connection interrupted'});
   api.startFollowingSync=async()=>{retried=true;return true;};

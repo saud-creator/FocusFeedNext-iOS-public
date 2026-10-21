@@ -27,6 +27,7 @@ function pause(ms: number, signal: AbortSignal) {
 }
 
 const queryIds: Record<string, string> = {
+  TweetDetail: 'xd_EMdYvB9hfZsZ6Idri0w',
   TweetResultByRestId: '7xflPyRiUxGVbJd4uWmbfg',
   HomeTimeline: 'c-CzHF1LboFilMpsx4ZCrQ', HomeLatestTimeline: 'BKB7oi212Fi7kQtCBGE4zA',
   UserByScreenName: '1VOOyvKkiI3FMmkeDNxM9A', UserTweets: 'q6xj5bs0hapm9309hexA_g',
@@ -238,7 +239,7 @@ async function perform(operation: string, variables: Record<string, unknown>, cs
       body = JSON.stringify({ variables, features: operationFeatures, queryId: queryIds[operation] });
     } else if (!isRest) {
       const params=new URLSearchParams({ variables: JSON.stringify(variables), features: JSON.stringify(operationFeatures) });
-      if(operation==='TweetResultByRestId') params.set('fieldToggles',JSON.stringify({withArticleRichContentState:true,withArticlePlainText:true}));
+      if(['TweetResultByRestId','TweetDetail'].includes(operation)) params.set('fieldToggles',JSON.stringify({withArticleRichContentState:true,withArticlePlainText:true}));
       url += '?' + params;
     }
     signal.throwIfAborted();

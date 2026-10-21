@@ -1,3 +1,4 @@
+import * as apiModule from '@/lib/api';
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -61,7 +62,7 @@ describe("PostText", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows a URL as text, and never as something to click", () => {
+  it("opens ordinary web URLs in a separate browser context", () => {
     render(<PostText text="see https://example.com/post" />);
 
     // Still readable — the address is not hidden, it just does not go
@@ -70,7 +71,8 @@ describe("PostText", () => {
     expect(
       screen.queryByRole("button", { name: "example.com/post" }),
     ).toBeNull();
-    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByRole("link",{name:"example.com/post"})).toHaveAttribute("href","https://example.com/post");
+    expect(screen.getByRole("link")).toHaveAttribute("rel","noopener noreferrer");
   });
 
   it("hides only the current post's self permalink", () => {
@@ -119,4 +121,15 @@ describe("PostText", () => {
     const { container } = render(<PostText text="hello world" />);
     expect(container.querySelector("p")).toHaveAttribute("dir", "ltr");
   });
+});
+
+
+it('opens a tapped iOS link through the native bridge and reports refusal',async()=>{
+  const native=vi.spyOn(apiModule,'isTauri').mockReturnValue(true);
+  const open=vi.spyOn(apiModule.api,'openExternal').mockRejectedValue(new Error('cannot open'));
+  render(<PostText text="Visit https://example.com/story،"/>);
+  await userEvent.click(screen.getByRole('link',{name:'example.com/story'}));
+  expect(open).toHaveBeenCalledExactlyOnceWith('https://example.com/story');
+  expect(await screen.findByRole('alert')).toHaveTextContent('The link could not open');
+  open.mockRestore();native.mockRestore();
 });

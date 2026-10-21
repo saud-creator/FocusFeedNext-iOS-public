@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Lightbox } from "./Lightbox";
 import { MediaGallery } from "@/components/post/MediaGallery";
@@ -197,5 +197,25 @@ describe("image viewer navigation", () => {
     // Fitted is the floor, so the image can never be shrunk into a speck the
     // reader then has to hunt for.
     expect(screen.getByLabelText("Zoom level").textContent).toBe("100%");
+  });
+});
+
+
+describe('photo touch dismissal',()=>{
+  it('dismisses only a downward dominant swipe at fit, while horizontal swipes page',()=>{
+    const close=vi.fn();renderWithProviders(<Lightbox media={images} index={0} onClose={close}/>);
+    const stage=screen.getByTestId('lightbox-stage');
+    const swipe=(x:number,y:number)=>{fireEvent.touchStart(stage,{touches:[{clientX:200,clientY:200}]});fireEvent.touchEnd(stage,{changedTouches:[{clientX:200+x,clientY:200+y}]});};
+    swipe(-120,10);expect(screen.getByTestId('lightbox-image')).toHaveAttribute('alt','second chart');expect(close).not.toHaveBeenCalled();
+    swipe(5,-140);expect(close).not.toHaveBeenCalled();
+    swipe(5,140);expect(close).toHaveBeenCalledTimes(1);
+  });
+  it('keeps a zoomed image open when dragged downward',async()=>{
+    const close=vi.fn();renderWithProviders(<Lightbox media={images} index={0} onClose={close}/>);
+    await userEvent.click(screen.getByRole('button',{name:'Zoom in'}));
+    const stage=screen.getByTestId('lightbox-stage');
+    fireEvent.touchStart(stage,{touches:[{clientX:200,clientY:200}]});
+    fireEvent.touchEnd(stage,{changedTouches:[{clientX:200,clientY:400}]});
+    expect(close).not.toHaveBeenCalled();
   });
 });

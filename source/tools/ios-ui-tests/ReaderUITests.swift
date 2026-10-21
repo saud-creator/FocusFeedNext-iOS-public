@@ -41,6 +41,24 @@ final class ReaderUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Fixture page ready"].waitForExistence(timeout:5))
         return app
     }
+    func testBookmarkCommentsRetryPaginationAndLink() {
+        let app=fixture("comments")
+        let comments=app.buttons["View comments"].firstMatch
+        revealAboveTabs(comments,in:app);comments.tap()
+        let retry=app.buttons["Retry comments"]
+        XCTAssertTrue(retry.waitForExistence(timeout:5));revealAboveTabs(retry,in:app);retry.tap()
+        XCTAssertTrue(app.staticTexts["First fixture comment"].waitForExistence(timeout:5))
+        let more=app.buttons["Load more comments"]
+        revealAboveTabs(more,in:app);more.tap()
+        XCTAssertTrue(app.staticTexts["Second fixture comment"].waitForExistence(timeout:5))
+        let hide=app.buttons["Hide comments"]
+        revealAboveTabs(hide,in:app);hide.tap()
+        XCTAssertTrue(app.links["example.com/story"].exists)
+        capture("bookmark-comments-and-clickable-link")
+        app.tabBars.buttons["Following feed"].tap()
+        XCTAssertFalse(app.buttons["View comments"].exists,"Comments must only be offered in Saved")
+        app.terminate()
+    }
     func testFirstPagePaintsWithin250Milliseconds() {
         let app=fixture("photos")
         capture("first-page-timing")
@@ -90,7 +108,7 @@ final class ReaderUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout:5))
         revealAboveTabs(open,in:app);open.tap()
         XCTAssertTrue(photograph.waitForExistence(timeout:10),"A dismissed viewer must release ownership for the next presentation")
-        close.tap()
+        photograph.swipeDown()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout:5))
         revealAboveTabs(app.staticTexts["Recoverable image failure"].firstMatch,in:app,centered:true)
         XCTAssertTrue(app.buttons["Retry image"].waitForExistence(timeout:10),"The failed inline fixture must settle into recovery")

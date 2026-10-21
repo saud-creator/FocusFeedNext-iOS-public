@@ -170,16 +170,19 @@ private final class NativePhotoPager: UIPageViewController, UIPageViewController
         closeItem.accessibilityLabel=closeLabel
         navigationItem.rightBarButtonItem=closeItem
         setViewControllers([page(index)],direction:.forward,animated:false);updateTitle()
-        let swipe=UIPanGestureRecognizer(target:self,action:#selector(pan(_:)));swipe.delegate=self;view.addGestureRecognizer(swipe)
+        let swipe=UIPanGestureRecognizer(target:self,action:#selector(pan(_:)));swipe.delegate=self;swipe.cancelsTouchesInView=false;view.addGestureRecognizer(swipe)
     }
     private func page(_ number:Int)->NativePhotoPage { NativePhotoPage(item:items[number],index:number,session:session,cache:cache,retryLabel:retryLabel) }
     private func updateTitle() { title="\(numberFormatter.string(from:NSNumber(value:index+1)) ?? "") / \(numberFormatter.string(from:NSNumber(value:items.count)) ?? "")" }
     @objc private func close() { dismiss(animated:true) }
-    @objc private func pan(_ gesture:UIPanGestureRecognizer) { if gesture.state == .ended && abs(gesture.translation(in:view).y)>100 { close() } }
+    @objc private func pan(_ gesture:UIPanGestureRecognizer) { if gesture.state == .ended {let delta=gesture.translation(in:view);if delta.y>80 && delta.y>abs(delta.x)*1.2 {close()}} }
     func gestureRecognizerShouldBegin(_ gestureRecognizer:UIGestureRecognizer)->Bool {
         guard let pan=gestureRecognizer as? UIPanGestureRecognizer else {return true}
         let velocity=pan.velocity(in:view)
-        return abs(velocity.y)>abs(velocity.x) && ((viewControllers?.first as? NativePhotoPage)?.zoomScale ?? 1)<=1.01
+        return velocity.y>abs(velocity.x)*1.2 && ((viewControllers?.first as? NativePhotoPage)?.zoomScale ?? 1)<=1.01
+    }
+    func gestureRecognizer(_ gestureRecognizer:UIGestureRecognizer,shouldRecognizeSimultaneouslyWith otherGestureRecognizer:UIGestureRecognizer)->Bool {
+        return ((viewControllers?.first as? NativePhotoPage)?.zoomScale ?? 1)<=1.01
     }
     func pageViewController(_ pageViewController:UIPageViewController,viewControllerBefore viewController:UIViewController)->UIViewController? {
         guard let current=viewController as? NativePhotoPage,current.index>0 else{return nil};return page(current.index-1)

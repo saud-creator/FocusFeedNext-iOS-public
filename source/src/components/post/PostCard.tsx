@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef,useState } from "react";
+import {BookmarkComments} from "./BookmarkComments";
 import {ArticleReader} from "./ArticleReader";
 import type { Post } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -181,6 +182,8 @@ function PostCardImpl({
               onOpenProfile={onOpenProfile}
             />
           ) : null}
+
+          {isBookmark && <BookmarkComments post={post} onOpenProfile={onOpenProfile}/>}
 
           <PostActions
           author={post.author}

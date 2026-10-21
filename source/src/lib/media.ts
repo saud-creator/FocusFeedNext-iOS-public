@@ -137,10 +137,10 @@ export function videoErrorKey(kind: VideoErrorKind): string {
 export function classifyProxyFailure(status: number): VideoErrorKind {
   // The proxy answers 404 for an unknown *or superseded* id, which after a
   // successful first load means the registration was invalidated.
-  if (status === 404) return "expired";
-  if (status === 502 || status === 504) return "upstream";
+  if (status === 404 || status === 410) return "expired";
+  if ([500,502,503,504].includes(status)) return "upstream";
   if (status === 403) return "upstream";
-  if (status === 416) return "network";
+  if ([408,416,429].includes(status)) return "network";
   return "unknown";
 }
 
