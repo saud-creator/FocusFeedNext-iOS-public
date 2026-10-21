@@ -177,7 +177,7 @@ const element = () => screen.getByTestId("video-element") as HTMLVideoElement;
  * Enter fullscreen the way a reader does.
  *
  * jsdom implements no Fullscreen API at all, so `requestFullscreen` is absent
- * and the player falls back to laying itself over the window â€” which is the
+ * and the player falls back to laying itself over the window — which is the
  * same path a view that refuses the request takes, and exactly the one worth
  * exercising by default.
  */
@@ -191,8 +191,8 @@ async function goFullscreen(user: ReturnType<typeof userEvent.setup>) {
  *
  * WebView2 grants these requests; jsdom has none of them. Without this stub
  * every case above would exercise only the fallback, and the one thing that
- * makes the custom chrome possible â€” fullscreening the *frame* rather than the
- * `<video>`, which would hand the display to the browser's own controls â€”
+ * makes the custom chrome possible — fullscreening the *frame* rather than the
+ * `<video>`, which would hand the display to the browser's own controls —
  * would go unchecked.
  */
 function installFullscreenApi() {
@@ -232,7 +232,7 @@ function installFullscreenApi() {
     request,
     exit,
     askedFor: () => target,
-    /** The browser leaving fullscreen on its own â€” Escape, or the window. */
+    /** The browser leaving fullscreen on its own — Escape, or the window. */
     browserExit: () =>
       act(() => {
         element = null;
@@ -298,7 +298,7 @@ describe("fullscreen is its own layout", () => {
     await goFullscreen(user);
 
     // A wide seek bar with a buffered range behind it, a volume slider, a
-    // clock, a speed control and an exit â€” none of which the compact bar has
+    // clock, a speed control and an exit — none of which the compact bar has
     // room for at 11.5px.
     expect(screen.getByTestId("video-seek")).toBeInTheDocument();
     expect(screen.getByTestId("video-buffered")).toBeInTheDocument();
@@ -573,7 +573,7 @@ describe("fullscreen controls get out of the way", () => {
 
 /**
  * The keys are single letters and bare arrows, which is only safe because they
- * are scoped twice â€” to fullscreen, and to the player having focus â€” and
+ * are scoped twice — to fullscreen, and to the player having focus — and
  * because every one of them is consumed. The application's own shortcuts are
  * Ctrl chords; a bare Space that escaped would scroll the feed behind the
  * video as well as pausing it.
@@ -785,7 +785,7 @@ describe("a control never also means play", () => {
     await user.click(surface());
     expect(play).not.toHaveBeenCalled();
 
-    // The button still works â€” the preference is about the picture.
+    // The button still works — the preference is about the picture.
     await user.click(screen.getByLabelText("Play"));
     expect(play).toHaveBeenCalledTimes(1);
   });
@@ -832,7 +832,7 @@ describe("the quality control tells the truth", () => {
 
     const badge = screen.getByTestId("video-resolution-badge");
     expect(badge).toHaveTextContent("720p");
-    expect(badge).toHaveAttribute("title", "1280Ã—720");
+    expect(badge).toHaveAttribute("title", "1280×720");
   });
 
   it("starts with the highest real variant when the primary URL is lower", () => {

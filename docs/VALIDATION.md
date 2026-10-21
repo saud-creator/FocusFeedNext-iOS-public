@@ -430,3 +430,12 @@ the actual Mach-O. Locally it accepted all 25 matching assets in retained build
 stale packaged UI even if the plist version is correct. Codemagic packaging is
 still gated by every test stage. This candidate has not yet passed macOS/iOS
 checks; one combined main push is intended to conserve runner credits.
+
+
+Build #28 stopped early at the frontend gate: 638/639 passed; the existing
+decoded-resolution assertion had been accidentally re-encoded from `×` to
+mojibake by a Windows file-edit helper after the previous complete local run.
+No Rust, Swift, simulator or packaging stage ran. Eight affected legacy lines
+in that test file were restored using explicit UTF-8; every edited tracked text
+file was audited against its prior Unicode content. The full local suite passed all 639 tests in 49 files before the corrective main commit. App implementation is unchanged by this
+encoding-only correction; no failing assertion was removed or relaxed.
