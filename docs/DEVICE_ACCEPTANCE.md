@@ -40,6 +40,28 @@ Use actual posts and profiles that previously showed the reported problems:
 Record the version/build for each result. Automated fixtures establish recovery
 behavior; they cannot establish the availability of every live provider asset.
 
+## Targeted 0.9.0 checks
+
+1. Tap an ordinary HTTP(S) link in a tweet, including a link beside Arabic text.
+   It must open the system browser with the intended address. Trailing sentence
+   punctuation must stay outside the link. Copy original post URL must still work.
+2. In Saved, open View comments on a known bookmarked post with direct replies.
+   Check author, text, media, pagination, closing/reopening and explicit failure
+   recovery. The first page must not load before opening comments. Following,
+   Focus and profile feeds must not acquire comment controls. Compare returned
+   replies with X; provider filtering may return fewer replies than the count.
+3. Open a photo at fit size and swipe down to dismiss. Reopen it, page sideways,
+   zoom in and pan downward; zoomed panning must not dismiss. Return to fit and
+   swipe down again. Native navigation must return and the reading position stay.
+4. Replay a known failing video and record the original post URL, exact error,
+   numeric Playback details, whether Retry video succeeds, and whether Open native
+   player succeeds. A failed fresh-metadata request must not prevent trying an
+   already registered stream. A rendition fallback must be bounded and real.
+
+The earlier answer “yes” did not identify a failing video or describe its error.
+The specific live playback failure remains unconfirmed until exercised against
+an affected post on the device. Do not treat fixture success as that confirmation.
+
 ## Account relationship check
 
 The originally reported follow problem remains unconfirmed. Deliberately choose a public profile and record its current relationship in X before testing. Use the app's explicit confirmation, verify the resulting server relationship in X, reopen the profile and Accounts, and restore the initial relationship if desired. Do not automatically repeat a write whose result is uncertain.

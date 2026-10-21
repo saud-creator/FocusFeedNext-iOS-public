@@ -542,3 +542,41 @@ It retains the response-time start boundary, real visible-card geometry check,
 an animation frame followed by a task, and the unchanged 250 ms assertion.
 No arbitrary startup delay, retry-on-failure or acceptance-limit change is added.
 Build #30 diagnostics are retained in ignored .import/build-30/; no IPA was made.
+
+
+## Verified 0.9.0 release — Codemagic #31
+
+[Build #31](https://codemagic.io/app/6ad63fe0fdc2a85dad554aca/build/6ad8489b064e933257c86782)
+completed successfully from source commit
+`65cc631fa77f99818830a8a9665730b507357224`. It contains the complete 0.9.0 feature
+batch at e85eb3d plus the pre-paint timing-probe correction. No acceptance limit
+was relaxed and no additional Mac run was started during interruption recovery.
+
+- Frontend: 648 passed; Rust: 412 passed; native Swift/WebKit: 80 assertions.
+- Mac browsers: all eight layout/media cases passed, including actual MP4
+  playback, quality changes, fullscreen/error recovery, articles and preloading.
+- iOS 27.1 simulator: 8/8 passed, no failures/skips or runtime-warning entries.
+  Bookmark comment retry/pagination/link rendering, removal outside Saved, actual
+  photo swipe-down, zoom/paging/safe areas, native video rotation/dismissal,
+  Arabic/large text, account loading and sign-in recovery all passed.
+- Returned first-page content: 141 ms against the unchanged 250 ms gate; cold
+  reader shell: 314 ms, measured separately. The data clock starts before cards
+  are constructed. Simulator screenshots were inspected for comments and photos.
+- IPA: version 0.9.0, build 090.31, 4,468,787 bytes, arm64, iPhoneOS 27.1 SDK,
+  iOS 16.0 minimum. ZIP CRC, scene lifecycle, ATS, ProMotion and fixture exclusion
+  checks passed. No code signature or provisioning profile is present.
+- Independent download verification exactly matches Codemagic's report, including
+  all 25 current renderer asset names in the actual device executable. SHA-256:
+  `1040ea20092985798c1f1aac72763a5bc88d288d07656a4bb6c5cdb45efce8a2`.
+
+The IPA, independent report, CI checksum, metadata, reports, exported screenshots
+and green-run proof are retained in ignored `.import/build-31/`. The previous
+verified 0.8.9 IPA and failed #30 diagnostics remain available. Release evidence
+and the updated device checklist are committed with [skip ci] to avoid another
+Mac build for documentation alone.
+
+Controlled video and recovery tests pass; the user's specific live failing video
+still needs its post URL/error and physical-device verification. Live comment
+availability also needs checking with a known bookmarked conversation. The
+20-minute device acceptance session and account relationship test have not been
+performed by automation. No follow/unfollow write was made.
