@@ -1,4 +1,4 @@
-import React, {useEffect,useState} from 'react';
+import React, {useEffect,useLayoutEffect,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 import {PostCard} from '../../src/components/post/PostCard';
@@ -46,7 +46,10 @@ function WindowedFixture() {
   const [paintMs,setPaintMs]=useState<number|null>(null);
   const [stages,setStages]=useState('');
   useEffect(()=>{let frame=requestAnimationFrame(()=>{frame=requestAnimationFrame(()=>{performance.mark('fixture-page-returned');setReturnedAt(performance.now());});});return()=>cancelAnimationFrame(frame);},[]);
-  useEffect(()=>{
+  // Arm the probe before this commit can paint. A passive effect may run
+  // after that paint, making its rAF wait for an unrelated idle frame.
+  // Keep response time, visible geometry and the post-frame task unchanged.
+  useLayoutEffect(()=>{
     if(returnedAt===null) return;
     const effectMs=performance.now()-returnedAt;
     let frame=0,timer=0;

@@ -521,3 +521,24 @@ must verify all eight. Controlled local first-post rendering: 42.9–145 ms.
 An accidental dependency-version replacement was caught by the local locked
 Cargo check and corrected before commit; no dependency was upgraded. A Unicode
 audit found no unintended re-encoding. macOS/iOS gates are pending.
+
+
+### Build #30 — timing probe correction before the next release attempt
+
+Codemagic #30 at e85eb3d passed all 648 frontend and 412 Rust tests, 80 native
+transport assertions, and the eight Mac browser/media cases. Seven of eight
+simulator tests passed, including the new bookmark comment retry/pagination/link
+case and actual native photo swipe-down. Packaging correctly stopped at the
+250 ms returned-content gate: 440 ms total, with commit effects at 3 ms,
+the visibility-frame callback at 435 ms and its subsequent task at 5 ms.
+The simulator reported no runtime warnings.
+
+The timing probe was armed in a passive React effect. That effect can run after
+the committed content has already painted, so its rAF can observe a later idle
+frame instead of the first content rendering opportunity. The corrective change
+arms both simulator and browser probes in a layout effect, before paint. This
+follows [React's documented effect timing](https://react.dev/reference/react/useLayoutEffect).
+It retains the response-time start boundary, real visible-card geometry check,
+an animation frame followed by a task, and the unchanged 250 ms assertion.
+No arbitrary startup delay, retry-on-failure or acceptance-limit change is added.
+Build #30 diagnostics are retained in ignored .import/build-30/; no IPA was made.

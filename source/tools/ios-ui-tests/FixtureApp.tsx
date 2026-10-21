@@ -1,5 +1,5 @@
 // This module is removed from ordinary Vite builds by __FFN_UI_TEST__.
-import {useEffect,useMemo,useState,type ReactElement} from 'react';
+import {useEffect,useLayoutEffect,useMemo,useState,type ReactElement} from 'react';
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 import {api,type Post} from '../../src/lib/api';
 import {PlatformProvider} from '../../src/lib/platform';
@@ -57,7 +57,10 @@ function FixtureReader({bootstrapAt}:{bootstrapAt:number}) {
     update();window.addEventListener('resize',update);
     return()=>{cancelAnimationFrame(id);observer.disconnect();mutation.disconnect();window.removeEventListener('resize',update);};
   },[delivery,welcome,route]);
-  useEffect(()=>{
+  // Arm the probe before this commit can paint. A passive effect may run
+  // after that paint, making its rAF wait for an unrelated idle frame.
+  // Keep response time, visible geometry and the post-frame task unchanged.
+  useLayoutEffect(()=>{
     if(!delivery) return;
     const returnedAt=delivery.returnedAt;
     const effectMs=performance.now()-returnedAt;
