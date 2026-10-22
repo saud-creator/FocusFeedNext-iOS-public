@@ -1,7 +1,7 @@
-# Focus Feed Next — iOS project
+# Focus Feed Next â€” iOS project
 
 This workspace combines the pinned main snapshot of
-[saud-creator/FocusFeedNext-iOS](https://github.com/saud-creator/FocusFeedNext-iOS)
+[saud-creator/FocusFeedNext-iOS-public](https://github.com/saud-creator/FocusFeedNext-iOS-public)
 with its newer **0.8.5 stability source**, followed by the **verified 0.9.0 links/comments/media follow-up build (090.31)**. The editable application is in
 `source/`: React/TypeScript, a shared Rust/Tauri backend, and an iOS
 Swift/WebKit plugin.
@@ -62,10 +62,10 @@ are separate steps. See [validation status](docs/VALIDATION.md) for actual resul
 - `docs/upstream/` retains the newer branch's recovery and stability notes.
 - `.import/` contains ignored local comparison files and dependency caches.
 
-Upstream main retains its original history: the editable-source import is a
-descendant of its former head. The unrelated local snapshot history is never
-pushed. Reviewed changes are published with an expected-head lease through the
-GitHub connection; no force push is used. See the import record for provenance.
+This public repository contains sanitized history for all six imported
+branches. The original development repository remains private. Do not push or
+merge its old history here. See [publication provenance](PUBLICATION.md) and
+[security guidance](SECURITY.md).
 
 The older documents inside `source/` describe several desktop, companion and
 standalone releases. Use this README and the import record for the current
