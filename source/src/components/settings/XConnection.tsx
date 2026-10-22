@@ -1,3 +1,4 @@
+import { Avatar } from "@/components/account/Avatar";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -150,17 +151,7 @@ export function XConnection() {
         {/* -- current connection ------------------------------------------ */}
         <div className="rounded-xl border border-edge bg-surface-1 p-3.5 space-y-2.5">
           <div className="flex items-center gap-3">
-            {snapshot?.account?.avatarUrl ? (
-              <img
-                src={snapshot.account.avatarUrl}
-                alt=""
-                width={40}
-                height={40}
-                className="size-10 rounded-full border border-edge object-cover"
-              />
-            ) : (
-              <div className="size-10 rounded-full border border-edge bg-surface-3" />
-            )}
+            {snapshot?.account ? <Avatar author={snapshot.account} size={40} className="border border-edge" /> : <div className="rounded-full border border-edge bg-surface-3 shrink-0" style={{width:40,height:40}} />}
             <div className="min-w-0 flex-1">
               {connected ? (
                 <>
