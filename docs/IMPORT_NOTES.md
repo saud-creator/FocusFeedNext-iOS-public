@@ -1,5 +1,10 @@
 # Import record — 19 October 2026
 
+Publication note (22 October 2026): the current root ZIP and source documents
+have since been sanitized to remove personal machine paths and two screenshots
+containing those paths. The original hashes and byte-preservation statements
+below describe the historical import, not the sanitized files now on disk.
+
 ## Sources
 
 Repository: [saud-creator/FocusFeedNext-iOS](https://github.com/saud-creator/FocusFeedNext-iOS).

@@ -55,9 +55,10 @@ are separate steps. See [validation status](docs/VALIDATION.md) for actual resul
 ## Source ownership
 
 - `source/` is authoritative for development and builds.
-- `FocusFeedNext-source.zip` is the original **main** archive, preserved
-  byte for byte for comparison. It is historical and is not used by the updated
-  build workflows.
+- `FocusFeedNext-source.zip` is a historical **main** source archive. Personal
+  machine paths and screenshots containing those paths have been removed for
+  publication. It is not used by the updated build workflows; original import
+  checksums in `docs/SOURCE_IMPORT.json` describe the pre-sanitization archive.
 - `docs/upstream/` retains the newer branch's recovery and stability notes.
 - `.import/` contains ignored local comparison files and dependency caches.
 
