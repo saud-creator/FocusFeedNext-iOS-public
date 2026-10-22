@@ -2394,6 +2394,29 @@ pub fn get_group_candidates(
     Ok(candidates)
 }
 
+/// Renew an account picture from session-owned data, without a provider read.
+/// The renderer cannot supply an upstream URL or recover a previous account.
+#[tauri::command]
+pub fn recover_account_image(state: Sh<'_>, username: String) -> Result<Option<String>, AppError> {
+    recover_account_image_inner(state.inner(), &username)
+}
+
+fn recover_account_image_inner(state: &AppState, username: &str) -> AppResult<Option<String>> {
+    let _commit = state.account_commit.lock().unwrap();
+    state.guard()?;
+    let mut author = state.session.account().filter(|author| author.username.eq_ignore_ascii_case(username));
+    if author.is_none() {
+        if let Some(id) = state.db.author_id_for_username(username)? {
+            author = state.db.authors_by_ids(&[id])?.into_iter().next();
+        }
+    }
+    if let Some(mut author) = author {
+        state.proxy_authors(std::slice::from_mut(&mut author));
+        return Ok(author.avatar_url);
+    }
+    Ok(None)
+}
+
 /// One account's profile, for the internal profile page.
 #[tauri::command]
 pub async fn get_user_profile(state: Sh<'_>, username: String,refresh:Option<bool>) -> Result<Author, AppError> {
@@ -4515,6 +4538,29 @@ mod tests {
         st.proxy_authors(std::slice::from_mut(&mut author));
         assert!(author.avatar_url.is_none());
         assert!(author.banner_url.is_none());
+    }
+
+    #[tokio::test]
+    async fn account_picture_recovery_renews_evicted_cached_and_session_images() {
+        let (st, _) = connected_state();
+        let proxy = MediaProxy::start(st.media.clone()).await.unwrap();
+        let st = st.with_proxy(proxy);
+        let mut author = Author::from_handle("someone");
+        author.avatar_url = Some("https://pbs.twimg.com/profile_images/1/avatar.jpg".into());
+        st.db.upsert_author(&author).unwrap();
+        let first = recover_account_image_inner(&st, "someone").unwrap().unwrap();
+        let id = first.rsplit('/').next().unwrap();
+        st.media.remove(id);
+        let renewed = recover_account_image_inner(&st, "someone").unwrap().unwrap();
+        assert_ne!(first, renewed);
+        assert!(st.media.lookup(renewed.rsplit('/').next().unwrap()).is_some());
+        assert_eq!(st.db.authors_by_ids(&[author.id.clone()]).unwrap()[0].avatar_url, author.avatar_url);
+        author.username = "reader".into();
+        st.session.set_account(Some(author));
+        assert!(recover_account_image_inner(&st, "READER").unwrap().is_some());
+        assert!(recover_account_image_inner(&st, "unknown").unwrap().is_none());
+        st.session.reset();
+        assert!(recover_account_image_inner(&st, "someone").is_err());
     }
 
     #[tokio::test]

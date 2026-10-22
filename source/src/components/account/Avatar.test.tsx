@@ -1,8 +1,43 @@
-import { describe, expect, it } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import { Avatar } from './Avatar';
+import { api,isTauri } from '@/lib/api';
+vi.mock('@/lib/api',()=>({isTauri:vi.fn(()=>false),api:{recoverAccountImage:vi.fn()}}));
+beforeEach(()=>{vi.mocked(isTauri).mockReturnValue(false);vi.mocked(api.recoverAccountImage).mockReset();});
 
 describe('account picture recovery',()=>{
+  it('renews a failed registration once and can display the actual picture',async()=>{
+    vi.mocked(isTauri).mockReturnValue(true);
+    vi.mocked(api.recoverAccountImage).mockResolvedValue('http://127.0.0.1:8123/media/token/renewed');
+    const view=render(<Avatar author={{username:'reader',avatarUrl:'http://127.0.0.1:8123/media/token/expired'}}/>);
+    fireEvent.error(view.container.querySelector('img')!);
+    await waitFor(()=>expect(view.container.querySelector('img')).toHaveAttribute('src','http://127.0.0.1:8123/media/token/renewed'));
+    fireEvent.load(view.container.querySelector('img')!);
+    expect(screen.getByText('RE')).not.toBeVisible();
+    fireEvent.error(view.container.querySelector('img')!);
+    expect(view.container.querySelector('img')).toBeNull();
+    expect(api.recoverAccountImage).toHaveBeenCalledExactlyOnceWith('reader');
+  });
+  it('retries a transient failure even if the registration is unchanged',async()=>{
+    vi.mocked(isTauri).mockReturnValue(true);
+    const source='http://127.0.0.1:8123/media/token/picture';
+    vi.mocked(api.recoverAccountImage).mockResolvedValue(source);
+    const view=render(<Avatar author={{username:'reader',avatarUrl:source}}/>);
+    const first=view.container.querySelector('img')!;
+    fireEvent.error(first);
+    await waitFor(()=>expect(view.container.querySelector('img')).not.toBe(first));
+    expect(view.container.querySelector('img')).toHaveAttribute('loading','eager');
+  });
+  it('ignores a repair that finishes after switching account pictures',async()=>{
+    vi.mocked(isTauri).mockReturnValue(true);
+    let finish!:(value:string|null)=>void;
+    vi.mocked(api.recoverAccountImage).mockReturnValue(new Promise(resolve=>{finish=resolve;}));
+    const view=render(<Avatar author={{username:'old',avatarUrl:'old'}}/>);
+    fireEvent.error(view.container.querySelector('img')!);
+    view.rerender(<Avatar author={{username:'new',avatarUrl:'new'}}/>);
+    await act(async()=>finish('stale'));
+    expect(view.container.querySelector('img')).toHaveAttribute('src','new');
+  });
   it('keeps initials visible until image loading actually completes',()=>{
     const view=render(<Avatar author={{username:'reader',avatarUrl:'http://127.0.0.1:8123/media/token/picture'}}/>);
     expect(screen.getByText('RE')).toBeVisible();

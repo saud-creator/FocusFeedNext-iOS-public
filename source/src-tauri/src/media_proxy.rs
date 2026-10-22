@@ -87,10 +87,30 @@ const MAX_MEDIA_BYTES: u64 = 128 * 1024 * 1024;
 /// ceiling so diagnostics and tests can state the same policy as the stream.
 const MAX_RESPONSE_HEADER_BYTES: usize = 64 * 1024;
 
-/// Concurrent upstream transfers. The WebView may ask for several posters and
-/// renditions at once; a small fixed bound keeps network and decoder pressure
-/// predictable on long virtualized feeds.
+/// Separate bounded pools keep long video transfers from starving pictures.
 const MAX_CONCURRENT_TRANSFERS: usize = 4;
+
+struct TransferPools {
+    images: Arc<tokio::sync::Semaphore>,
+    videos: Arc<tokio::sync::Semaphore>,
+}
+
+impl TransferPools {
+    fn new() -> Self {
+        Self {
+            images: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_TRANSFERS)),
+            videos: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_TRANSFERS)),
+        }
+    }
+
+    fn for_url(&self, url: &str) -> &Arc<tokio::sync::Semaphore> {
+        if reqwest::Url::parse(url).ok().is_some_and(|url| url.host_str() == Some("pbs.twimg.com")) {
+            &self.images
+        } else {
+            &self.videos
+        }
+    }
+}
 
 async fn acquire_transfer(semaphore: &Arc<tokio::sync::Semaphore>) -> Option<tokio::sync::OwnedSemaphorePermit> {
     // A normal viewport asks for several avatars and photos together. Queue
@@ -457,7 +477,7 @@ impl MediaProxy {
             secret: secret.clone(),
             registry: Arc::clone(&registry),
             client,
-            semaphore: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_TRANSFERS)),
+            transfers: TransferPools::new(),
             #[cfg(any(test, all(feature = "dev-mock", debug_assertions)))]
             test_upstream_prefix,
         });
@@ -524,7 +544,7 @@ struct ProxyContext {
     secret: String,
     registry: Arc<MediaRegistry>,
     client: reqwest::Client,
-    semaphore: Arc<tokio::sync::Semaphore>,
+    transfers: TransferPools,
     /// See [`MediaProxy::start_with_test_upstream`]. Absent from release builds.
     #[cfg(any(test, all(feature = "dev-mock", debug_assertions)))]
     test_upstream_prefix: Option<String>,
@@ -667,7 +687,7 @@ async fn handle(req: Request<Incoming>, ctx: Arc<ProxyContext>) -> Response<Prox
         return refuse(StatusCode::FORBIDDEN);
     };
 
-    let permit = match acquire_transfer(&ctx.semaphore).await {
+    let permit = match acquire_transfer(ctx.transfers.for_url(url)).await {
         Some(permit) => permit,
         None => return refuse(StatusCode::TOO_MANY_REQUESTS),
     };
@@ -782,6 +802,25 @@ pub fn copy_response_headers(from: &HeaderMap, to: &mut HeaderMap) {
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn pictures_have_bounded_capacity_even_when_every_video_slot_is_busy() {
+        let pools = super::TransferPools::new();
+        let videos = pools.for_url("https://video.twimg.com/clip.mp4");
+        let mut held = Vec::new();
+        for _ in 0..super::MAX_CONCURRENT_TRANSFERS {
+            held.push(super::acquire_transfer(videos).await.unwrap());
+        }
+        assert!(videos.try_acquire().is_err());
+        let pictures = pools.for_url("https://pbs.twimg.com/profile_images/avatar.jpg");
+        let mut images = Vec::new();
+        for _ in 0..super::MAX_CONCURRENT_TRANSFERS {
+            images.push(tokio::time::timeout(std::time::Duration::from_millis(100), super::acquire_transfer(pictures)).await.unwrap().unwrap());
+        }
+        assert!(pictures.try_acquire().is_err());
+        drop(held);
+        assert!(videos.try_acquire().is_ok());
+        assert!(pictures.try_acquire().is_err());
+    }
     #[tokio::test]
     async fn a_normal_avatar_burst_waits_for_capacity_instead_of_failing() {
         let slots=std::sync::Arc::new(tokio::sync::Semaphore::new(4));
