@@ -165,6 +165,57 @@ struct MediaBroker {
     epoch: u64,
     probe_client: reqwest::Client,
 }
+
+enum PreparedMediaProbe {
+    Immediate(Value),
+    Request(MediaProbeSnapshot),
+}
+
+/// Holds only cloneable request resources. The engine's state mutex and the
+/// owning runtime are never borrowed across network I/O. A broker restart
+/// cancels the spawned task and the caller rejects its obsolete epoch.
+struct MediaProbeSnapshot {
+    runtime: tokio::runtime::Handle,
+    client: reqwest::Client,
+    url: String,
+    epoch: u64,
+    registry_generation: u64,
+}
+impl MediaProbeSnapshot {
+    fn run(self, mut check: impl FnMut() -> Result<(), CoreError>) -> Result<Value, CoreError> {
+        let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+        let epoch = self.epoch;
+        let task = self.runtime.spawn(async move {
+            let value = match self.client.head(self.url).send().await {
+                Ok(response) => classify_probe(response.status().as_u16(),response.headers().get("x-focusfeed-failure-origin").and_then(|value|value.to_str().ok()),epoch),
+                Err(error) => json!({"kind":if error.is_timeout(){"probe_timeout"}else{"local_listener"},"httpStatus":null,"retryable":true,"brokerEpoch":epoch}),
+            };
+            let _ = sender.send(value);
+        });
+        // Dropping a Tokio JoinHandle normally detaches it. Every exit here,
+        // including cancellation/deadline, must explicitly cancel its work.
+        struct AbortProbe(tokio::task::JoinHandle<()>);
+        impl Drop for AbortProbe {
+            fn drop(&mut self) {
+                self.0.abort();
+            }
+        }
+        let _task = AbortProbe(task);
+        loop {
+            check()?;
+            match receiver.recv_timeout(Duration::from_millis(50)) {
+                Ok(value) => {
+                    check()?;
+                    return Ok(value);
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    return Err(CoreError::stale())
+                }
+            }
+        }
+    }
+}
 impl MediaBroker {
     fn new(epoch: u64) -> Result<Self, CoreError> {
         let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -230,15 +281,11 @@ impl MediaBroker {
         });
         json!({"available":listening,"epoch":self.epoch,"registrations":self.registry.len()})
     }
-    fn probe(
-        &self,
-        url: &str,
-        mut check: impl FnMut() -> Result<(), CoreError>,
-    ) -> Result<Value, CoreError> {
+    fn prepare_probe(&self, url: &str) -> Result<PreparedMediaProbe, CoreError> {
         let Some(proxy) = self.proxy.as_ref() else {
-            return Ok(
+            return Ok(PreparedMediaProbe::Immediate(
                 json!({"kind":"local_listener","httpStatus":null,"retryable":true,"brokerEpoch":self.epoch}),
-            );
+            ));
         };
         let prefix = format!("{}/", proxy.base_url());
         let id = url
@@ -246,24 +293,18 @@ impl MediaBroker {
             .filter(|id| !id.is_empty() && id.bytes().all(|byte| byte.is_ascii_hexdigit()))
             .ok_or_else(CoreError::invalid)?;
         if self.registry.lookup(id).is_none() {
-            return Ok(
+            return Ok(PreparedMediaProbe::Immediate(
                 json!({"kind":"registration","httpStatus":404,"retryable":true,"brokerEpoch":self.epoch}),
-            );
+            ));
         }
         let runtime = self.runtime.as_ref().ok_or_else(CoreError::unavailable)?;
-        runtime.block_on(async {
-            let response=self.probe_client.head(url).send();tokio::pin!(response);
-            loop {
-                check()?;
-                tokio::select!{
-                    response=&mut response=>return Ok(match response {
-                        Ok(response)=>classify_probe(response.status().as_u16(),response.headers().get("x-focusfeed-failure-origin").and_then(|value|value.to_str().ok()),self.epoch),
-                        Err(error)=>json!({"kind":if error.is_timeout(){"probe_timeout"}else{"local_listener"},"httpStatus":null,"retryable":true,"brokerEpoch":self.epoch}),
-                    }),
-                    _=tokio::time::sleep(Duration::from_millis(50))=>{}
-                }
-            }
-        })
+        Ok(PreparedMediaProbe::Request(MediaProbeSnapshot {
+            runtime: runtime.handle().clone(),
+            client: self.probe_client.clone(),
+            url: url.into(),
+            epoch: self.epoch,
+            registry_generation: self.registry.generation(),
+        }))
     }
 }
 impl Drop for MediaBroker {
@@ -372,6 +413,10 @@ impl CoreEngine {
         if !args.is_object() {
             return Err(CoreError::invalid());
         }
+        if request.operation == CoreOperation::ProbeMedia {
+            return serde_json::to_string(&self.probe_media(&request, &args)?)
+                .map_err(|_| CoreError::invalid());
+        }
         let mut state = self.state.lock().map_err(|_| CoreError::unavailable())?;
         self.check(&request)?;
         if request.operation != CoreOperation::SetAccount
@@ -399,6 +444,36 @@ impl CoreEngine {
         // replays or claims to undo a committed account action.
         self.check(&request)?;
         serde_json::to_string(&result).map_err(|_| CoreError::invalid())
+    }
+    fn probe_media(&self, request: &CoreRequest, args: &Value) -> Result<Value, CoreError> {
+        let prepared = {
+            let state = self.state.lock().map_err(|_| CoreError::unavailable())?;
+            self.check(request)?;
+            if request.account_generation != state.generation {
+                return Err(CoreError::stale());
+            }
+            state.media.prepare_probe(text(args, "url")?)?
+        };
+        match prepared {
+            PreparedMediaProbe::Immediate(value) => {
+                self.check(request)?;
+                Ok(value)
+            }
+            PreparedMediaProbe::Request(snapshot) => {
+                let epoch = snapshot.epoch;
+                let registry_generation = snapshot.registry_generation;
+                let result = snapshot.run(|| self.check(request))?;
+                let state = self.state.lock().map_err(|_| CoreError::unavailable())?;
+                self.check(request)?;
+                if state.generation != request.account_generation
+                    || state.media.epoch != epoch
+                    || state.media.registry.generation() != registry_generation
+                {
+                    return Err(CoreError::stale());
+                }
+                Ok(result)
+            }
+        }
     }
     pub fn call_json(&self, operation: &str, payload_json: &str) -> Result<String, CoreError> {
         let operation: CoreOperation = serde_json::from_value(Value::String(operation.into()))
@@ -946,7 +1021,7 @@ impl CoreEngine {
                 };
                 Ok(json!({"url":resolved,"valid":true}))
             }
-            ProbeMedia => s.media.probe(text(a, "url")?, || self.check(r)),
+            ProbeMedia => Err(CoreError::invalid()), // dispatched without the state lock in execute
             MediaHealth => {
                 let mut health = s.media.health();
                 if let Some(url) = a.get("url").and_then(Value::as_str) {
@@ -1323,5 +1398,114 @@ mod probe_tests {
             classify_probe(200, Some("upstream_http"), 1)["kind"],
             "ready"
         );
+    }
+
+    #[test]
+    fn a_stalled_probe_does_not_hold_the_engine_lock_and_cancellation_stops_it() {
+        use std::io::Read;
+        use std::net::TcpListener;
+        use std::sync::mpsc;
+        use std::time::Instant;
+
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (started_tx, started_rx) = mpsc::sync_channel(1);
+        let (release_tx, release_rx) = mpsc::sync_channel(1);
+        let upstream = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let mut request = [0; 4096];
+            let _ = stream.read(&mut request);
+            started_tx.send(()).unwrap();
+            let _ = release_rx.recv_timeout(Duration::from_secs(4));
+        });
+        let directory = tempfile::tempdir().unwrap();
+        let core = Arc::new(CoreEngine::open(directory.path()).unwrap());
+        let (handle, url) = {
+            let mut state = core.state.lock().unwrap();
+            state.media.stop();
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .unwrap();
+            let registry = Arc::new(MediaRegistry::new());
+            let prefix = format!("http://127.0.0.1:{port}");
+            let id = registry.register_for_test(&format!("{prefix}/stalled"));
+            let proxy = runtime
+                .block_on(MediaProxy::start_with_test_upstream(
+                    registry.clone(),
+                    prefix,
+                ))
+                .unwrap();
+            let url = proxy.url_for(&id);
+            state.media = MediaBroker {
+                runtime: Some(runtime),
+                proxy: Some(proxy),
+                registry,
+                epoch: 2,
+                probe_client: reqwest::Client::builder()
+                    .timeout(Duration::from_secs(8))
+                    .redirect(reqwest::redirect::Policy::none())
+                    .build()
+                    .unwrap(),
+            };
+            (format!("ffmedia:{id}"), url)
+        };
+        let make_request = |operation, args: Value, id: &str| CoreRequest {
+            request_id: id.into(),
+            account_generation: 0,
+            source_revision: 0,
+            deadline_millis: now() + 30_000,
+            priority: 1,
+            operation,
+            arguments_json: args.to_string(),
+        };
+        let probe_request = make_request(
+            CoreOperation::ProbeMedia,
+            json!({"url":url}),
+            "stalled-probe",
+        );
+        let reader = core.clone();
+        let (result_tx, result_rx) = mpsc::sync_channel(1);
+        let probe = std::thread::spawn(move || {
+            let _ = result_tx.send(reader.execute(probe_request));
+        });
+        started_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("the real probe did not reach its fixture upstream");
+        let before = Instant::now();
+        let resolved = core
+            .execute(make_request(
+                CoreOperation::GetMediaUrl,
+                json!({"handle":handle}),
+                "resolve-while-probing",
+            ))
+            .unwrap();
+        assert!(resolved.contains("127.0.0.1"));
+        core.execute(make_request(
+            CoreOperation::GetFeed,
+            json!({"feed":"following"}),
+            "page-while-probing",
+        ))
+        .unwrap();
+        assert!(
+            before.elapsed() < Duration::from_secs(1),
+            "a media probe blocked unrelated reader work"
+        );
+        core.cancel_request("stalled-probe");
+        assert_eq!(
+            result_rx
+                .recv_timeout(Duration::from_secs(1))
+                .expect("cancelled probe did not settle")
+                .unwrap_err()
+                .code,
+            "cancelled"
+        );
+        let _ = release_tx.send(());
+        probe.join().unwrap();
+        upstream.join().unwrap();
     }
 }

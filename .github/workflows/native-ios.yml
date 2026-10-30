@@ -8,7 +8,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: native-ios-${{ github.ref }}
+  group: native-ios-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 jobs:
   core:
@@ -24,7 +24,7 @@ jobs:
           cache-on-failure: true
       - run: cargo test --workspace --locked
   native:
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 90
     needs: core
     steps:

@@ -438,6 +438,61 @@ fn payload_eviction_retains_complete_bookmark_index_and_reports_rehydration_ids(
     assert_eq!(page["totalCached"], 72);
     assert!(!page["missingPostIds"].as_array().unwrap().is_empty());
     assert_eq!(page["nextCursor"], "older");
+
+    // TweetResultByRestId rehydrates the evicted body through the same detail
+    // path used by media repair. This must not masquerade as a new feed page.
+    assert!(page["missingPostIds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|id| id == "1000"));
+    call(&core, Op::MarkRead, json!({"postId":"1000","read":true}), 1);
+    let raw = json!({"data":{"tweetResult":{"result":{"rest_id":"1000","legacy":{"full_text":"Recovered body","created_at":"Fri Oct 30 08:00:00 +0000 2026"},"core":{"user_results":{"result":{"rest_id":"2","core":{"screen_name":"reader","name":"Reader"}}}}}}}});
+    let detail = call(
+        &core,
+        Op::ParsePostContent,
+        json!({"postId":"1000","body":raw}),
+        1,
+    );
+    assert_eq!(detail["post"]["text"], "Recovered body");
+    let restored = call(
+        &core,
+        Op::GetFeed,
+        json!({"feed":"bookmarks","limit":80}),
+        1,
+    );
+    assert_eq!(restored["posts"][0]["id"], "1000");
+    assert_eq!(restored["totalCached"], page["totalCached"]);
+    assert_eq!(restored["nextCursor"], page["nextCursor"]);
+    assert_eq!(restored["lastSync"], page["lastSync"]);
+    assert!(restored["readIds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|id| id == "1000"));
+    let slice = call(
+        &core,
+        Op::GetBookmarkSlice,
+        json!({"request":{"direction":"oldest","limit":1}}),
+        1,
+    );
+    assert_eq!(slice["posts"][0]["id"], "1000");
+    assert_eq!(slice["firstPosition"], 0);
+    assert_eq!(slice["totalDiscovered"], 72);
+    assert!(core
+        .execute(request(
+            Op::ParsePostContent,
+            json!({"postId":"9999","body":raw}),
+            1
+        ))
+        .is_err());
+    assert!(
+        call(&core, Op::GetPost, json!({"postId":"9999"}), 1)["missingPostIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|id| id == "9999")
+    );
 }
 
 #[test]

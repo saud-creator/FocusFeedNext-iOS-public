@@ -59,7 +59,7 @@ import UIKit
     func reset() { pending.values.forEach { $0.cancel() }; pending.removeAll(); states.removeAll() }
 }
 
-class FeedViewController: ReaderScreen, UICollectionViewDelegate, PostCellDelegate {
+class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionViewDataSourcePrefetching, PostCellDelegate {
     let route: ReaderRoute
     let source: String
     var filters: FeedFilters
@@ -76,6 +76,8 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, PostCellDelega
     private var sessionAnchor: (String, CGFloat)?
     private var lastHeight: CGFloat = 0
     private var refreshTimer: Timer?
+    private var imagePrefetch: [String: (id: UUID, task: Task<Void, Never>)] = [:]
+    private var lastMemoryRevision = 0
     private var accountGeneration: UInt64 = 0
     private let topActions = UIStackView()
     var profileHeader: UIView?
@@ -100,7 +102,7 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, PostCellDelega
             if self?.profileHeader != nil { section.boundarySupplementaryItems = [NSCollectionLayoutBoundarySupplementaryItem(layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .estimated(300)), elementKind: UICollectionView.elementKindSectionHeader, alignment: .top)] }
             return section
         }
-        collection = UICollectionView(frame: .zero, collectionViewLayout: layout); collection.backgroundColor = .clear; collection.delegate = self; collection.alwaysBounceVertical = true; collection.accessibilityIdentifier = "reader.feed"
+        collection = UICollectionView(frame: .zero, collectionViewLayout: layout); collection.backgroundColor = .clear; collection.delegate = self; collection.prefetchDataSource = self; collection.alwaysBounceVertical = true; collection.accessibilityIdentifier = "reader.feed"
         collection.register(PostCell.self, forCellWithReuseIdentifier: PostCell.reuseID); collection.register(FeedHeader.self, forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader, withReuseIdentifier: "header")
         refreshControl.addTarget(self, action: #selector(refreshTapped), for: .valueChanged); collection.refreshControl = refreshControl
         topActions.axis = .horizontal; topActions.spacing = 8; topActions.alignment = .center
@@ -111,6 +113,7 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, PostCellDelega
         navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "arrow.clockwise"), style: .plain, target: self, action: #selector(refreshTapped)); navigationItem.rightBarButtonItem?.accessibilityLabel = L10n.text("refresh")
         dataSource = UICollectionViewDiffableDataSource<Int, String>(collectionView: collection) { [weak self] collection, indexPath, id in
             guard let self, let post = posts.first(where: { $0.id == id }), let cell = collection.dequeueReusableCell(withReuseIdentifier: PostCell.reuseID, for: indexPath) as? PostCell else { return nil }
+            cancelImagePrefetch(for: post)
             cell.configure(post, read: state.readIDs.contains(id), bookmark: route == .bookmarks && !includesReplies, context: context, delegate: self)
             cell.highlight(highlightedText)
             if collection.indexPathsForVisibleItems.contains(indexPath) { DispatchQueue.main.async { [weak cell, weak self] in if self?.viewIfLoaded?.window != nil { cell?.visible(read: self?.state.readIDs.contains(id) ?? false) } } }
@@ -130,7 +133,7 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, PostCellDelega
         else { state = context.timelines.state(source); if state.posts.isEmpty { loadInitial() } else { apply(); restore(sessionAnchor) } }
         scheduleRefresh()
     }
-    override func viewWillDisappear(_ animated: Bool) { super.viewWillDisappear(animated); refreshTimer?.invalidate(); refreshTimer = nil; sessionAnchor = firstAnchor(); collection.visibleCells.compactMap { $0 as? PostCell }.forEach { $0.stop() }; persistAnchor() }
+    override func viewWillDisappear(_ animated: Bool) { super.viewWillDisappear(animated); cancelImagePrefetch(); refreshTimer?.invalidate(); refreshTimer = nil; sessionAnchor = firstAnchor(); collection.visibleCells.compactMap { $0 as? PostCell }.forEach { $0.stop() }; persistAnchor() }
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         let anchor = collection == nil ? nil : firstAnchor(); super.viewWillTransition(to: size, with: coordinator)
         coordinator.animate(alongsideTransition: nil) { [weak self] _ in self?.collection?.collectionViewLayout.invalidateLayout(); self?.restore(anchor) }
@@ -138,7 +141,11 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, PostCellDelega
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) { super.traitCollectionDidChange(previousTraitCollection); if previousTraitCollection?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory, collection != nil { let anchor = firstAnchor(); apply(); collection.collectionViewLayout.invalidateLayout(); restore(anchor) } }
     @objc private func contextChanged() {
         ReaderTheme.apply(context.preferences, to: self)
-        if accountGeneration != context.services.accountGeneration { accountGeneration = context.services.accountGeneration; state = TimelineRepository.State(); posts = []; context.timelines.reset(); loadInitial(); return }
+        let policy = ImagePrefetchPolicy.effective(mode: context.preferences.string("performance.mode"), runtime: context.runtime)
+        let memory = context.runtime?.memoryRevision ?? 0
+        if policy.capacity == 0 || memory != lastMemoryRevision || imagePrefetch.count > policy.capacity { cancelImagePrefetch() }
+        lastMemoryRevision = memory
+        if accountGeneration != context.services.accountGeneration { cancelImagePrefetch(); accountGeneration = context.services.accountGeneration; state = TimelineRepository.State(); posts = []; context.timelines.reset(); loadInitial(); return }
         if context.runtime?.foreground == false { collection.visibleCells.compactMap { $0 as? PostCell }.forEach { $0.stop() } }
         scheduleRefresh()
         if !context.recovery.isEmpty { status.text = L10n.text(context.recovery == "recovering" ? "reconnecting" : context.recovery == "recovered" ? "recovered" : "attention") }
@@ -180,10 +187,42 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, PostCellDelega
     }
     private func failure(_ error: Error) { guard !(error is CancellationError) else { return }; notice.show(error.localizedDescription, retry: { [weak self] in self?.load(refresh: true) }); status.text = L10n.text("attention") }
     func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
-        if let post = posts[safe: indexPath.item] { (cell as? PostCell)?.visible(read: state.readIDs.contains(post.id)) }
+        if let post = posts[safe: indexPath.item] { cancelImagePrefetch(for: post); (cell as? PostCell)?.visible(read: state.readIDs.contains(post.id)) }
         if indexPath.item >= posts.count - 5 && !state.exhausted && !busy { load(refresh: false) }
     }
     func collectionView(_ collectionView: UICollectionView, didEndDisplaying cell: UICollectionViewCell, forItemAt indexPath: IndexPath) { (cell as? PostCell)?.stop() }
+    func collectionView(_ collectionView: UICollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
+        let policy = ImagePrefetchPolicy.effective(mode: context.preferences.string("performance.mode"), runtime: context.runtime)
+        guard policy.capacity > 0, viewIfLoaded?.window != nil else { cancelImagePrefetch(); return }
+        let visible = collectionView.indexPathsForVisibleItems.map(\.item)
+        guard let first = visible.min(), let last = visible.max() else { return }
+        let runway = max(1, visible.count) * policy.screensAhead
+        let generation = context.services.accountGeneration
+        // Match PhotoTile's visible-image decode key so warming the bounded
+        // service cache does not cause a second differently-sized download.
+        let pixels = 1200
+        for path in indexPaths.sorted() {
+            guard imagePrefetch.count < policy.capacity else { break }
+            guard !visible.contains(path.item), path.item >= max(0, first - runway), path.item <= last + runway,
+                  let post = posts[safe: path.item], let item = post.media.first(where: { $0.kind == "image" }), imagePrefetch[item.url] == nil else { continue }
+            let id = UUID(); let handle = item.url
+            let task = Task(priority: .utility) { [weak self] in
+                guard let self else { return }
+                defer { if imagePrefetch[handle]?.id == id { imagePrefetch.removeValue(forKey: handle) } }
+                guard generation == context.services.accountGeneration else { return }
+                do { _ = try await context.services.imageData(url: handle, maxPixelDimension: pixels); try Task.checkCancellation() }
+                catch { /* Speculation never presents an error or runs recovery. */ }
+            }
+            imagePrefetch[handle] = (id, task)
+        }
+    }
+    func collectionView(_ collectionView: UICollectionView, cancelPrefetchingForItemsAt indexPaths: [IndexPath]) {
+        for path in indexPaths { if let post = posts[safe: path.item] { cancelImagePrefetch(for: post) } }
+    }
+    private func cancelImagePrefetch(for post: Post) {
+        for item in post.media where item.kind == "image" { imagePrefetch.removeValue(forKey: item.url)?.task.cancel() }
+    }
+    private func cancelImagePrefetch() { imagePrefetch.values.forEach { $0.task.cancel() }; imagePrefetch.removeAll(keepingCapacity: false) }
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { loadEarlierIfNeeded() }
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) { if !decelerate { loadEarlierIfNeeded() } }
     private func loadEarlierIfNeeded() {
@@ -255,7 +294,7 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, PostCellDelega
     }
     private func hide(_ post: Post) { Task { do { try await context.services.hide(post.id); context.timelines.hide(post.id); state.posts.removeAll { $0.id == post.id }; apply() } catch { showError(error) } } }
     private func removeBookmark(_ post: Post) { Task { do { try await context.services.command(.removeBookmark, ["postId": .string(post.id), "confirmed": .bool(true)]); context.timelines.hide(post.id); state.posts.removeAll { $0.id == post.id }; apply() } catch { showError(error) } } }
-    deinit { refreshTimer?.invalidate(); NotificationCenter.default.removeObserver(self) }
+    deinit { imagePrefetch.values.forEach { $0.task.cancel() }; refreshTimer?.invalidate(); NotificationCenter.default.removeObserver(self) }
 }
 
 final class FeedHeader: UICollectionReusableView {

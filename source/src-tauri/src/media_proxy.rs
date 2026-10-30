@@ -957,7 +957,9 @@ mod tests {
         assert_eq!(id.len(), 32);
         assert!(id.chars().all(|c| c.is_ascii_hexdigit()));
         assert!(!id.contains("twimg"));
-        assert!(!id.contains("abc"));
+        // A random hexadecimal id can contain "abc" by chance. Verify the
+        // private lookup instead of rejecting a legitimate random sample.
+        assert_eq!(reg.lookup(&id).unwrap().url,"https://video.twimg.com/ext/vid/abc.mp4?tag=12");
     }
 
     #[test]

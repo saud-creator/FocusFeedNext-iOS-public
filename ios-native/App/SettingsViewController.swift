@@ -186,7 +186,8 @@ final class SettingsDetailViewController: ReaderScreen, UITableViewDataSource, U
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { section == 0 ? (category == "navigation" ? 4 : fields.count) : actionKeys.count }
     func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
         guard section == 0 else { return category == "privacy" ? L10n.text("privacyBody") : nil }
-        return category == "performance" ? L10n.text("performanceHint") : category == "media" ? L10n.text("nativeCleanup") : category == "privacy" ? L10n.text("resumeHint") : nil
+        if category == "performance" { let policy = ImagePrefetchPolicy.effective(mode: draft.preferences.string("performance.mode"), runtime: context.runtime); return L10n.text("performanceHint") + "\n\n" + L10n.text(policy.capacity == 0 ? "prefetchPaused" : "prefetchActive") }
+        return category == "media" ? L10n.text("nativeCleanup") : category == "privacy" ? L10n.text("resumeHint") : nil
     }
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = ReaderTableCell(style: .subtitle, reuseIdentifier: nil)

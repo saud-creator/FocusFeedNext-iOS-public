@@ -69,7 +69,10 @@ import AVKit
         let epoch = generation ?? accountGeneration
         let data = try Self.encoded(args)
         let context = requestContexts[id]
-        let result = try await core.execute(operation, args: data, generation: epoch, revision: context?.sourceRevision ?? 0, id: id.uuidString, deadline: context?.deadlineMillis ?? UInt64(Date().timeIntervalSince1970 * 1000) + 30_000)
+        let repository = core
+        let result = try await withTaskCancellationHandler(operation: {
+            try await repository.execute(operation, args:data, generation:epoch, revision:context?.sourceRevision ?? 0, id:id.uuidString, deadline:context?.deadlineMillis ?? UInt64(Date().timeIntervalSince1970 * 1000) + 30_000, priority:context?.priority ?? 1)
+        }, onCancel: { repository.cancel(id.uuidString) })
         guard !cancelled.contains(id), epoch == accountGeneration || generation != nil else { throw CancellationError() }
         indexHandles(result)
         return result
@@ -302,7 +305,20 @@ import AVKit
     }
     private func required(_ args:[String:Any],_ key:String)throws->String { guard let value=args[key] as? String,!value.isEmpty,value.count<=4096 else{throw AppServiceError(code:"invalid_request",message:L10n.text("loadFailed"))};return value }
     private func baseFeed(_ input:String)->String { ["focus","originals"].contains(input) ? "following" : input }
-    private func cachedFeed(_ args:[String:Any],owner:UUID)async throws->Data {var input=args;input["feed"]=baseFeed(args["feed"] as? String ?? "following");return try await run(.getFeed,input,owner:owner)}
+    private func cachedFeed(_ args:[String:Any],owner:UUID)async throws->Data {
+        var input=args;input["feed"]=baseFeed(args["feed"] as? String ?? "following")
+        let initial=try await run(.getFeed,input,owner:owner)
+        let missing=try object(initial)["missingPostIds"] as? [String] ?? []
+        guard !missing.isEmpty else{return initial}
+        // Restore only the requested bounded viewport window. Detail ingestion
+        // preserves the source cursor, complete bookmark index and read state.
+        for id in missing.prefix(80) {
+            try Task.checkCancellation()
+            let body=try await provider("TweetResultByRestId",variables:["tweetId":id,"withCommunity":false,"includePromotedContent":false,"withVoice":false],owner:owner)
+            _=try await run(.parsePostContent,["postId":id,"body":body],owner:owner)
+        }
+        return try await run(.getFeed,input,owner:owner)
+    }
     private func profile(_ username:String,owner:UUID,refresh:Bool=false)async throws->Data {
         guard username.range(of:"^[A-Za-z0-9_]{1,15}$",options:.regularExpression) != nil else{throw AppServiceError(code:"invalid_handle",message:L10n.text("loadFailed"))}
         let key=username.lowercased()
