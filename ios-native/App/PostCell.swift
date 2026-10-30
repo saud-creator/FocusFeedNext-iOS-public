@@ -211,6 +211,9 @@ final class InlinePlayerView: UIView {
     private var selectedSpeed: Float
     private var manuallyPaused = false
     private var endObserver: NSObjectProtocol?
+    private var itemObserver: NSKeyValueObservation?
+    private var statusObserver: NSKeyValueObservation?
+    private var failed = false
     var fullscreen: (() -> Void)?
     var position: Double { let v = player?.currentTime().seconds ?? 0; return v.isFinite ? v : 0 }
     var isPlaying: Bool { (player?.rate ?? 0) > 0 }
@@ -245,14 +248,20 @@ final class InlinePlayerView: UIView {
     override func layoutSubviews() { super.layoutSubviews(); playerLayer.frame = bounds }
     func play(automatically: Bool = false, startPlaying: Bool = true) {
         guard !automatically || (!manuallyPaused && (item.kind != "gif" || context.preferences.bool("video.gifAutoplay"))) else { return }
-        if let player, player.currentItem != nil { if startPlaying { player.playImmediately(atRate: selectedSpeed) }; return }
-        guard task == nil else { return }; notice.text = L10n.text("loading")
+        let needsRepair = failed || player?.currentItem?.status == .failed
+        guard !automatically || !needsRepair else { return }
+        if !needsRepair, let player, player.currentItem != nil { if startPlaying { player.playImmediately(atRate: selectedSpeed) }; return }
+        guard task == nil else { return }
+        if needsRepair { stop() }
+        notice.text = L10n.text("loading"); button.isEnabled = false
         let id = UUID(); taskID = id
         task = Task { [weak self] in
             guard let self else { return }
-            defer { if taskID == id { task = nil } }
+            defer { if taskID == id { task = nil; button.isEnabled = true } }
             do {
+                if needsRepair { selectedURL = try await context.services.recoverMediaHandle(selectedURL); try Task.checkCancellation() }
                 let next = try await context.services.makePlayer(url: selectedURL, owner: owner); try Task.checkCancellation(); player = next; playerLayer.player = next; notice.text = nil; next.isMuted = automatically
+                failed = false; observe(next)
                 if savedPosition > 0 { await next.seek(to: CMTime(seconds: savedPosition, preferredTimescale: 600)) }
                 try Task.checkCancellation()
                 if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
@@ -261,9 +270,29 @@ final class InlinePlayerView: UIView {
                 }
                 if startPlaying { next.playImmediately(atRate: selectedSpeed) }; button.setTitle(L10n.text(startPlaying ? "pause" : "playVideo"), for: .normal)
             }
-            catch { if !(error is CancellationError) { notice.text = "\(L10n.text("retry")): \(error.localizedDescription)" } }
+            catch { if !(error is CancellationError), taskID == id { failed = true; notice.text = error.localizedDescription; button.setTitle(L10n.text("retry"), for: .normal); button.accessibilityLabel = L10n.text("retry") } }
         }
     }
-    func stop() { if player != nil { savedPosition = position; context.rememberMedia(playbackKey, position: savedPosition) }; taskID = UUID(); task?.cancel(); task = nil; player?.pause(); playerLayer.player = nil; player = nil; if let endObserver { NotificationCenter.default.removeObserver(endObserver); self.endObserver = nil }; context.services.releasePlayer(owner: owner) }
-    deinit { task?.cancel(); if let endObserver { NotificationCenter.default.removeObserver(endObserver) } }
+    private func observe(_ observed: AVPlayer) {
+        itemObserver?.invalidate(); statusObserver?.invalidate()
+        itemObserver = observed.observe(\.currentItem, options: [.initial, .new]) { [weak self, weak observed] _, _ in
+            Task { @MainActor in guard let self, let observed, player === observed else { return }; observeStatus(observed.currentItem, player: observed) }
+        }
+    }
+    private func observeStatus(_ item: AVPlayerItem?, player observed: AVPlayer) {
+        statusObserver?.invalidate(); statusObserver = nil
+        guard let item else { return }
+        statusObserver = item.observe(\.status, options: [.initial, .new]) { [weak self, weak observed] item, _ in
+            Task { @MainActor in
+                guard let self, let observed, player === observed, observed.currentItem === item else { return }
+                switch item.status {
+                case .failed: failed = true; notice.text = L10n.text("videoFailed"); button.setTitle(L10n.text("retry"), for: .normal); button.accessibilityLabel = L10n.text("retry"); button.isEnabled = true
+                case .readyToPlay: failed = false; notice.text = nil; button.setTitle(L10n.text(isPlaying ? "pause" : "playVideo"), for: .normal); button.accessibilityLabel = L10n.text(isPlaying ? "pause" : "playVideo")
+                default: notice.text = L10n.text("loading")
+                }
+            }
+        }
+    }
+    func stop() { if player?.currentItem?.status == .failed { failed = true }; if player != nil { let at = position; if at > 0 { savedPosition = at }; context.rememberMedia(playbackKey, position: savedPosition) }; taskID = UUID(); task?.cancel(); task = nil; itemObserver?.invalidate(); itemObserver = nil; statusObserver?.invalidate(); statusObserver = nil; player?.pause(); playerLayer.player = nil; player = nil; if let endObserver { NotificationCenter.default.removeObserver(endObserver); self.endObserver = nil }; button.isEnabled = true; context.services.releasePlayer(owner: owner) }
+    deinit { task?.cancel(); itemObserver?.invalidate(); statusObserver?.invalidate(); if let endObserver { NotificationCenter.default.removeObserver(endObserver) } }
 }

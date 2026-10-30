@@ -46,6 +46,7 @@ jobs:
         run: |
           bash ios-native/Tests/Services/run-policy-tests.sh
           xcrun swiftc -frontend -parse -swift-version 5 ios-native/App/*.swift ios-native/Integration/*.swift ios-native/NativeServices/*.swift
+          bash ios-native/tools/typecheck-native.sh
           bash ios-native/tools/build-native.sh check
       - name: Unsigned native archive
         env:

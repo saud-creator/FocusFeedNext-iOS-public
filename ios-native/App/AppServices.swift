@@ -47,9 +47,13 @@ struct AppRequest: Codable {
     func releasePlayer(owner: UUID)
     func presentMedia(_ request: MediaPresentation, from: UIViewController) async throws -> MediaPresentationResult
     func recoverMedia() async throws
+    func recoverMediaHandle(_ handle: String) async throws -> String
 }
 
 extension AppServices {
+    /// Test adapters can retain their local handles. The production adapter
+    /// overrides this with source/registration recovery before returning.
+    func recoverMediaHandle(_ handle: String) async throws -> String { try await recoverMedia(); return handle }
     func call<T: Decodable>(_ operation: AppOperation, _ args: [String: JSONValue] = [:], as type: T.Type = T.self) async throws -> T {
         let request = AppRequest(requestID: UUID(), accountGeneration: accountGeneration, operation: operation, args: args)
         let data = try await withTaskCancellationHandler(operation: { try await perform(request) }, onCancel: { Task { @MainActor in self.cancel(requestID: request.requestID) } })

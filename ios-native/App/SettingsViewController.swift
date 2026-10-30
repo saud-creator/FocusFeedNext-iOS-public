@@ -293,7 +293,12 @@ final class MutedWordsViewController: ReaderScreen, UITableViewDataSource, UITab
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { words.count }
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell { let cell = ReaderTableCell(style: .default, reuseIdentifier: nil); cell.textLabel?.text = words[indexPath.row]; return cell }
     func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) { guard editingStyle == .delete else { return }; update(words[indexPath.row], muted: false) }
-    private func update(_ word: String, muted: Bool) { Task { do { try await context.services.command(.setMutedWord, ["word": .string(word), "muted": .bool(muted)]); load() } catch { showError(error) } }
+    private func update(_ word: String, muted: Bool) {
+        Task {
+            do { try await context.services.command(.setMutedWord, ["word": .string(word), "muted": .bool(muted)]); load() }
+            catch { showError(error) }
+        }
+    }
     @objc private func add() {
         let alert = UIAlertController(title: L10n.text("addWord"), message: nil, preferredStyle: .alert); alert.addTextField { $0.autocapitalizationType = .none }
         alert.addAction(UIAlertAction(title: L10n.text("cancel"), style: .cancel)); alert.addAction(UIAlertAction(title: L10n.text("add"), style: .default) { [weak self, weak alert] _ in guard let value = alert?.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty, value.count <= 100 else { return }; self?.update(value, muted: true) }); present(alert, animated: true)

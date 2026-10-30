@@ -279,7 +279,7 @@ impl MediaBroker {
             )
             .is_ok()
         });
-        json!({"available":listening,"epoch":self.epoch,"registrations":self.registry.len()})
+        json!({"available":listening,"epoch":self.epoch,"registrations":self.registry.len(),"transfers":self.proxy.as_ref().map(|proxy|proxy.metrics()).unwrap_or_default()})
     }
     fn prepare_probe(&self, url: &str) -> Result<PreparedMediaProbe, CoreError> {
         let Some(proxy) = self.proxy.as_ref() else {

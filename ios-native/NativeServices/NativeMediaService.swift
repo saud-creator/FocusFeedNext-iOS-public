@@ -251,7 +251,7 @@ enum NativeMediaFailure: Error, Equatable {
         let position = active.player.currentTime().seconds
         let speed = active.player.rate > 0 ? active.player.rate : lastPlaybackRate
         let muted = active.player.isMuted
-        let intent = speed > 0 || active.player.timeControlStatus == .waitingToPlayAtSpecifiedRate
+        let intent = active.player.rate > 0 || active.player.timeControlStatus == .waitingToPlayAtSpecifiedRate
         let captured = ownership
         let pause = pauseRevision
         let recoveryID = UUID(); playerRecoveryID = recoveryID

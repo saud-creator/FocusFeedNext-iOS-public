@@ -10,6 +10,7 @@ with zipfile.ZipFile(a.ipa) as z:
     assert info['CFBundleIdentifier']=='com.focusfeed.next'
     assert info['CFBundleShortVersionString']=='0.10.0'
     assert info['MinimumOSVersion']=='16.0'
+    assert info['CFBundleSupportedPlatforms']==['iPhoneOS'], 'Not a device archive'
     assert not any('_CodeSignature' in n or n.endswith('.mobileprovision') for n in names)
     assert not any('/assets/' in n or n.endswith('.html') for n in names), 'Web reader resources in native app'
     ats=info['NSAppTransportSecurity'];assert not ats.get('NSAllowsArbitraryLoads',False)
@@ -23,14 +24,21 @@ with zipfile.ZipFile(a.ipa) as z:
     assert len(manifest['sourceCommit'])==40 and manifest['reader']=='UIKit'
     # Inspect load commands, rather than matching incidental text in the engine.
     count=struct.unpack_from('<I',binary,16)[0];offset=32
-    linked=[]
+    linked=[];device_platform=False
     for _ in range(count):
         command,size=struct.unpack_from('<II',binary,offset)
         assert size>=8 and offset+size<=len(binary)
+        assert command!=0x1d, 'Executable contains an embedded signature'
+        if command==0x32:
+            assert size>=24
+            platform,minimum=struct.unpack_from('<II',binary,offset+8)
+            device_platform=platform==2
+            assert minimum==16<<16, 'Executable minimum OS differs from Info.plist'
         if command in {0xc,0x80000018,0x8000001f,0x80000023}:
             name_offset=struct.unpack_from('<I',binary,offset+8)[0]
             linked.append(binary[offset+name_offset:offset+size].split(b'\0',1)[0].decode())
         offset+=size
+    assert device_platform, 'Missing iOS device build-version command'
     assert not any('tauri' in n.lower() or 'tao' in n.lower() for n in linked)
 report={'schemaVersion':1,'version':info['CFBundleShortVersionString'],'build':info['CFBundleVersion'],
         'bundleID':info['CFBundleIdentifier'],'architecture':'arm64','minimumOS':'16.0','archiveCRC':'passed',

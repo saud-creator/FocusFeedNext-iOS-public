@@ -34,6 +34,8 @@ import AVKit
     private var restoring: Task<SessionSnapshot, Error>?
     private var sessionRevision: UInt64 = 0
     private var restoringRevision: UInt64?
+    private var checkedAt: String?
+    private var lastSuccessAt: String?
     private var recoveryEpoch: UInt64 = 1
     private var imageAttempts: [String: (epoch: UInt64, time: TimeInterval)] = [:]
     private lazy var host: NativeHostService = {
@@ -110,7 +112,7 @@ import AVKit
     }
     func pause() { media.pauseAll() }
     private func snapshot(state: String = "connected", detail: String? = nil) -> SessionSnapshot {
-        SessionSnapshot(state: credentials == nil ? "disconnected" : state, reason: credentials == nil ? "missing_credentials" : "connected", checking: false, account: currentAccount, checkedAt: ISO8601DateFormatter().string(from: Date()), lastSuccessAt: currentAccount == nil ? nil : ISO8601DateFormatter().string(from: Date()), latencyMs: nil, hasCredentials: credentials != nil, detail: detail)
+        SessionSnapshot(state: credentials == nil ? "disconnected" : state, reason: credentials == nil ? "missing_credentials" : "connected", checking: false, account: currentAccount, checkedAt: checkedAt, lastSuccessAt: lastSuccessAt, latencyMs: nil, hasCredentials: credentials != nil, detail: detail)
     }
     private func provider(_ operation: String, variables: [String: Any] = [:], owner: UUID? = nil, candidate: NativeSessionCandidate? = nil, authentication: Bool = false) async throws -> Any {
         guard let session = candidate ?? credentials else { throw AppServiceError(code: "not_authenticated", message: L10n.text("signIn")) }
@@ -156,6 +158,7 @@ import AVKit
         let value = try object(result)
         currentAccount = try JSONDecoder().decode(Author.self, from: Self.encoded(value["account"] ?? [:]))
         accountGeneration = generation; transportGeneration &+= 1
+        checkedAt = ISO8601DateFormatter().string(from:Date()); lastSuccessAt = checkedAt
         media.invalidate(accountEpoch: generation, brokerEpoch: brokerEpoch)
         let next = snapshot(); continuation.yield(.session(next)); return next
     }
@@ -444,6 +447,10 @@ import AVKit
     }
     func makePlayer(url:String,owner:UUID)async throws->AVPlayer {try await media.makePlayer(url:mediaURL(for:url).absoluteString,owner:owner)}
     func releasePlayer(owner:UUID){media.releasePlayer(owner:owner)}
+    func recoverMediaHandle(_ handle:String)async throws->String {
+        guard let locator=handleOwners[handle] else {throw AppServiceError(code:"expired_media",message:L10n.text("loadFailed"))}
+        return try await renew(locator:locator,fresh:true)
+    }
     func presentMedia(_ request:MediaPresentation,from:UIViewController)async throws->MediaPresentationResult {
         var items:[[String:Any]]=[]
         for item in request.items {
