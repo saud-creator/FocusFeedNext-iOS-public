@@ -80,7 +80,7 @@ import AVKit
                 var nextOwner = owner; var nextPath = path
                 if owner == nil, dictionary["text"] != nil, let id = dictionary["id"] as? String {
                     nextOwner = .post(id); nextPath = []
-                } else if owner == nil, let username = dictionary["username"] as? String {
+                } else if let username = dictionary["username"] as? String, dictionary["displayName"] != nil {
                     nextOwner = .author(username); nextPath = []
                 }
                 for (key,value) in dictionary { visit(value, owner: nextOwner, path: nextPath + [key]) }
@@ -137,7 +137,16 @@ import AVKit
     private func validateIdentity(_ body: Any) async throws -> Author { try JSONDecoder().decode(Author.self, from: await run(.parseIdentity, ["body": body])) }
     private func acceptIdentity(_ body: Any) async throws -> SessionSnapshot {
         let verified = try await validateIdentity(body)
-        let generation = currentAccount?.id == verified.id ? accountGeneration : accountGeneration + 1
+        let identityChanged = currentAccount?.id != verified.id
+        let generation = identityChanged ? accountGeneration + 1 : accountGeneration
+        if identityChanged {
+            followingJob?.cancel(); followingJob = nil; followingComplete = false; followingError = nil
+            profileJobs.values.forEach { $0.cancel() }; profileJobs.removeAll()
+            feedJobs.values.forEach { $0.cancel() }; feedJobs.removeAll()
+            recoveryTask?.cancel(); recoveryTask = nil
+            handleOwners.removeAll(); resolvedHandles.removeAll(); imageAttempts.removeAll()
+            await host.cancelReads()
+        }
         let result = try await run(.setAccount, ["body": body], generation: generation)
         let value = try object(result)
         currentAccount = try JSONDecoder().decode(Author.self, from: Self.encoded(value["account"] ?? [:]))
@@ -316,10 +325,11 @@ import AVKit
         followingJob=Task { @MainActor in
             defer{self.followingJob=nil;self.continuation.yield(.followingProgress)}
             do{
-                guard let account=self.currentAccount else{return};var cursor:String?;var seen=Set<String>();var offset=0
+                guard let account=self.currentAccount else{return};let generation=self.accountGeneration;var cursor:String?;var seen=Set<String>();var offset=0
                 repeat{
-                    try Task.checkCancellation();var variables:[String:Any]=["userId":account.id,"count":60,"includePromotedContent":false];if let cursor{variables["cursor"]=cursor}
+                    try Task.checkCancellation();guard generation==self.accountGeneration else{throw CancellationError()};var variables:[String:Any]=["userId":account.id,"count":60,"includePromotedContent":false];if let cursor{variables["cursor"]=cursor}
                     let body=try await self.provider("Following",variables:variables);let next=self.findBottomCursor(body)
+                    guard generation==self.accountGeneration else{throw CancellationError()}
                     let response=try self.object(await self.run(.ingestFollowing,["body":body,"offset":offset,"syncId":String(self.accountGeneration),"complete":next==nil]))
                     offset += (response["accounts"] as? [Any])?.count ?? 0;self.continuation.yield(.followingProgress)
                     guard let next,!next.isEmpty,seen.insert(next).inserted else{self.followingComplete=true;break};cursor=next

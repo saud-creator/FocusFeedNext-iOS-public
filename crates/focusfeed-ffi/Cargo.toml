@@ -20,4 +20,3 @@ focusfeed-core = { path = "../focusfeed-core" }
 serde_json = "1"
 thiserror = "2"
 uniffi = { version = "=0.32.1" }
-
