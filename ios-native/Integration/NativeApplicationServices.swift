@@ -32,6 +32,8 @@ import AVKit
     private var resolvedHandles: [String: String] = [:]
     private var recoveryTask: Task<Void, Never>?
     private var restoring: Task<SessionSnapshot, Error>?
+    private var sessionRevision: UInt64 = 0
+    private var restoringRevision: UInt64?
     private var recoveryEpoch: UInt64 = 1
     private var imageAttempts: [String: (epoch: UInt64, time: TimeInterval)] = [:]
     private lazy var host: NativeHostService = {
@@ -155,16 +157,21 @@ import AVKit
         let next = snapshot(); continuation.yield(.session(next)); return next
     }
     func signIn(presenting: UIViewController) async throws -> SessionSnapshot {
+        sessionRevision &+= 1
+        restoring?.cancel(); restoring = nil; restoringRevision = nil
+        let revision = sessionRevision
         let previous = credentials
         var finalized = false
         var verifiedCandidate: NativeSessionCandidate?
         do {
             let candidate = try await host.beginLogin()
+            guard revision == sessionRevision else { throw CancellationError() }
             let before = try await provider("Me", candidate: candidate, authentication: true)
             let expected = try await validateIdentity(before)
             let committed = try await host.commitCandidate()
             let after = try await provider("Me", candidate: committed, authentication: true)
             let actual = try await validateIdentity(after)
+            guard revision == sessionRevision else { throw CancellationError() }
             guard expected.id == actual.id else { throw AppServiceError(code: "identity_mismatch", message: L10n.text("accountAttention")) }
             // Finish the same verified transaction after activation, without
             // restarting login or publishing a partially committed identity.
@@ -186,15 +193,20 @@ import AVKit
     private func restoreSession(force: Bool = false) async throws -> SessionSnapshot {
         if credentials != nil, currentAccount != nil, !force { return snapshot() }
         if let restoring { return try await restoring.value }
+        let revision = sessionRevision
         let task = Task { @MainActor () throws -> SessionSnapshot in
             guard let candidate = try await self.host.loadSavedCandidate() else { return self.snapshot() }
+            try Task.checkCancellation(); guard revision == self.sessionRevision else { throw CancellationError() }
             let body = try await self.provider("Me", candidate: candidate)
             _ = try await self.validateIdentity(body)
+            try Task.checkCancellation(); guard revision == self.sessionRevision else { throw CancellationError() }
             try await self.host.migrateSavedCandidate(candidate)
+            try Task.checkCancellation(); guard revision == self.sessionRevision else { throw CancellationError() }
             self.credentials = candidate
             return try await self.acceptIdentity(body)
         }
-        restoring = task; defer { restoring = nil }
+        restoring = task; restoringRevision = revision
+        defer { if restoringRevision == revision { restoring = nil; restoringRevision = nil } }
         return try await task.value
     }
     func perform(_ request: AppRequest) async throws -> Data {
@@ -206,6 +218,7 @@ import AVKit
         case .sessionStatus: return try JSONEncoder().encode(try await restoreSession())
         case .checkSession: return try JSONEncoder().encode(try await restoreSession(force: true))
         case .disconnect:
+            sessionRevision &+= 1; restoring?.cancel(); restoring = nil; restoringRevision = nil
             followingJob?.cancel(); followingJob = nil; recoveryTask?.cancel(); profileJobs.values.forEach { $0.cancel() }; feedJobs.values.forEach { $0.cancel() }
             // Core refuses disconnect while an account write still owns its slot.
             _ = try await run(.clearSession, ["disconnect":true])
