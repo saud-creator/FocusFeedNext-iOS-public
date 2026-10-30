@@ -1,0 +1,55 @@
+name: Native iOS quality
+on:
+  push:
+    branches: [codex/native-ios-quality]
+  pull_request:
+    paths: ['crates/**', 'ios-native/**', 'Cargo.*', 'rust-toolchain.toml', '.github/workflows/native-ios.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  core:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.96.0'
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace --locked
+  native:
+    runs-on: macos-15
+    timeout-minutes: 90
+    needs: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.96.0'
+      - uses: Swatinem/rust-cache@v2
+      - name: Install project generator and record Apple toolchain
+        run: |
+          brew install xcodegen
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+      - name: Native build, bridge and UI tests
+        run: |
+          bash ios-native/Tests/Services/run-policy-tests.sh
+          bash ios-native/tools/build-native.sh check
+      - name: Unsigned native archive
+        env:
+          NATIVE_BUILD_NUMBER: '100.${{ github.run_number }}'
+        run: bash ios-native/tools/build-native.sh archive
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Native-iOS-evidence
+          path: |
+            ios-native/dist/
+            ios-native/.build/*.xcresult
+            ios-native/Resources/BuildProvenance.json
+          retention-days: 30

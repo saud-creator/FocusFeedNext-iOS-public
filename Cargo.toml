@@ -1,0 +1,15 @@
+[workspace]
+members = ["crates/focusfeed-core", "crates/focusfeed-ffi"]
+exclude = ["source/src-tauri"]
+resolver = "2"
+
+[workspace.package]
+version = "0.10.0"
+edition = "2021"
+license = "MIT"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+

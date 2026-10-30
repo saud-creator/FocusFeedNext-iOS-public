@@ -30,3 +30,10 @@ cookies.txt
 cookies.json
 credentials.json
 auth.json
+/target/
+/ios-native/.build/
+/ios-native/dist/
+/ios-native/Generated/
+/ios-native/Frameworks/
+/ios-native/FocusFeedNextNative.xcodeproj/
+/ios-native/Resources/BuildProvenance.json

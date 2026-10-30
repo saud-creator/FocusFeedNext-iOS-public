@@ -89,6 +89,17 @@ const SCHEMA_VERSION: i64 = 1;
 pub const BOOKMARKS_FEED: &str = "bookmarks";
 
 impl Db {
+    /// Native payload eviction deliberately retains source membership, bookmark
+    /// positions, cursors and read/hidden state. The native engine returns the
+    /// missing ids explicitly so its transport can rehydrate an older window.
+    pub fn evict_native_payloads(&self, ids: &[String]) -> AppResult<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        for id in ids { tx.execute("DELETE FROM posts WHERE id=?1", [id])?; }
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn open(path: &Path) -> AppResult<Self> {
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -1483,14 +1494,14 @@ impl Db {
 
     pub fn cursor(&self, feed: &str) -> AppResult<Option<String>> {
         let conn = self.conn.lock().unwrap();
-        let v: Option<String> = conn
+        let v: Option<Option<String>> = conn
             .query_row(
                 "SELECT cursor FROM sync_state WHERE feed = ?1",
                 params![feed],
                 |r| r.get(0),
             )
             .optional()?;
-        Ok(v.flatten_empty())
+        Ok(v.flatten().flatten_empty())
     }
 
     pub fn stats(&self) -> AppResult<DashboardStats> {

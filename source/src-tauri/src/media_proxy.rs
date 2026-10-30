@@ -591,6 +591,15 @@ fn refuse(status: StatusCode) -> Response<ProxyBody> {
     res
 }
 
+/// Provenance is attached only after the process secret and a live registered
+/// media id have been verified. Unknown paths retain the identical refusal
+/// shape above; native diagnostics cannot turn this into a probing oracle.
+fn refuse_validated(status:StatusCode,origin:&'static str)->Response<ProxyBody>{
+    let mut response=refuse(status);
+    response.headers_mut().insert("x-focusfeed-failure-origin",HeaderValue::from_static(origin));
+    response
+}
+
 /// Headers set on every response we produce.
 fn harden(h: &mut HeaderMap) {
     h.insert(
@@ -687,11 +696,15 @@ async fn handle(req: Request<Incoming>, ctx: Arc<ProxyContext>) -> Response<Prox
         return refuse(StatusCode::FORBIDDEN);
     };
 
-    let permit = match acquire_transfer(ctx.transfers.for_url(url)).await {
+    // Diagnostics must not queue behind the transfers they are diagnosing.
+    // A HEAD from the trusted app returns local queue exhaustion immediately;
+    // ordinary media GETs retain the existing bounded ten-second wait.
+    let acquired=if req.method()==Method::HEAD {Arc::clone(ctx.transfers.for_url(url)).try_acquire_owned().ok()}else{acquire_transfer(ctx.transfers.for_url(url)).await};
+    let permit = match acquired {
         Some(permit) => permit,
-        None => return refuse(StatusCode::TOO_MANY_REQUESTS),
+        None => return refuse_validated(StatusCode::TOO_MANY_REQUESTS,"local_queue"),
     };
-    if ctx.registry.generation()!=entry.generation {return refuse(StatusCode::NOT_FOUND);}
+    if ctx.registry.generation()!=entry.generation {return refuse_validated(StatusCode::NOT_FOUND,"registration");}
 
     let image_request=reqwest::Url::parse(url).ok().is_some_and(|parsed|parsed.host_str()==Some("pbs.twimg.com"));
     let mut upstream = ctx.client.get(url).timeout(Duration::from_secs(if image_request {20}else{90}));
@@ -717,7 +730,7 @@ async fn handle(req: Request<Incoming>, ctx: Arc<ProxyContext>) -> Response<Prox
                     "request"
                 }
             );
-            return refuse(StatusCode::BAD_GATEWAY);
+            return refuse_validated(StatusCode::BAD_GATEWAY,"upstream_network");
         }
     };
 
@@ -727,13 +740,13 @@ async fn handle(req: Request<Incoming>, ctx: Arc<ProxyContext>) -> Response<Prox
         .map(|(name, value)| name.as_str().len() + value.as_bytes().len() + 4)
         .sum();
     if header_bytes > MAX_RESPONSE_HEADER_BYTES {
-        return refuse(StatusCode::BAD_GATEWAY);
+        return refuse_validated(StatusCode::BAD_GATEWAY,"upstream_http");
     }
     if response
         .content_length()
         .is_some_and(|length| length > MAX_MEDIA_BYTES)
     {
-        return refuse(StatusCode::PAYLOAD_TOO_LARGE);
+        return refuse_validated(StatusCode::PAYLOAD_TOO_LARGE,"upstream_http");
     }
 
     let status =
@@ -741,6 +754,9 @@ async fn handle(req: Request<Incoming>, ctx: Arc<ProxyContext>) -> Response<Prox
     let mut out = Response::new(empty_body());
     *out.status_mut() = status;
     copy_response_headers(response.headers(), out.headers_mut());
+    // A forwarded CDN 429 is distinct from exhausting our own transfer pool.
+    // The upstream response cannot supply or override this private header.
+    out.headers_mut().insert("x-focusfeed-failure-origin",HeaderValue::from_static("upstream_http"));
     if let Some(o) = allow_origin {
         out.headers_mut()
             .insert("access-control-allow-origin", HeaderValue::from_static(o));
@@ -1206,6 +1222,13 @@ mod tests {
     }
 
     fn fixture_respond(req: Request<Incoming>) -> Response<Full<Bytes>> {
+        if req.uri().path()=="/limited" {
+            let mut response=Response::new(Full::new(Bytes::new()));
+            *response.status_mut()=StatusCode::TOO_MANY_REQUESTS;
+            // A CDN cannot forge a local failure classification.
+            response.headers_mut().insert("x-focusfeed-failure-origin",HeaderValue::from_static("local_queue"));
+            return response;
+        }
         let body: Vec<u8> = (0..FIXTURE_LEN).map(|i| (i % 251) as u8).collect();
         let total = body.len();
         let mut res = Response::new(Full::new(Bytes::new()));
@@ -1410,6 +1433,24 @@ mod tests {
         assert_eq!(res.status(), 200);
         assert_eq!(res.headers()["content-type"], "video/mp4");
         assert_eq!(res.bytes().await.unwrap().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn native_probe_provenance_cannot_be_forged_by_upstream_or_observed_on_unknown_paths() {
+        let port=start_fixture_upstream().await;
+        let prefix=format!("http://127.0.0.1:{port}");
+        let registry=Arc::new(MediaRegistry::new());
+        let id=registry.register_for_test(&format!("{prefix}/limited"));
+        let proxy=MediaProxy::start_with_test_upstream(registry,prefix).await.unwrap();
+        let client=reqwest::Client::new();
+        let response=client.head(proxy.url_for(&id)).send().await.unwrap();
+        assert_eq!(response.status(),StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(response.headers().get("x-focusfeed-failure-origin").unwrap(),"upstream_http");
+        let unknown=client.head(proxy.url_for("0011")).send().await.unwrap();
+        assert_eq!(unknown.status(),StatusCode::NOT_FOUND);
+        assert!(!unknown.headers().contains_key("x-focusfeed-failure-origin"));
+        let local=refuse_validated(StatusCode::TOO_MANY_REQUESTS,"local_queue");
+        assert_eq!(local.headers().get("x-focusfeed-failure-origin").unwrap(),"local_queue");
     }
 
     #[tokio::test]

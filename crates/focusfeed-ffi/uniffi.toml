@@ -1,0 +1,5 @@
+[bindings.swift]
+module_name = "FocusFeedNative"
+ffi_module_name = "FocusFeedNativeFFI"
+generate_module_map = true
+
