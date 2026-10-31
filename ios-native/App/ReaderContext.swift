@@ -3,6 +3,7 @@ import UIKit
 extension Notification.Name {
     static let readerContextChanged = Notification.Name("ReaderContextChanged")
     static let readerContentChanged = Notification.Name("ReaderContentChanged")
+    static let readerMediaRecoveryOpportunity = Notification.Name("ReaderMediaRecoveryOpportunity")
     static let readerFollowingChanged = Notification.Name("ReaderFollowingChanged")
 }
 
@@ -13,8 +14,7 @@ extension Notification.Name {
     var runtime: ReaderRuntimeSnapshot?
     var preferences = ReaderPreferences()
     var recovery = ""
-    private var pausedMedia = Set<String>()
-    private var mediaPositions: [String: Double] = [:]
+    private var playbackStates: [String: ReaderPlaybackState] = [:]
     lazy var timelines = TimelineRepository(context: self)
     private var eventsTask: Task<Void, Never>?
     init(services: AppServices) { self.services = services }
@@ -31,8 +31,13 @@ extension Notification.Name {
             for await event in services.events {
                 if Task.isCancelled { return }
                 switch event {
-                case .session(let snapshot): session = snapshot; capabilities = nil; changed()
+                case .session(let snapshot):
+                    let generation = services.accountGeneration
+                    let nextCapabilities: ProviderCapabilities? = snapshot.hasCredentials ? (try? await services.call(.providerCapabilities)) : nil
+                    guard generation == services.accountGeneration else { continue }
+                    session = snapshot; capabilities = nextCapabilities; changed()
                 case .contentChanged: NotificationCenter.default.post(name: .readerContentChanged, object: self)
+                case .mediaRecoveryOpportunity: NotificationCenter.default.post(name: .readerMediaRecoveryOpportunity, object: self)
                 case .followingProgress: NotificationCenter.default.post(name: .readerFollowingChanged, object: self)
                 case .recovery(let state): recovery = state; changed()
                 case .runtimeChanged: runtime = try? await services.call(.runtimeSnapshot); changed()
@@ -46,13 +51,19 @@ extension Notification.Name {
         changed()
     }
     func changed() { NotificationCenter.default.post(name: .readerContextChanged, object: self) }
-    func isPaused(_ key: String) -> Bool { pausedMedia.contains(key) }
-    func position(_ key: String) -> Double { mediaPositions[key] ?? 0 }
-    func rememberMedia(_ key: String, paused: Bool? = nil, position: Double? = nil) {
-        if let paused { if paused { pausedMedia.insert(key) } else { pausedMedia.remove(key) } }
-        if let position, position.isFinite, position >= 0 { mediaPositions[key] = position }
-        if mediaPositions.count > 512 { mediaPositions = [key: mediaPositions[key] ?? 0] }
-        if pausedMedia.count > 512 { pausedMedia = pausedMedia.contains(key) ? [key] : [] }
+    func isPaused(_ key: String) -> Bool { playbackStates[key]?.paused == true }
+    func position(_ key: String) -> Double { playbackStates[key]?.position ?? 0 }
+    func playbackState(_ key: String) -> ReaderPlaybackState? { playbackStates[key] }
+    func rememberMedia(_ key: String, paused: Bool? = nil, position: Double? = nil, speed: Double? = nil, muted: Bool? = nil, loopPlayback: Bool? = nil, selectedHandle: String? = nil) {
+        var state = playbackStates[key] ?? ReaderPlaybackState()
+        if let paused { state.paused = paused }
+        if let position, position.isFinite, position >= 0 { state.position = position }
+        if let speed, speed.isFinite, (0.25...4).contains(speed) { state.speed = speed }
+        if let muted { state.muted = muted }
+        if let loopPlayback { state.loopPlayback = loopPlayback }
+        if let selectedHandle, selectedHandle.hasPrefix("ffmedia:") { state.selectedHandle = selectedHandle }
+        playbackStates[key] = state
+        if playbackStates.count > 512 { playbackStates = [key: state] }
     }
     var allowsAutoplay: Bool {
         guard let runtime, runtime.foreground, !runtime.lowPower, !runtime.constrained, !runtime.reduceMotion, !["serious", "critical"].contains(runtime.thermal), preferences.string("performance.mode") != "battery" else { return false }

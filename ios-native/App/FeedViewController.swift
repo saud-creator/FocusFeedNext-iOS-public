@@ -1,5 +1,10 @@
 import UIKit
 
+private struct FeedItemIdentity: Hashable {
+    let accountGeneration: UInt64
+    let postID: String
+}
+
 @MainActor final class TimelineRepository {
     struct State { var posts: [Post] = []; var readIDs: Set<String> = []; var cursor: String?; var lastSync: String?; var fromCache = true; var exhausted = false; var groupOffset = 0; var groupComplete = false; var groupFailures: [AccountFailure] = []; var windowStart = 0; var nextCachedOffset: Int? }
     unowned let context: ReaderContext
@@ -69,7 +74,7 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
     let status = readerLabel(style: .caption1, color: .secondaryLabel)
     let refreshControl = UIRefreshControl()
     private(set) var collection: UICollectionView!
-    private var dataSource: UICollectionViewDiffableDataSource<Int, String>!
+    private var dataSource: UICollectionViewDiffableDataSource<Int, FeedItemIdentity>!
     private var busy = false
     private var initiallyLoaded = false
     private var heldOffset: CGPoint?
@@ -111,7 +116,8 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
         let column = UIStackView(arrangedSubviews: [topActions, notice, collection]); column.axis = .vertical; column.spacing = 0; view.addSubview(column); column.pin(to: view, safe: true)
         topActions.isLayoutMarginsRelativeArrangement = true; topActions.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 8)
         navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "arrow.clockwise"), style: .plain, target: self, action: #selector(refreshTapped)); navigationItem.rightBarButtonItem?.accessibilityLabel = L10n.text("refresh")
-        dataSource = UICollectionViewDiffableDataSource<Int, String>(collectionView: collection) { [weak self] collection, indexPath, id in
+        dataSource = UICollectionViewDiffableDataSource<Int, FeedItemIdentity>(collectionView: collection) { [weak self] collection, indexPath, item in
+            let id = item.postID
             guard let self, let post = posts.first(where: { $0.id == id }), let cell = collection.dequeueReusableCell(withReuseIdentifier: PostCell.reuseID, for: indexPath) as? PostCell else { return nil }
             cancelImagePrefetch(for: post)
             cell.configure(post, read: state.readIDs.contains(id), bookmark: route == .bookmarks && !includesReplies, context: context, delegate: self)
@@ -125,6 +131,7 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
         }
         NotificationCenter.default.addObserver(self, selector: #selector(contextChanged), name: .readerContextChanged, object: context)
         NotificationCenter.default.addObserver(self, selector: #selector(contentChanged), name: .readerContentChanged, object: context)
+        NotificationCenter.default.addObserver(self, selector: #selector(recoverVisibleMedia), name: .readerMediaRecoveryOpportunity, object: context)
     }
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
@@ -148,9 +155,22 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
         if accountGeneration != context.services.accountGeneration { cancelImagePrefetch(); accountGeneration = context.services.accountGeneration; state = TimelineRepository.State(); posts = []; context.timelines.reset(); loadInitial(); return }
         if context.runtime?.foreground == false { collection.visibleCells.compactMap { $0 as? PostCell }.forEach { $0.stop() } }
         scheduleRefresh()
-        if !context.recovery.isEmpty { status.text = L10n.text(context.recovery == "recovering" ? "reconnecting" : context.recovery == "recovered" ? "recovered" : "attention") }
+        switch context.recovery {
+        case "reconnecting", "recovering": status.text = L10n.text("reconnecting")
+        case "updated": status.text = L10n.text("updated")
+        case "recovered": status.text = L10n.text("recovered")
+        case "needsAttention": status.text = L10n.text("attention")
+        case "readyToRetry": status.text = L10n.text("retry")
+        case "offline": status.text = L10n.text("offline")
+        default: break
+        }
     }
     @objc private func contentChanged() { state = context.timelines.state(source); apply() }
+    @objc private func recoverVisibleMedia() {
+        guard viewIfLoaded?.window != nil, context.runtime?.foreground != false,
+              accountGeneration == context.services.accountGeneration else { return }
+        collection.visibleCells.compactMap { $0 as? PostCell }.forEach { $0.recoverFailedMedia() }
+    }
     private func loadInitial() {
         work?.cancel(); busy = true; notice.show(L10n.text("loading"), busy: true)
         work = Task { [weak self] in
@@ -180,8 +200,12 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
         guard collection != nil else { return }
         posts = state.posts.filter { filters.accepts($0, read: state.readIDs.contains($0.id), includeReplies: includesReplies) && (postPredicate?($0) ?? true) }
         let previous = Set(dataSource.snapshot().itemIdentifiers)
-        var snapshot = NSDiffableDataSourceSnapshot<Int, String>(); snapshot.appendSections([0]); snapshot.appendItems(posts.map(\.id)); snapshot.reconfigureItems(posts.map(\.id).filter { previous.contains($0) }); dataSource.apply(snapshot, animatingDifferences: false)
-        if posts.isEmpty { notice.show(L10n.text("empty") + "\n" + L10n.text("emptyHint"), retry: { [weak self] in self?.filters = FeedFilters(); self?.load(refresh: true) }) } else { notice.show(nil) }
+        let items = posts.map { FeedItemIdentity(accountGeneration:context.services.accountGeneration,postID:$0.id) }
+        var snapshot = NSDiffableDataSourceSnapshot<Int, FeedItemIdentity>(); snapshot.appendSections([0]); snapshot.appendItems(items); snapshot.reconfigureItems(items.filter { previous.contains($0) }); dataSource.apply(snapshot, animatingDifferences: false)
+        if posts.isEmpty, !state.exhausted {
+            notice.show(L10n.text("empty") + "\n" + L10n.text("emptyHint"), retry: { [weak self] in self?.load(refresh: false) }, actionTitle: L10n.text("loadMore"))
+        } else if posts.isEmpty { notice.show(L10n.text("empty") + "\n" + L10n.text("emptyHint")) }
+        else { notice.show(nil) }
         if !state.groupFailures.isEmpty { notice.show(L10n.text("partialList"), retry: { [weak self] in self?.load(refresh: true) }) }
         if let last = state.lastSync { status.text = "\(L10n.text("updated")) \(ReaderDates.label(last))" } else { status.text = state.fromCache ? L10n.text("cached") : nil }
     }
@@ -278,12 +302,12 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
     func postCellOpenArticle(_ post: Post) { navigationController?.pushViewController(ArticleViewController(context: context, post: post), animated: true) }
     func postCellComments(_ post: Post) { navigationController?.pushViewController(CommentsViewController(context: context, post: post), animated: true) }
     func postCellOpenURL(_ url: URL) { Task { do { try await context.services.command(.openExternal, ["url": .string(url.absoluteString)]) } catch { showError(error) } } }
-    func postCellPresentMedia(_ request: MediaPresentation) { Task { do { let result = try await context.services.presentMedia(request, from: self); if let key = request.playbackKey { context.rememberMedia(key, paused: !result.playing, position: result.position) } } catch { showError(error) } } }
+    func postCellPresentMedia(_ request: MediaPresentation) { Task { do { let result = try await context.services.presentMedia(request, from: self); if let key = request.playbackKey { context.rememberMedia(key, paused: !result.playing, position: result.position, speed: result.speed, muted: result.muted, loopPlayback: result.loopPlayback, selectedHandle: result.selectedHandle) } } catch { showError(error) } } }
     func postCellActions(_ post: Post, source: UIView) {
         let sheet = UIAlertController(title: post.author.label, message: nil, preferredStyle: .actionSheet)
         sheet.addAction(UIAlertAction(title: L10n.text(state.readIDs.contains(post.id) ? "markUnread" : "markRead"), style: .default) { [weak self] _ in self?.markRead(post.id, read: !(self?.state.readIDs.contains(post.id) ?? false)) })
-        sheet.addAction(UIAlertAction(title: L10n.text("copyText"), style: .default) { _ in UIPasteboard.general.string = post.text; UIAccessibility.post(notification: .announcement, argument: L10n.text("copied")) })
-        if let url = post.canonicalURL { sheet.addAction(UIAlertAction(title: L10n.text("copyLink"), style: .default) { _ in UIPasteboard.general.url = url; UIAccessibility.post(notification: .announcement, argument: L10n.text("copied")) }) }
+        sheet.addAction(UIAlertAction(title: L10n.text("copyText"), style: .default) { _ in ReaderClipboard.copyText(post.text) })
+        if let url = post.canonicalURL { sheet.addAction(UIAlertAction(title: L10n.text("copyLink"), style: .default) { _ in ReaderClipboard.copyURL(url) }) }
         sheet.addAction(UIAlertAction(title: L10n.text("hide"), style: .default) { [weak self] _ in self?.hide(post) })
         if route == .bookmarks && !includesReplies && context.capabilities?.unbookmark == true {
             sheet.addAction(UIAlertAction(title: L10n.text("removeBookmark"), style: .destructive) { [weak self] _ in

@@ -152,7 +152,8 @@ struct NativeMediaArgs: Decodable {
     private func load(fresh: Bool) {
         loading?.cancel(); retry.isHidden = true; view.accessibilityIdentifier = "native-video-loading"
         let position = player?.currentTime().seconds ?? args.position ?? 0
-        let shouldPlay = player.map { $0.rate > 0 } ?? (args.playing ?? true)
+        let shouldPlay = player.map { $0.rate > 0 || $0.timeControlStatus == .waitingToPlayAtSpecifiedRate } ?? (args.playing ?? true)
+        let muted = player?.isMuted ?? args.muted ?? false
         loading = Task { @MainActor [weak self] in
             guard let self = self else { return }
             do {
@@ -160,7 +161,7 @@ struct NativeMediaArgs: Decodable {
                 let player = try await self.service.makePlayer(url: url, owner: self.owner)
                 try Task.checkCancellation()
                 self.source = url
-                self.player = player; player.isMuted = self.args.muted ?? false
+                self.player = player; player.isMuted = muted
                 if position.isFinite && position > 0 { await player.seek(to: CMTime(seconds: position, preferredTimescale: 600)) }
                 try Task.checkCancellation()
                 if let observer = self.endObserver { NotificationCenter.default.removeObserver(observer) }
@@ -191,16 +192,19 @@ struct NativeMediaArgs: Decodable {
     @objc private func close() { dismiss(animated: true) }
     func dismissalResult() -> [String: Any] {
         let time = player?.currentTime().seconds ?? args.position ?? 0
-        return ["index": args.index, "position": time.isFinite ? time : 0, "playing": wasPlaying || (player?.rate ?? 0) > 0]
+        return ["index": args.index, "position": time.isFinite ? time : 0,
+                "playing": wasPlaying || (player?.rate ?? 0) > 0 || player?.timeControlStatus == .waitingToPlayAtSpecifiedRate,
+                "speed": Double(selectedSpeed), "muted": player?.isMuted ?? args.muted ?? false,
+                "loop": looping, "source": source]
     }
-    override func viewWillDisappear(_ animated: Bool) { wasPlaying = (player?.rate ?? 0) > 0; super.viewWillDisappear(animated) }
+    override func viewWillDisappear(_ animated: Bool) { wasPlaying = (player?.rate ?? 0) > 0 || player?.timeControlStatus == .waitingToPlayAtSpecifiedRate; super.viewWillDisappear(animated) }
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         guard isBeingDismissed || presentingViewController == nil else { return }
-        loading?.cancel(); let time = player?.currentTime().seconds ?? 0
+        loading?.cancel(); let result = dismissalResult()
         service.releasePlayer(owner: owner)
         let reply = finished; finished = nil
-        reply?(["index": args.index, "position": time.isFinite ? time : 0, "playing": wasPlaying])
+        reply?(result)
     }
     deinit { loading?.cancel(); if let observer = endObserver { NotificationCenter.default.removeObserver(observer) } }
 }

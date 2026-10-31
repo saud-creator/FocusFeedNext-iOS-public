@@ -77,6 +77,49 @@ import AVFoundation
         XCTAssertFalse(controller.notice.isHidden)
         XCTAssertTrue(controller.notice.label.text?.contains("fixture") == true)
     }
+    func testMalformedPhotoSettlesIntoAccessibleRetryInsteadOfLoadingForever() async throws {
+        let service = try FeedFixtureServices(); service.malformedImages = true
+        let item = PostMedia(kind:"image", url:"ffmedia:malformed-fixture", previewUrl:nil, width:640, height:360, alt:"Fixture photo", durationMs:nil, variants:[])
+        let tile = PhotoTile(item:item, services:service)
+        for _ in 0..<15 { await Task.yield(); try await Task.sleep(nanoseconds:1_000_000) }
+        XCTAssertTrue(tile.accessibilityValue?.contains(L10n.text("photoFailed")) == true)
+        XCTAssertTrue(tile.accessibilityValue?.contains(L10n.text("retry")) == true)
+        XCTAssertNotEqual(tile.accessibilityValue, L10n.text("loading"))
+        let missing = PhotoTile(item:PostMedia(kind:"image", url:"", previewUrl:nil, width:nil, height:nil, alt:nil, durationMs:nil, variants:[]), services:service)
+        XCTAssertTrue(missing.accessibilityValue?.contains(L10n.text("photoFailed")) == true)
+    }
+    func testRecoveryOpportunityRetriesOnlyFailedImagesAndAvatars() async throws {
+        let service = try FeedFixtureServices(); service.failImages = true
+        let item = PostMedia(kind:"image", url:"ffmedia:recovering-photo", previewUrl:nil, width:640, height:360, alt:nil, durationMs:nil, variants:[])
+        let tile = PhotoTile(item:item, services:service)
+        let avatar = RemoteImageView(); avatar.fallbackInitials("Reader"); avatar.load("ffmedia:recovering-avatar", services:service, maxPixel:120)
+        for _ in 0..<15 { await Task.yield(); try await Task.sleep(nanoseconds:1_000_000) }
+        XCTAssertEqual(service.imageRequests[item.url], 1)
+        XCTAssertEqual(service.imageRequests["ffmedia:recovering-avatar"], 1)
+        service.failImages = false
+        tile.recoverIfNeeded(); avatar.recoverIfNeeded()
+        for _ in 0..<15 { await Task.yield(); try await Task.sleep(nanoseconds:1_000_000) }
+        XCTAssertEqual(service.imageRequests[item.url], 2); XCTAssertEqual(service.imageRequests["ffmedia:recovering-avatar"], 2)
+        XCTAssertNil(tile.accessibilityValue); XCTAssertNotNil(avatar.image)
+        tile.recoverIfNeeded(); avatar.recoverIfNeeded()
+        for _ in 0..<5 { await Task.yield() }
+        XCTAssertEqual(service.imageRequests[item.url], 2, "A healthy tile must not reload on a recovery opportunity.")
+        XCTAssertEqual(service.imageRequests["ffmedia:recovering-avatar"], 2, "A healthy avatar must remain untouched.")
+    }
+    func testManualPhotoRetryRenewsOnceAndUsesReturnedHandle() async throws {
+        let service = try FeedFixtureServices(); service.failImages = true
+        let item = PostMedia(kind:"image", url:"ffmedia:retry-photo", previewUrl:nil, width:640, height:360, alt:nil, durationMs:nil, variants:[])
+        let tile = PhotoTile(item:item, services:service)
+        for _ in 0..<15 { await Task.yield(); try await Task.sleep(nanoseconds:1_000_000) }
+        XCTAssertEqual(service.repairRequests.count, 0, "An initial image request is not a manual repair.")
+        service.failImages = false
+        tile.sendActions(for:.touchUpInside); tile.sendActions(for:.touchUpInside); tile.recoverIfNeeded()
+        for _ in 0..<15 { await Task.yield(); try await Task.sleep(nanoseconds:1_000_000) }
+        XCTAssertEqual(service.repairRequests, [item.url], "Repeated taps must share one bounded manual repair.")
+        XCTAssertEqual(service.imageRequests[item.url + "-renewed"], 1)
+        XCTAssertEqual(tile.displayItem.url, item.url + "-renewed")
+        XCTAssertNil(tile.accessibilityValue); XCTAssertTrue(tile.isEnabled)
+    }
     private func assertSeparated(_ controller: FeedViewController) throws {
         let paths = controller.collection.indexPathsForVisibleItems.sorted()
         XCTAssertFalse(paths.isEmpty)
@@ -91,6 +134,10 @@ import AVFoundation
     let events = AsyncStream<AppEvent> { _ in }
     let posts: [Post]
     var delayImages = false
+    var malformedImages = false
+    var failImages = false
+    var imageRequests: [String: Int] = [:]
+    var repairRequests: [String] = []
     var failRefresh = false
     init() throws {
         let author: [String: Any] = ["id":"45", "username":"fixture_reader", "displayName":"قارئ الاختبار", "verified":false]
@@ -115,8 +162,11 @@ import AVFoundation
     func signIn(presenting: UIViewController) async throws -> SessionSnapshot { throw AppServiceError(code:"fixture", message:"Fixture tests never sign in.") }
     func mediaURL(for handle: String) async throws -> URL { throw AppServiceError(code:"fixture", message:"Fixture media never uses a network URL.") }
     func imageData(url: String, maxPixelDimension: Int) async throws -> Data {
+        imageRequests[url, default:0] += 1
         if delayImages { try await Task.sleep(nanoseconds: 25_000_000) }
         try Task.checkCancellation()
+        if failImages { throw AppServiceError(code:"fixture_image_failure", message:"Controlled image failure.") }
+        if malformedImages { return Data("Controlled invalid image data".utf8) }
         let image = UIGraphicsImageRenderer(size: CGSize(width:640, height:360)).image { context in UIColor.systemIndigo.setFill(); context.fill(CGRect(x:0, y:0, width:640, height:360)) }
         return try XCTUnwrap(image.pngData())
     }
@@ -124,4 +174,5 @@ import AVFoundation
     func releasePlayer(owner: UUID) {}
     func presentMedia(_ request: MediaPresentation, from: UIViewController) async throws -> MediaPresentationResult { throw AppServiceError(code:"fixture", message:"Viewer playback is outside these layout fixtures.") }
     func recoverMedia() async throws {}
+    func recoverMediaHandle(_ handle: String) async throws -> String { repairRequests.append(handle); await Task.yield(); return handle + "-renewed" }
 }

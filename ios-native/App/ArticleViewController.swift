@@ -23,7 +23,7 @@ final class ArticleViewController: ReaderScreen {
                 if block.kind != "number" { number = 0 }
                 if block.kind == "image" {
                     let item = PostMedia(kind: "image", url: block.text, previewUrl: nil, width: nil, height: nil, alt: nil, durationMs: nil, variants: [])
-                    let tile = PhotoTile(item: item, services: context.services); tile.open = { [weak self] in guard let self else { return }; Task { do { _ = try await context.services.presentMedia(MediaPresentation(items: [item], index: 0), from: self) } catch { showError(error) } } }; body.addArrangedSubview(tile); continue
+                    let tile = PhotoTile(item: item, services: context.services); tile.open = { [weak self, weak tile] in guard let self, let tile else { return }; let selected = tile.displayItem; Task { do { _ = try await context.services.presentMedia(MediaPresentation(items: [selected], index: 0), from: self) } catch { showError(error) } } }; body.addArrangedSubview(tile); continue
                 }
                 let style: UIFont.TextStyle = block.kind == "heading1" ? .title1 : block.kind == "heading2" ? .title2 : block.kind == "heading3" ? .title3 : .body
                 if block.kind == "number" { number += 1 }

@@ -60,10 +60,12 @@ final class NoticeView: UIStackView {
     }
     required init(coder: NSCoder) { fatalError("Use init") }
     func show(_ text: String?, busy: Bool = false, retry: (() -> Void)? = nil, actionTitle: String? = nil) {
+        let previousText = label.text
+        let wasBusy = !spinner.isHidden
         isHidden = text?.isEmpty != false; label.text = text; self.retry = retry; retryButton.isHidden = retry == nil
         retryButton.setTitle(actionTitle ?? L10n.text("retry"), for: .normal)
         spinner.isHidden = !busy; busy ? spinner.startAnimating() : spinner.stopAnimating()
-        if text != nil && !busy { UIAccessibility.post(notification: .announcement, argument: text) }
+        if let text, !text.isEmpty, !busy, previousText != text || wasBusy { UIAccessibility.post(notification: .announcement, argument: text) }
     }
 }
 
@@ -75,24 +77,40 @@ final class ReaderTableCell: UITableViewCell {
 /// Per-view image ownership prevents a recycled cell accepting another post's late image.
 final class RemoteImageView: UIImageView {
     private var task: Task<Void, Never>?
+    private var attempt = UUID()
     private var represented = ""
+    private weak var sourceServices: AppServices?
+    private var dimension = 1200
+    private var failed = false
+    private var loading = false
     var failure: (() -> Void)?
+    var loaded: (() -> Void)?
     private var fallback: UILabel?
     func fallbackInitials(_ name: String) {
         if fallback == nil { let label = readerLabel(style: .headline, color: .secondaryLabel); label.textAlignment = .center; label.isAccessibilityElement = false; label.translatesAutoresizingMaskIntoConstraints = false; addSubview(label); NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: leadingAnchor), label.trailingAnchor.constraint(equalTo: trailingAnchor), label.centerYAnchor.constraint(equalTo: centerYAnchor)]); fallback = label }
         fallback?.text = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(2)).localizedUppercase; fallback?.isHidden = image != nil
     }
     func load(_ handle: String?, services: AppServices, maxPixel: Int = 1200) {
-        task?.cancel(); image = nil; fallback?.isHidden = false; represented = handle ?? ""
+        task?.cancel(); image = nil; fallback?.isHidden = false; represented = handle ?? ""; sourceServices = services; dimension = maxPixel; failed = false; loading = false
+        let id = UUID(); attempt = id
         guard let handle, !handle.isEmpty else { return }
+        loading = true
         task = Task { [weak self] in
+            defer { if self?.attempt == id { self?.loading = false; self?.task = nil } }
             do {
                 let data = try await services.imageData(url: handle, maxPixelDimension: maxPixel)
                 try Task.checkCancellation()
-                guard self?.represented == handle else { return }; self?.image = UIImage(data: data); self?.fallback?.isHidden = self?.image != nil
-            } catch { if !(error is CancellationError), self?.represented == handle { self?.failure?() } }
+                guard self?.represented == handle, self?.attempt == id else { return }
+                guard let decoded = UIImage(data: data) else { throw AppServiceError(code: "image_decode_failed", message: L10n.text("photoFailed")) }
+                self?.image = decoded; self?.fallback?.isHidden = true; self?.loaded?()
+            } catch { if !(error is CancellationError), self?.represented == handle, self?.attempt == id { self?.failed = true; self?.failure?() } }
         }
     }
-    func cancel() { task?.cancel(); represented = ""; image = nil; fallback?.isHidden = false }
+    var needsRecovery: Bool { !represented.isEmpty && !loading && image == nil }
+    func recoverIfNeeded() {
+        guard (failed || needsRecovery), !loading, let services = sourceServices else { return }
+        load(represented, services: services, maxPixel: dimension)
+    }
+    func cancel() { attempt = UUID(); task?.cancel(); task = nil; loading = false; failed = false; represented = ""; image = nil; fallback?.isHidden = false }
     deinit { task?.cancel() }
 }

@@ -38,6 +38,7 @@ enum L10n {
         "prefetchActive": ["Nearby images are prepared ahead on Wi-Fi. Faster modes prepare farther ahead while keeping capacity for what you are reading.", "تُجهّز الصور القريبة مسبقًا عبر Wi-Fi. تجهّز الأوضاع الأسرع صورًا أبعد مع الحفاظ على السعة للمحتوى الذي تقرؤه."],
         "prefetchPaused": ["Image preparation ahead is paused to reduce data or power use. Visible content still loads when needed.", "تجهيز الصور مسبقًا متوقف لتقليل استخدام البيانات أو الطاقة. يستمر تحميل المحتوى المرئي عند الحاجة."],
         "videoFailed": ["Video could not continue. Try again.", "تعذّر استمرار الفيديو. أعد المحاولة."],
+        "copyFailed": ["Copy could not be verified. Try again.", "تعذّر التحقق من النسخ. أعد المحاولة."],
         "minimumDate": ["Published since", "نُشر منذ"], "anyDate": ["Any date", "أي تاريخ"]
         , "searchMore": ["More loaded posts can be searched. Load another page to continue with these filters.", "يمكن البحث في مزيد من المنشورات المحمّلة. حمّل صفحة أخرى للمتابعة بهذه الفلاتر."]
     ]

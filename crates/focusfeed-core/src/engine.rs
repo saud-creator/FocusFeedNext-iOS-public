@@ -118,6 +118,7 @@ pub enum CoreOperation {
     GetResumeState,
     SetResumeState,
     PrepareAction,
+    BeginAction,
     FinishAction,
     RegisterMedia,
     GetMediaUrl,
@@ -319,6 +320,9 @@ struct Action {
     operation: String,
     target: String,
     generation: u64,
+    preparation_request: String,
+    preparation_deadline: u64,
+    executing: bool,
 }
 struct EngineState {
     account: Option<Author>,
@@ -419,6 +423,7 @@ impl CoreEngine {
         }
         let mut state = self.state.lock().map_err(|_| CoreError::unavailable())?;
         self.check(&request)?;
+        self.reap_cancelled_preparation(&mut state)?;
         if request.operation != CoreOperation::SetAccount
             && request.account_generation != state.generation
         {
@@ -439,11 +444,42 @@ impl CoreEngine {
             return Err(CoreError::stale());
         }
         let result = self.perform(&mut state, &request, &args)?;
+        self.complete_request(&mut state, &request, result)
+    }
+    fn complete_request(
+        &self,
+        state: &mut EngineState,
+        request: &CoreRequest,
+        result: Value,
+    ) -> Result<String, CoreError> {
+        // Once an account transition committed, its generation must reach the
+        // trusted Swift adapter even if the caller cancelled presentation. The
+        // adapter serializes transitions and suppresses stale UI publication.
+        if matches!(request.operation, CoreOperation::SetAccount | CoreOperation::ClearSession) {
+            return serde_json::to_string(&result).map_err(|_| CoreError::invalid());
+        }
         // State-changing methods check before their commit. A cancellation that
         // arrives after a successful commit suppresses presentation; it never
         // replays or claims to undo a committed account action.
-        self.check(&request)?;
+        if let Err(error) = self.check(request) {
+            // Preparation has not dispatched a provider write. Its token may
+            // never reach Swift, so cancellation must release that reservation.
+            // Executing actions remain owned until an explicit outcome settles.
+            if request.operation == CoreOperation::PrepareAction {
+                self.reap_cancelled_preparation(state)?;
+            }
+            return Err(error);
+        }
         serde_json::to_string(&result).map_err(|_| CoreError::invalid())
+    }
+    fn reap_cancelled_preparation(&self, state: &mut EngineState) -> Result<(), CoreError> {
+        if let Some(action) = state.action.as_ref().filter(|action| !action.executing) {
+            let cancelled = action.preparation_deadline <= now()
+                || self.cancelled.lock().map_err(|_| CoreError::unavailable())?
+                    .iter().any(|id| id == &action.preparation_request);
+            if cancelled { state.action = None; }
+        }
+        Ok(())
     }
     fn probe_media(&self, request: &CoreRequest, args: &Value) -> Result<Value, CoreError> {
         let prepared = {
@@ -577,12 +613,12 @@ impl CoreEngine {
                 if account.id.is_empty()
                     || account.id.len() > 64
                     || crate::security::clean_screen_name(&account.username).is_none()
-                    || r.account_generation < s.generation
                 {
                     return Err(CoreError::invalid());
                 }
-                if s.account.as_ref().is_some_and(|old| old.id != account.id)
-                    && r.account_generation <= s.generation
+                if r.account_generation < s.generation
+                    || (s.account.as_ref().map(|old| old.id.as_str()) != Some(account.id.as_str())
+                        && r.account_generation <= s.generation)
                 {
                     return Err(CoreError::stale());
                 }
@@ -988,6 +1024,7 @@ impl CoreEngine {
                 Ok(json!({"updated":true}))
             }
             PrepareAction => self.prepare_action(s, r, a),
+            BeginAction => self.begin_action(s, r, a),
             FinishAction => self.finish_action(s, r, a),
             RegisterMedia => {
                 let account = self.account(s)?;
@@ -1258,8 +1295,26 @@ impl CoreEngine {
             operation: operation.into(),
             target: target.clone(),
             generation: s.generation,
+            preparation_request: r.request_id.clone(),
+            preparation_deadline: r.deadline_millis,
+            executing: false,
         });
         Ok(json!({"token":token,"operation":operation,"target":target,"automaticRetry":false}))
+    }
+    fn begin_action(&self, s: &mut EngineState, r: &CoreRequest, a: &Value) -> Result<Value, CoreError> {
+        let token = text(a, "token")?;
+        let action = s.action.as_mut()
+            .filter(|pending| pending.token == token && pending.generation == s.generation)
+            .ok_or_else(CoreError::stale)?;
+        if action.executing {
+            return Err(CoreError {
+                code: "action_already_started".into(),
+                message: "This account action has already been dispatched.".into(),
+            });
+        }
+        self.check(r)?;
+        action.executing = true;
+        Ok(json!({"token":token,"operation":action.operation,"automaticRetry":false}))
     }
     fn finish_action(
         &self,
@@ -1276,6 +1331,9 @@ impl CoreEngine {
             .ok_or_else(CoreError::stale)?;
         let outcome = text(a, "outcome")?;
         if !["succeeded", "failed", "uncertain"].contains(&outcome) {
+            return Err(CoreError::invalid());
+        }
+        if outcome == "succeeded" && !action.executing {
             return Err(CoreError::invalid());
         }
         self.check(r)?;
@@ -1386,6 +1444,58 @@ fn classify_probe(status: u16, origin: Option<&str>, epoch: u64) -> Value {
 #[cfg(test)]
 mod probe_tests {
     use super::*;
+    #[test]
+    fn committed_account_transitions_acknowledge_their_generation_after_late_cancellation() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = CoreEngine::open(directory.path()).unwrap();
+        let mut state = core.state.lock().unwrap();
+        for (operation, generation, args, expected_generation) in [
+            (CoreOperation::SetAccount, 1, json!({"account":{"id":"1","username":"fixture","displayName":"Fixture"}}), 1),
+            (CoreOperation::ClearSession, 1, json!({"disconnect":true}), 2),
+        ] {
+            let request = CoreRequest {
+                request_id: format!("late-cancel-{expected_generation}"), account_generation: generation,
+                source_revision: 0, deadline_millis: now() + 30_000, priority: 1,
+                operation, arguments_json: args.to_string(),
+            };
+            let committed = core.perform(&mut state, &request, &args).unwrap();
+            // Force the exact completion race instead of relying on timing.
+            core.cancel_request(&request.request_id);
+            let acknowledgement: Value = serde_json::from_str(
+                &core.complete_request(&mut state, &request, committed).unwrap()
+            ).unwrap();
+            assert_eq!(acknowledgement["accountGeneration"], expected_generation);
+            assert_eq!(state.generation, expected_generation);
+        }
+        let read = CoreRequest {
+            request_id: "late-cancel-read".into(), account_generation: 2,
+            source_revision: 0, deadline_millis: now() + 30_000, priority: 1,
+            operation: CoreOperation::GetPreferences, arguments_json: "{}".into(),
+        };
+        let result = core.perform(&mut state, &read, &json!({})).unwrap();
+        core.cancel_request(&read.request_id);
+        assert_eq!(core.complete_request(&mut state, &read, result).unwrap_err().code, "cancelled");
+    }
+
+    #[test]
+    fn an_expired_reservation_is_reaped_but_an_executing_action_is_never_reaped() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = CoreEngine::open(directory.path()).unwrap();
+        for executing in [false, true] {
+            core.state.lock().unwrap().action = Some(Action {
+                token: "fixture".into(), operation: "follow".into(), target: "reader".into(),
+                generation: 0, preparation_request: "expired-preparation".into(),
+                preparation_deadline: 0, executing,
+            });
+            let diagnostic: Value = serde_json::from_str(&core.execute(CoreRequest {
+                request_id: format!("phase-{executing}"), account_generation: 0,
+                source_revision: 0, deadline_millis: now() + 30_000, priority: 1,
+                operation: CoreOperation::Diagnostics, arguments_json: "{}".into(),
+            }).unwrap()).unwrap();
+            assert_eq!(diagnostic["pendingAction"], executing);
+        }
+    }
+
     #[test]
     fn identical_http_status_retains_authoritative_failure_provenance() {
         let local = classify_probe(429, Some("local_queue"), 1);

@@ -55,14 +55,18 @@ extension AppServices {
     /// overrides this with source/registration recovery before returning.
     func recoverMediaHandle(_ handle: String) async throws -> String { try await recoverMedia(); return handle }
     func call<T: Decodable>(_ operation: AppOperation, _ args: [String: JSONValue] = [:], as type: T.Type = T.self) async throws -> T {
+        try Task.checkCancellation()
         let request = AppRequest(requestID: UUID(), accountGeneration: accountGeneration, operation: operation, args: args)
         let data = try await withTaskCancellationHandler(operation: { try await perform(request) }, onCancel: { Task { @MainActor in self.cancel(requestID: request.requestID) } })
+        try Task.checkCancellation()
         guard request.accountGeneration == accountGeneration || [.sessionStatus, .checkSession, .disconnect, .clearCache].contains(operation) else { throw CancellationError() }
         return try JSONDecoder().decode(T.self, from: data)
     }
     func command(_ operation: AppOperation, _ args: [String: JSONValue] = [:]) async throws {
+        try Task.checkCancellation()
         let request = AppRequest(requestID: UUID(), accountGeneration: accountGeneration, operation: operation, args: args)
         _ = try await withTaskCancellationHandler(operation: { try await perform(request) }, onCancel: { Task { @MainActor in self.cancel(requestID: request.requestID) } })
+        try Task.checkCancellation()
         guard request.accountGeneration == accountGeneration || [.disconnect, .clearCache].contains(operation) else { throw CancellationError() }
     }
     func session() async throws -> SessionSnapshot { try await call(.sessionStatus) }

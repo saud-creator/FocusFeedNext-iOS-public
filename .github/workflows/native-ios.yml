@@ -3,7 +3,7 @@ on:
   push:
     branches: [codex/native-ios-quality]
   pull_request:
-    paths: ['crates/**', 'ios-native/**', 'Cargo.*', 'rust-toolchain.toml', '.github/workflows/native-ios.yml']
+    paths: ['crates/**', 'ios-native/**', 'source/**', 'Cargo.*', 'rust-toolchain.toml', '.github/workflows/native-ios.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -11,6 +11,21 @@ concurrency:
   group: native-ios-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 jobs:
+  desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: source
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: source/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check
   core:
     runs-on: windows-latest
     timeout-minutes: 30
@@ -23,10 +38,13 @@ jobs:
         with:
           cache-on-failure: true
       - run: cargo test --workspace --locked
+      - name: Verify native package validation rules
+        shell: bash
+        run: python ios-native/tools/test-native-verifier.py
   native:
     runs-on: macos-15-intel
     timeout-minutes: 90
-    needs: core
+    needs: [core, desktop]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master

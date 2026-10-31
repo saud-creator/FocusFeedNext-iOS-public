@@ -24,7 +24,7 @@ import AVKit
     private var followingError: String?
     private var brokerEpoch: UInt64 = 1
     private struct MediaLocator {
-        enum Owner { case post(String), author(String) }
+        enum Owner { case post(String), author(String), article(String) }
         let owner: Owner
         let path: [String]
     }
@@ -33,6 +33,7 @@ import AVKit
     private var recoveryTask: Task<Void, Never>?
     private var restoring: Task<SessionSnapshot, Error>?
     private var sessionRevision: UInt64 = 0
+    private var sessionCommitTail: Task<Void, Never>?
     private var restoringRevision: UInt64?
     private var checkedAt: String?
     private var lastSuccessAt: String?
@@ -72,9 +73,19 @@ import AVKit
         let data = try Self.encoded(args)
         let context = requestContexts[id]
         let repository = core
-        let result = try await withTaskCancellationHandler(operation: {
-            try await repository.execute(operation, args:data, generation:epoch, revision:context?.sourceRevision ?? 0, id:id.uuidString, deadline:context?.deadlineMillis ?? UInt64(Date().timeIntervalSince1970 * 1000) + 30_000, priority:context?.priority ?? 1)
-        }, onCancel: { repository.cancel(id.uuidString) })
+        let result: Data
+        do {
+            result = try await withTaskCancellationHandler(operation: {
+                try await repository.execute(operation, args:data, generation:epoch, revision:context?.sourceRevision ?? 0, id:id.uuidString, deadline:context?.deadlineMillis ?? UInt64(Date().timeIntervalSince1970 * 1000) + 30_000, priority:context?.priority ?? 1)
+            }, onCancel: { repository.cancel(id.uuidString) })
+        } catch let error as NativeError {
+            switch error {
+            case .Operation(let code, _):
+                if ["cancelled","stale_request"].contains(code) {throw CancellationError()}
+                let key = code.contains("storage") || code.contains("database") ? "storagePreserved" : code.contains("rate") ? "rateLimited" : code.contains("auth") ? "signInRequired" : "loadFailed"
+                throw AppServiceError(code:code,message:L10n.text(key))
+            }
+        }
         guard !cancelled.contains(id), epoch == accountGeneration || generation != nil else { throw CancellationError() }
         indexHandles(result)
         return result
@@ -84,6 +95,11 @@ import AVKit
         guard let root = try? JSONSerialization.jsonObject(with: data) else { return }
         func visit(_ value: Any, owner: MediaLocator.Owner?, path: [String]) {
             if let dictionary = value as? [String: Any] {
+                if let post=dictionary["post"] as? [String:Any],let id=post["id"] as? String {
+                    visit(post,owner:nil,path:[])
+                    if let article=dictionary["article"] {visit(article,owner:.article(id),path:["article"])}
+                    return
+                }
                 var nextOwner = owner; var nextPath = path
                 if owner == nil, dictionary["text"] != nil, let id = dictionary["id"] as? String {
                     nextOwner = .post(id); nextPath = []
@@ -142,8 +158,23 @@ import AVKit
         return body
     }
     private func validateIdentity(_ body: Any) async throws -> Author { try JSONDecoder().decode(Author.self, from: await run(.parseIdentity, ["body": body])) }
-    private func acceptIdentity(_ body: Any) async throws -> SessionSnapshot {
+    private func sessionCommit<T>(_ operation: @escaping @MainActor () async throws -> T) async throws -> T {
+        let previous = sessionCommitTail
+        let task = Task { @MainActor () throws -> T in
+            if let previous { await previous.value }
+            return try await operation()
+        }
+        sessionCommitTail = Task { @MainActor in _ = try? await task.value }
+        return try await task.value
+    }
+    private func acceptIdentity(_ body: Any, candidate: NativeSessionCandidate, revision: UInt64, migrateSaved: Bool = false) async throws -> SessionSnapshot {
         let verified = try await validateIdentity(body)
+        return try await sessionCommit { [self] in
+        guard revision == sessionRevision else { throw CancellationError() }
+        if migrateSaved {
+            try await host.migrateSavedCandidate(candidate)
+            guard revision == sessionRevision else { throw CancellationError() }
+        }
         let identityChanged = currentAccount?.id != verified.id
         let generation = identityChanged ? accountGeneration + 1 : accountGeneration
         if identityChanged {
@@ -156,16 +187,24 @@ import AVKit
         }
         let result = try await run(.setAccount, ["body": body], generation: generation)
         let value = try object(result)
-        currentAccount = try JSONDecoder().decode(Author.self, from: Self.encoded(value["account"] ?? [:]))
+        // Keep the bridge generation coherent even when a newer transition was
+        // requested during the core call. The queued transition can then clean
+        // up the committed core state before publishing its own result.
         accountGeneration = generation; transportGeneration &+= 1
-        checkedAt = ISO8601DateFormatter().string(from:Date()); lastSuccessAt = checkedAt
         media.invalidate(accountEpoch: generation, brokerEpoch: brokerEpoch)
+        guard revision == sessionRevision else { throw CancellationError() }
+        currentAccount = try JSONDecoder().decode(Author.self, from: Self.encoded(value["account"] ?? [:]))
+        credentials = candidate
+        checkedAt = ISO8601DateFormatter().string(from:Date()); lastSuccessAt = checkedAt
         let next = snapshot(); continuation.yield(.session(next)); return next
+        }
     }
     func signIn(presenting: UIViewController) async throws -> SessionSnapshot {
         sessionRevision &+= 1
         restoring?.cancel(); restoring = nil; restoringRevision = nil
         let revision = sessionRevision
+        if let pending = sessionCommitTail { await pending.value }
+        guard revision == sessionRevision else { throw CancellationError() }
         let previous = credentials
         var finalized = false
         var verifiedCandidate: NativeSessionCandidate?
@@ -184,15 +223,18 @@ import AVKit
             while true {
                 do { try await host.finalizeLogin(); break }
                 catch let error as NativeServiceError where error.code == "background_paused" {
-                    _ = try await host.call(command:"waitForLoginActive")
+                    _ = try await host.checkedCall(command:"waitForLoginActive")
                 }
             }
-            credentials = committed
             verifiedCandidate = committed; finalized = true
-            return try await acceptIdentity(after)
+            return try await acceptIdentity(after,candidate:committed,revision:revision)
         } catch {
+            guard revision == sessionRevision else { throw CancellationError() }
             if finalized { credentials = verifiedCandidate; currentAccount = nil }
             else { credentials = previous; try? await host.rollbackLogin() }
+            if let native=error as? NativeServiceError {
+                throw AppServiceError(code:native.code,message:ConnectionFault.loginMessage(native.code,arabic:L10n.arabic),retryable:native.retryable)
+            }
             throw error
         }
     }
@@ -206,10 +248,7 @@ import AVKit
             let body = try await self.provider("Me", candidate: candidate)
             _ = try await self.validateIdentity(body)
             try Task.checkCancellation(); guard revision == self.sessionRevision else { throw CancellationError() }
-            try await self.host.migrateSavedCandidate(candidate)
-            try Task.checkCancellation(); guard revision == self.sessionRevision else { throw CancellationError() }
-            self.credentials = candidate
-            return try await self.acceptIdentity(body)
+            return try await self.acceptIdentity(body,candidate:candidate,revision:revision,migrateSaved:true)
         }
         restoring = task; restoringRevision = revision
         defer { if restoringRevision == revision { restoring = nil; restoringRevision = nil } }
@@ -225,6 +264,9 @@ import AVKit
         case .checkSession: return try JSONEncoder().encode(try await restoreSession(force: true))
         case .disconnect:
             sessionRevision &+= 1; restoring?.cancel(); restoring = nil; restoringRevision = nil
+            let revision = sessionRevision
+            return try await sessionCommit { [self] in
+            guard revision == sessionRevision else { throw CancellationError() }
             followingJob?.cancel(); followingJob = nil; recoveryTask?.cancel(); profileJobs.values.forEach { $0.cancel() }; feedJobs.values.forEach { $0.cancel() }
             // Core refuses disconnect while an account write still owns its slot.
             _ = try await run(.clearSession, ["disconnect":true])
@@ -234,6 +276,7 @@ import AVKit
             handleOwners.removeAll(); resolvedHandles.removeAll(); followingComplete = false
             media.invalidate(accountEpoch: accountGeneration, brokerEpoch: brokerEpoch)
             let result = snapshot(); continuation.yield(.session(result)); return try JSONEncoder().encode(result)
+            }
         case .runtimeSnapshot: return try JSONEncoder().encode(host.currentRuntime)
         case .providerCapabilities:
             return try Self.encoded(["feedCursor":true,"listCursor":true,"followingCursor":true,"userPostsCursor":true,"promotedFlag":true,"unfollow":true,"follow":true,"unbookmark":true,"mute":false,"block":false])
@@ -292,18 +335,27 @@ import AVKit
         case .follow,.unfollow,.removeBookmark: return try await mutate(request.operation,args:args,owner:owner)
         case .diagnosticsReport:
             let coreData=try object(await run(.diagnostics))
-            let connection=try object(Data(try await host.call(command:"connectionDiagnostics").utf8))
+            let connection=try object(await host.checkedCall(command:"connectionDiagnostics"))
             let report:[String:Any] = ["version":"0.10.0","reader":"UIKit","core":coreData,"media":media.diagnosticSnapshot(),"connection":connection,"provider":"ios-direct","physicalAcceptance":"requires device test"]
             return try Self.encoded(String(data:Self.encoded(report),encoding:.utf8) ?? "")
-        case .connectionMetrics: return Data(try await host.call(command:"connectionMetrics").utf8)
+        case .connectionMetrics: return try await host.checkedCall(command:"connectionMetrics")
         case .clearCache:
             // Session reset preserves durable data and credentials, then restores verified identity.
-            _=try await run(.clearSession);accountGeneration &+= 1;currentAccount=nil;followingComplete=false
+            sessionRevision &+= 1; restoring?.cancel(); restoring = nil; restoringRevision = nil
+            let revision = sessionRevision
+            try await sessionCommit { [self] in
+                guard revision == sessionRevision else { throw CancellationError() }
+                await host.cancelReads()
+                _=try await run(.clearSession);accountGeneration &+= 1;currentAccount=nil;followingComplete=false
+                media.invalidate(accountEpoch:accountGeneration,brokerEpoch:brokerEpoch)
+                handleOwners.removeAll();resolvedHandles.removeAll();imageAttempts.removeAll()
+            }
+            guard revision == sessionRevision else { throw CancellationError() }
             _=try await restoreSession(force:true);return Data("null".utf8)
         case .openExternal:
-            return Data(try await host.call(command:"openExternal",argumentsJSON:String(data:Self.encoded(args),encoding:.utf8)!).utf8)
+            return try await host.checkedCall(command:"openExternal",argumentsJSON:String(data:Self.encoded(args),encoding:.utf8)!)
         case .creatorSubscription:
-            return Data(try await host.call(command:"openProfile",argumentsJSON:String(data:Self.encoded(["username":try required(args,"username")]),encoding:.utf8)!).utf8)
+            return try await host.checkedCall(command:"openProfile",argumentsJSON:String(data:Self.encoded(["username":try required(args,"username")]),encoding:.utf8)!)
         }
     }
     private func required(_ args:[String:Any],_ key:String)throws->String { guard let value=args[key] as? String,!value.isEmpty,value.count<=4096 else{throw AppServiceError(code:"invalid_request",message:L10n.text("loadFailed"))};return value }
@@ -401,22 +453,32 @@ import AVKit
         let body=try await provider("UserByScreenName",variables:["screen_name":username,"withSafetyModeUserFields":true],owner:owner)
         let raw=(body as? [String:Any])?["data"] as? [String:Any];let user=(raw?["user"] as? [String:Any])?["result"] as? [String:Any] ?? [:]
         let legacy=user["legacy"] as? [String:Any] ?? [:]
-        if legacy["following"] as? Bool == true || user["following"] as? Bool == true{return "following"}
-        if legacy["follow_request_sent"] as? Bool == true{return "pending"}
-        if legacy["following"] as? Bool == false || user["following"] as? Bool == false{return "notFollowing"};return "unknown"
+        let perspective=user["relationship_perspectives"] as? [String:Any] ?? [:]
+        if perspective["follow_request_sent"] as? Bool == true || legacy["follow_request_sent"] as? Bool == true{return "pending"}
+        if perspective["following"] as? Bool == true || legacy["following"] as? Bool == true || user["following"] as? Bool == true{return "following"}
+        if perspective["following"] as? Bool == false || legacy["following"] as? Bool == false || user["following"] as? Bool == false{return "notFollowing"};return "unknown"
     }
     private func mutate(_ operation:AppOperation,args:[String:Any],owner:UUID)async throws->Data {
         let action=operation == .follow ? "follow" : operation == .unfollow ? "unfollow" : "unbookmark"
-        var input=args;input["operation"]=action
-        let prepared=try object(await run(.prepareAction,input,owner:owner));let token=prepared["token"] as? String ?? ""
         let command=operation == .follow ? "Follow" : operation == .unfollow ? "Unfollow" : "DeleteBookmark"
         let variables:[String:Any]=operation == .removeBookmark ? ["tweet_id":try required(args,"postId")] : ["screen_name":try required(args,"username")]
+        var input=args;input["operation"]=action
+        let prepared=try object(await run(.prepareAction,input,owner:owner));let token=prepared["token"] as? String ?? ""
         do {
+            try Task.checkCancellation()
+            _=try await run(.beginAction,["token":token],owner:owner)
             _=try await provider(command,variables:variables,owner:owner)
             _=try await run(.finishAction,["token":token,"outcome":"succeeded"])
             continuation.yield(.contentChanged);continuation.yield(.followingProgress);return Data("null".utf8)
         }catch{
-            _=try? await run(.finishAction,["token":token,"outcome":"uncertain"])
+            // Cancellation belongs to the UI request, not to the mandatory
+            // settlement of a dispatched mutation. An unstructured task does
+            // not inherit its cancelled state and never replays the write.
+            let settlement=Task { @MainActor [self] in
+                _=try await run(.finishAction,["token":token,"outcome":"uncertain"])
+            }
+            _=try? await settlement.value
+            if error is CancellationError {throw error}
             throw AppServiceError(code:"uncertain_action",message:L10n.text("uncertainAction"))
         }
     }
@@ -445,11 +507,20 @@ import AVKit
             return try await media.imageData(url:repaired.absoluteString,maxPixelDimension:maxPixelDimension)
         }
     }
-    func makePlayer(url:String,owner:UUID)async throws->AVPlayer {try await media.makePlayer(url:mediaURL(for:url).absoluteString,owner:owner)}
+    func makePlayer(url:String,owner:UUID)async throws->AVPlayer {
+        do {return try await media.makePlayer(url:mediaURL(for:url).absoluteString,owner:owner)}
+        catch is CancellationError {throw CancellationError()}
+        catch let error as AppServiceError {throw error}
+        catch {throw AppServiceError(code:"media_unavailable",message:L10n.text("loadFailed"),retryable:true)}
+    }
     func releasePlayer(owner:UUID){media.releasePlayer(owner:owner)}
     func recoverMediaHandle(_ handle:String)async throws->String {
-        guard let locator=handleOwners[handle] else {throw AppServiceError(code:"expired_media",message:L10n.text("loadFailed"))}
-        return try await renew(locator:locator,fresh:true)
+        let source=try await mediaURL(for:handle)
+        let repaired=try await media.recover(url:source.absoluteString,freshSource:true,automatic:false)
+        guard let replacement=resolvedHandles[repaired.absoluteString] else {
+            throw AppServiceError(code:"expired_media",message:L10n.text("loadFailed"))
+        }
+        return replacement
     }
     func presentMedia(_ request:MediaPresentation,from:UIViewController)async throws->MediaPresentationResult {
         var items:[[String:Any]]=[]
@@ -466,8 +537,15 @@ import AVKit
             items.append(value)
         }
         let args:[String:Any]=["items":items,"index":request.index,"position":request.position,"playing":request.playing,"speed":request.speed,"muted":request.muted,"loop":request.loopPlayback,"locale":L10n.arabic ? "ar" : "en","retryLabel":L10n.text("retry"),"revision":accountGeneration]
-        let text=try await host.call(command:"presentMedia",argumentsJSON:String(data:Self.encoded(args),encoding:.utf8)!)
-        let value=try object(Data(text.utf8));return MediaPresentationResult(index:value["index"] as? Int ?? request.index,position:value["position"] as? Double ?? request.position,playing:value["playing"] as? Bool ?? false)
+        let data=try await host.checkedCall(command:"presentMedia",argumentsJSON:String(data:Self.encoded(args),encoding:.utf8)!)
+        let value=try object(data)
+        // The presenter returns its private source only to this trusted adapter.
+        // Screens receive the opaque handle, never an internal transport URL.
+        let selectedHandle=(value["source"] as? String).flatMap { resolvedHandles[$0] }
+        return MediaPresentationResult(index:value["index"] as? Int ?? request.index,
+            position:value["position"] as? Double ?? request.position,playing:value["playing"] as? Bool ?? false,
+            speed:value["speed"] as? Double ?? request.speed,muted:value["muted"] as? Bool ?? request.muted,
+            loopPlayback:value["loop"] as? Bool ?? request.loopPlayback,selectedHandle:selectedHandle)
     }
     private func repair(_ url:URL,fresh:Bool)async throws->URL {
         guard let handle=resolvedHandles[url.absoluteString],let locator=handleOwners[handle]else{throw AppServiceError(code:"expired_media",message:L10n.text("retry"))}
@@ -494,9 +572,14 @@ import AVKit
                 updated=try await run(.parsePostContent,["postId":post,"body":body])
             } else { updated=try await run(.recoverMedia,["postId":post]) }
         case .author(let username): updated=try await run(.getProfile,["username":username])
+        case .article(let post):
+            let body=try await provider("TweetResultByRestId",variables:["tweetId":post,"withCommunity":false,"includePromotedContent":false,"withVoice":false])
+            updated=try await run(.parsePostContent,["postId":post,"body":body])
         }
         let object = try self.object(updated)
-        var value: Any = object["post"] as? [String:Any] ?? object
+        let isArticle: Bool
+        if case .article = locator.owner {isArticle=true}else{isArticle=false}
+        var value: Any = isArticle ? object : object["post"] as? [String:Any] ?? object
         for segment in locator.path {
             if let dictionary=value as? [String:Any],let next=dictionary[segment] { value=next }
             else if let array=value as? [Any],let index=Int(segment),array.indices.contains(index) { value=array[index] }
@@ -509,8 +592,21 @@ import AVKit
         continuation.yield(.recovery("reconnecting"))
         let health=try object(await run(.mediaHealth))
         if health["available"] as? Bool != true {let next=try object(await run(.restartMedia));brokerEpoch=(next["epoch"] as? NSNumber)?.uint64Value ?? brokerEpoch+1;media.invalidate(accountEpoch:accountGeneration,brokerEpoch:brokerEpoch);resolvedHandles.removeAll()}
-        continuation.yield(.contentChanged);continuation.yield(.recovery("updated"))
+        // A healthy local listener is not proof that a CDN asset decoded.
+        // Visible cells own their loading/ready/error state after reconfiguration.
+        continuation.yield(.mediaRecoveryOpportunity);continuation.yield(.recovery(""))
     }
     private func runtimeChanged(_ snapshot:NativeRuntimeSnapshot){continuation.yield(.runtimeChanged);if !snapshot.foreground{transportGeneration &+= 1}}
-    private func scheduleRecovery(){recoveryTask?.cancel();recoveryTask=Task{[weak self] in try? await Task.sleep(nanoseconds:750_000_000);guard !Task.isCancelled,let self else{return};self.recoveryEpoch &+= 1;do{try await self.recoverMedia()}catch{self.continuation.yield(.recovery("needsAttention"))}}}
+    private func scheduleRecovery() {
+        // NativeMediaService has already debounced the shared foreground/path
+        // opportunity for 750 ms. Do not add another delay in the adapter.
+        recoveryTask?.cancel()
+        recoveryTask=Task { [weak self] in
+            guard !Task.isCancelled,let self,self.host.currentRuntime.foreground else{return}
+            self.recoveryEpoch &+= 1
+            do{try await self.recoverMedia()}
+            catch is CancellationError{}
+            catch{self.continuation.yield(.recovery("needsAttention"))}
+        }
+    }
 }

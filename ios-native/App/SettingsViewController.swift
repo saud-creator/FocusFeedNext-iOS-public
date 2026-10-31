@@ -18,7 +18,7 @@ final class SettingsViewController: ReaderScreen, UITableViewDataSource, UITable
     private let categories = ["account", "appearance", "reading", "media", "performance", "navigation", "privacy", "about"]
     private let draft: SettingsDraft
     private let notice = NoticeView()
-    init(context: ReaderContext) { draft = SettingsDraft(context.preferences); super.init(context: context) }
+    override init(context: ReaderContext) { draft = SettingsDraft(context.preferences); super.init(context: context) }
     required init?(coder: NSCoder) { fatalError("Use context") }
     override func viewDidLoad() {
         super.viewDidLoad(); title = L10n.text("settings"); view.accessibilityIdentifier = "settings.root"

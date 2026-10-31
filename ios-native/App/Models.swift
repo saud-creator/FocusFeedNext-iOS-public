@@ -140,7 +140,15 @@ struct ReaderRuntimeSnapshot: Codable {
     var foreground: Bool; var wifi: Bool; var expensive: Bool; var constrained: Bool; var lowPower: Bool; var thermal: String; var reduceMotion: Bool; var reduceTransparency: Bool; var contentSizeScale: Double; var memoryRevision: Int
 }
 struct MediaPresentation { var items: [PostMedia]; var index: Int; var position: Double = 0; var playing = true; var speed: Double = 1; var muted = false; var loopPlayback = true; var playbackKey: String? = nil }
-struct MediaPresentationResult { var index: Int; var position: Double; var playing: Bool }
+struct MediaPresentationResult { var index: Int; var position: Double; var playing: Bool; var speed: Double = 1; var muted = false; var loopPlayback = true; var selectedHandle: String? = nil }
+struct ReaderPlaybackState {
+    var paused = false
+    var position: Double = 0
+    var speed: Double?
+    var muted: Bool?
+    var loopPlayback: Bool?
+    var selectedHandle: String?
+}
 struct AppServiceError: LocalizedError {
     var code: String; var message: String; var retryable: Bool = false
     var errorDescription: String? { message }
@@ -148,6 +156,7 @@ struct AppServiceError: LocalizedError {
 enum AppEvent {
     case session(SessionSnapshot)
     case contentChanged
+    case mediaRecoveryOpportunity
     case followingProgress
     case recovery(String)
     case runtimeChanged

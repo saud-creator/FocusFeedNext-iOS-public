@@ -278,6 +278,7 @@ fn account_actions_require_confirmation_and_uncertain_results_are_not_replayed()
         json!({"operation":"unbookmark","postId":"10","confirmed":true}),
         1,
     );
+    call(&core, Op::BeginAction, json!({"token":action["token"]}), 1);
     assert_eq!(
         core.execute(request(Op::ClearSession, json!({"disconnect":true}), 1))
             .unwrap_err()
@@ -313,6 +314,68 @@ fn account_actions_require_confirmation_and_uncertain_results_are_not_replayed()
             1
         ))
         .is_err());
+}
+
+#[test]
+fn cancellation_after_preparation_releases_a_token_the_ui_may_never_receive() {
+    let (_dir, core) = engine();
+    let prepare = request(Op::PrepareAction, json!({"operation":"follow","username":"reader"}), 1);
+    let action: Value = serde_json::from_str(&core.execute(prepare.clone()).unwrap()).unwrap();
+    // Equivalent to Swift task cancellation after Rust committed preparation,
+    // but before its guarded adapter is able to hand the token to mutate().
+    core.cancel_request(&prepare.request_id);
+    assert_eq!(call(&core, Op::Diagnostics, json!({}), 1)["pendingAction"], false);
+    assert_eq!(core.execute(request(Op::BeginAction, json!({"token":action["token"]}), 1))
+        .unwrap_err().code, "stale_request");
+    // A discarded preparation must not strand the account or require restart.
+    call(&core, Op::ClearSession, json!({"disconnect":true}), 1);
+}
+
+#[test]
+fn cancellation_after_dispatch_keeps_the_action_owned_until_an_explicit_outcome() {
+    let (_dir, core) = engine();
+    let prepare = request(Op::PrepareAction, json!({"operation":"follow","username":"reader"}), 1);
+    let action: Value = serde_json::from_str(&core.execute(prepare.clone()).unwrap()).unwrap();
+    let begin = request(Op::BeginAction, json!({"token":action["token"]}), 1);
+    core.execute(begin.clone()).unwrap();
+    core.cancel_request(&prepare.request_id);
+    core.cancel_request(&begin.request_id);
+    assert_eq!(call(&core, Op::Diagnostics, json!({}), 1)["pendingAction"], true);
+    assert_eq!(core.execute(request(Op::ClearSession, json!({"disconnect":true}), 1))
+        .unwrap_err().code, "action_in_flight");
+    assert_eq!(core.execute(request(Op::BeginAction, json!({"token":action["token"]}), 1))
+        .unwrap_err().code, "action_already_started");
+    let outcome = call(&core, Op::FinishAction, json!({"token":action["token"],"outcome":"uncertain"}), 1);
+    assert_eq!(outcome["automaticRetry"], false);
+    assert_eq!(outcome["requiresReconciliation"], true);
+    assert_eq!(call(&core, Op::Diagnostics, json!({}), 1)["pendingAction"], false);
+}
+
+#[test]
+fn a_prepared_action_cannot_claim_remote_success_without_dispatch() {
+    let (_dir, core) = engine();
+    let action = call(&core, Op::PrepareAction, json!({"operation":"follow","username":"reader"}), 1);
+    assert_eq!(core.execute(request(Op::FinishAction, json!({"token":action["token"],"outcome":"succeeded"}), 1))
+        .unwrap_err().code, "invalid_request");
+    call(&core, Op::FinishAction, json!({"token":action["token"],"outcome":"failed"}), 1);
+    assert_eq!(call(&core, Op::Diagnostics, json!({}), 1)["pendingAction"], false);
+}
+
+#[test]
+fn disconnect_generation_cannot_be_reused_by_an_obsolete_restore() {
+    let (_dir, core) = engine();
+    call(&core, Op::ClearSession, json!({"disconnect":true}), 1);
+    assert_eq!(core.execute(request(Op::SetAccount, json!({"account":author("1","owner")}), 1))
+        .unwrap_err().code, "stale_request");
+    assert_eq!(core.execute(request(Op::SetAccount, json!({"account":author("1","owner")}), 2))
+        .unwrap_err().code, "stale_request");
+    assert_eq!(call(&core, Op::Diagnostics, json!({}), 2)["accountGeneration"], 2);
+    let restored = call(&core, Op::SetAccount, json!({"account":author("1","owner")}), 3);
+    assert_eq!(restored["account"]["id"], "1");
+    // A refresh of the already active identity retains its existing epoch.
+    call(&core, Op::SetAccount, json!({"account":author("1","owner")}), 3);
+    assert_eq!(core.execute(request(Op::SetAccount, json!({"account":author("1","owner")}), 2))
+        .unwrap_err().code, "stale_request");
 }
 
 #[test]
@@ -398,9 +461,9 @@ fn resume_markers_are_opt_in_account_and_destination_scoped_and_deleted_on_disco
         &core,
         Op::SetAccount,
         json!({"account":author("1","owner")}),
-        2,
+        3,
     );
-    assert_eq!(call(&core, Op::GetResumeState, json!({}), 2), Value::Null);
+    assert_eq!(call(&core, Op::GetResumeState, json!({}), 3), Value::Null);
 }
 
 #[test]

@@ -11,9 +11,11 @@ cd ios-native
 xcodegen generate --spec project.yml
 if [[ "$mode" == check ]]; then
   destination=$(python3 tools/select-simulator.py)
+  test_result=".build/Tests-$(date +%s).xcresult"
   xcodebuild -project FocusFeedNextNative.xcodeproj -scheme FocusFeedNextNative \
     -destination "$destination" -derivedDataPath .build/DerivedData \
-    -resultBundlePath ".build/Tests-$(date +%s).xcresult" CODE_SIGNING_ALLOWED=NO test
+    -resultBundlePath "$test_result" CODE_SIGNING_ALLOWED=NO test
+  python3 tools/write-provenance.py --record-tests "$test_result"
 else
   build_number=${NATIVE_BUILD_NUMBER:-100.1}
   xcodebuild -project FocusFeedNextNative.xcodeproj -scheme FocusFeedNextNative \

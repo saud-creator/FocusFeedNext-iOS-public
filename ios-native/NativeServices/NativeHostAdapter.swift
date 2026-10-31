@@ -111,10 +111,16 @@ extension NativeHostService {
         }
     }
     @MainActor private func decoded<T: Decodable>(_ command: String, arguments: String = "{}") async throws -> T {
-        let result = try await call(command: command, argumentsJSON: arguments)
-        let data = Data(result.utf8)
-        if let wrapper = try? JSONDecoder().decode(NativeFaultEnvelope.self, from: data) { throw wrapper.fault }
+        let data = try await checkedCall(command: command, argumentsJSON: arguments)
         return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    /// Decode the fault envelope even for commands whose success payload has no
+    /// dedicated model. A rejected link or media sheet must never look successful.
+    @MainActor func checkedCall(command: String, argumentsJSON: String = "{}") async throws -> Data {
+        let data = Data(try await call(command: command, argumentsJSON: argumentsJSON).utf8)
+        if let wrapper = try? JSONDecoder().decode(NativeFaultEnvelope.self, from: data) { throw wrapper.fault }
+        return data
     }
 }
 
