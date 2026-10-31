@@ -14,6 +14,7 @@ import AVKit
     private var transportGeneration: UInt64 = 1
     private var providerSequence: UInt64 = 0
     private var sourceRevision: UInt64 = 0
+    private var sourceRevisions: [String: UInt64] = [:]
     private var ownedProviderIDs: [UUID: Set<String>] = [:]
     private var cancelled = Set<UUID>()
     private var requestContexts: [UUID: AppRequest] = [:]
@@ -22,6 +23,7 @@ import AVKit
     private var followingJob: Task<Void, Never>?
     private var followingComplete = false
     private var followingError: String?
+    private var groupRefreshPending: [String: Set<String>] = [:]
     private var brokerEpoch: UInt64 = 1
     private struct MediaLocator {
         enum Owner { case post(String), author(String), article(String) }
@@ -67,16 +69,18 @@ import AVKit
         return NativeApplicationServices(core: core, window: window)
     }
     private static func encoded(_ object: Any) throws -> Data { try JSONSerialization.data(withJSONObject: object, options: [.fragmentsAllowed, .sortedKeys]) }
-    private func run(_ operation: NativeOperation, _ args: [String: Any] = [:], owner: UUID? = nil, generation: UInt64? = nil) async throws -> Data {
+    private func run(_ operation: NativeOperation, _ args: [String: Any] = [:], owner: UUID? = nil, generation: UInt64? = nil, revision: UInt64? = nil) async throws -> Data {
         let id = owner ?? UUID(); guard !cancelled.contains(id) else { throw CancellationError() }
         let epoch = generation ?? accountGeneration
         let data = try Self.encoded(args)
         let context = requestContexts[id]
+        let source = args["feed"] as? String ?? ""
+        let sourceEpoch = revision ?? sourceRevisions[source] ?? context?.sourceRevision ?? 0
         let repository = core
         let result: Data
         do {
             result = try await withTaskCancellationHandler(operation: {
-                try await repository.execute(operation, args:data, generation:epoch, revision:context?.sourceRevision ?? 0, id:id.uuidString, deadline:context?.deadlineMillis ?? UInt64(Date().timeIntervalSince1970 * 1000) + 30_000, priority:context?.priority ?? 1)
+                try await repository.execute(operation, args:data, generation:epoch, revision:sourceEpoch, id:id.uuidString, deadline:context?.deadlineMillis ?? UInt64(Date().timeIntervalSince1970 * 1000) + 30_000, priority:context?.priority ?? 1)
             }, onCancel: { repository.cancel(id.uuidString) })
         } catch let error as NativeError {
             switch error {
@@ -183,6 +187,8 @@ import AVKit
             feedJobs.values.forEach { $0.cancel() }; feedJobs.removeAll()
             recoveryTask?.cancel(); recoveryTask = nil
             handleOwners.removeAll(); resolvedHandles.removeAll(); imageAttempts.removeAll()
+            sourceRevisions.removeAll()
+            groupRefreshPending.removeAll()
             await host.cancelReads()
         }
         let result = try await run(.setAccount, ["body": body], generation: generation)
@@ -274,6 +280,8 @@ import AVKit
             media.invalidate(accountEpoch: accountGeneration, brokerEpoch: brokerEpoch)
             await host.cancelReads(); try await host.logout(); credentials = nil
             handleOwners.removeAll(); resolvedHandles.removeAll(); followingComplete = false
+            sourceRevisions.removeAll()
+            groupRefreshPending.removeAll()
             media.invalidate(accountEpoch: accountGeneration, brokerEpoch: brokerEpoch)
             let result = snapshot(); continuation.yield(.session(result)); return try JSONEncoder().encode(result)
             }
@@ -289,6 +297,21 @@ import AVKit
             for pair in entries { guard pair.count == 2, preferences[pair[0]] == nil else { throw AppServiceError(code: "invalid_preferences", message: L10n.text("importFailed")) }; preferences[pair[0]] = pair[1] }
             return try await run(.setPreferences, ["preferences":preferences,"portable":args["portable"] as? Bool ?? false], owner: owner)
         case .cachedFeed: return try await cachedFeed(args, owner: owner)
+        case .cachedPosts:
+            guard let ids=args["postIds"] as? [String],ids.count <= 80,
+                  ids.allSatisfy({$0.range(of:"^[0-9]{1,25}$",options:.regularExpression) != nil}),
+                  Set(ids).count == ids.count else {
+                throw AppServiceError(code:"invalid_request",message:L10n.text("loadFailed"))
+            }
+            var posts:[[String:Any]]=[];var missing:[String]=[]
+            for id in ids {
+                try Task.checkCancellation()
+                let row=try object(await run(.getPost,["postId":id],owner:owner))
+                if row["id"] as? String == id {posts.append(row)}else{missing.append(id)}
+            }
+            let read=try JSONDecoder().decode([String].self,from:await run(.getReadIds,owner:owner))
+            let retained=Set(posts.compactMap {$0["id"] as? String})
+            return try Self.encoded(["posts":posts,"missingPostIds":missing,"readIds":read.filter {retained.contains($0)}])
         case .refreshFeed, .loadFeedPage: return try await liveFeed(args, owner: owner)
         case .userProfile: return try await profile(args["username"] as? String ?? "", owner: owner, refresh: args["refresh"] as? Bool ?? false)
         case .setRead: let result = try await run(.markRead,args,owner:owner);continuation.yield(.contentChanged);return result
@@ -305,7 +328,9 @@ import AVKit
         case .searchCachedPosts:
             let rows=try await run(.search,args,owner:owner);let posts=try JSONDecoder().decode([Post].self,from:rows)
             let next: Any = posts.count >= 60 ? (args["offset"] as? Int ?? 0) + posts.count : NSNull()
-            return try Self.encoded(["posts":try JSONSerialization.jsonObject(with:rows),"readIds":[],"nextOffset":next])
+            let read=try JSONDecoder().decode([String].self,from:await run(.getReadIds,owner:owner))
+            let pageIDs=Set(posts.map(\.id))
+            return try Self.encoded(["posts":try JSONSerialization.jsonObject(with:rows),"readIds":read.filter {pageIDs.contains($0)},"nextOffset":next])
         case .followingSnapshot: return try await followingSnapshot()
         case .startFollowingSync: startFollowing();return try Self.encoded(true)
         case .pinnedAccounts: return try await run(.getPinnedAccounts,owner:owner)
@@ -349,6 +374,8 @@ import AVKit
                 _=try await run(.clearSession);accountGeneration &+= 1;currentAccount=nil;followingComplete=false
                 media.invalidate(accountEpoch:accountGeneration,brokerEpoch:brokerEpoch)
                 handleOwners.removeAll();resolvedHandles.removeAll();imageAttempts.removeAll()
+                sourceRevisions.removeAll()
+                groupRefreshPending.removeAll()
             }
             guard revision == sessionRevision else { throw CancellationError() }
             _=try await restoreSession(force:true);return Data("null".utf8)
@@ -386,15 +413,24 @@ import AVKit
         let requested=args["feed"] as? String ?? "following";let feed=baseFeed(requested);let cursor=args["cursor"] as? String
         let key=feed+":"+(cursor ?? "first")
         if let job=feedJobs[key]{_ = try await job.value;return try await cachedFeed(args,owner:owner)}
+        if cursor == nil {sourceRevision &+= 1;sourceRevisions[feed]=sourceRevision}
+        let revision=sourceRevisions[feed] ?? 0
         let task=Task { @MainActor () throws -> Data in
             var variables:[String:Any] = ["count":30,"includePromotedContent":false,"withQuickPromoteEligibilityTweetFields":true,"withVoice":true,"withV2Timeline":true]
             if let cursor{variables["cursor"]=cursor}
             let operation:String
-            if feed=="bookmarks"{operation="Bookmarks"}else if feed.hasPrefix("user:"){
+            if feed=="bookmarks"{operation="Bookmarks"}else if feed.hasPrefix("user-id:"){
+                let id=String(feed.dropFirst(8))
+                guard id.range(of:"^[0-9]{1,25}$",options:.regularExpression) != nil else {
+                    throw AppServiceError(code:"invalid_request",message:L10n.text("loadFailed"))
+                }
+                variables["userId"]=id;operation="UserTweets"
+            }else if feed.hasPrefix("user:"){
                 let username=String(feed.dropFirst(5));let author=try JSONDecoder().decode(Author.self,from:await self.profile(username,owner:owner));variables["userId"]=author.id;operation="UserTweets"
             }else{operation="HomeLatestTimeline"}
             let body=try await self.provider(operation,variables:variables,owner:owner)
-            return try await self.run(.ingestFeed,["feed":feed,"body":body,"append":cursor != nil,"filters":args["filters"] ?? [:]],owner:owner)
+            guard self.sourceRevisions[feed] == revision else {throw CancellationError()}
+            return try await self.run(.ingestFeed,["feed":feed,"body":body,"append":cursor != nil,"filters":args["filters"] ?? [:]],owner:owner,revision:revision)
         }
         feedJobs[key]=task;defer{feedJobs.removeValue(forKey:key)};return try await task.value
     }
@@ -430,22 +466,42 @@ import AVKit
     private func members(_ args:[String:Any])async throws->[String] {let id=args["groupId"] as? String ?? "";return try await rawLists().first{$0["id"] as? String==id}?["memberIds"] as? [String] ?? []}
     private func groupFeed(_ args:[String:Any],refresh:Bool,owner:UUID)async throws->Data {
         let id=try required(args,"groupId")
-        let candidates=try JSONSerialization.jsonObject(with:await run(.getGroupCandidates,["groupId":id],owner:owner)) as? [[String:Any]] ?? []
-        let people=candidates.filter{$0["member"] as? Bool == true}.compactMap{$0["author"] as? [String:Any]}
         let memberOffset=max(0,args["memberOffset"] as? Int ?? 0)
-        var failures:[[String:Any]]=[];var loaded=0;var nextMember: Int?
+        let input:[String:Any]=["groupId":id,"filters":args["filters"] ?? [:],"offset":args["offset"] as? Int ?? 0,"limit":80,"memberPageOffset":memberOffset,"memberPageLimit":4]
+        var response=try object(await run(.getGroupFeed,input,owner:owner))
+        var failures:[[String:Any]]=[]
         if refresh {
-            let batch=people.dropFirst(memberOffset).prefix(4)
-            for person in batch {
-                try Task.checkCancellation();guard let username=person["username"] as? String else{continue}
-                do{_=try await liveFeed(["feed":"user:"+username],owner:owner);loaded+=1}
+            let pages=response["memberPages"] as? [[String:Any]] ?? []
+            let restart=args["restart"] as? Bool ?? false
+            if restart {groupRefreshPending[id]=Set(try await members(["groupId":id]))}
+            for page in pages {
+                try Task.checkCancellation()
+                let authorID=page["authorId"] as? String ?? ""
+                let first=groupRefreshPending[id]?.contains(authorID) == true
+                guard let source=page["source"] as? String,first || page["exhausted"] as? Bool != true else{continue}
+                var request:[String:Any]=["feed":source]
+                if !first,let cursor=page["cursor"] as? String {request["cursor"]=cursor}
+                do{_=try await liveFeed(request,owner:owner);groupRefreshPending[id]?.remove(authorID)}
                 catch is CancellationError {throw CancellationError()}
-                catch{failures.append(["username":username,"code":"load_failed","message":error.localizedDescription])}
+                catch{failures.append(["username":page["username"] as? String ?? page["authorId"] as? String ?? "","code":"load_failed","message":error.localizedDescription])}
             }
-            let end=memberOffset+batch.count;nextMember=end<people.count ? end:nil
+            response=try object(await run(.getGroupFeed,input,owner:owner))
         }
-        var response=try object(await run(.getGroupFeed,["groupId":id,"filters":args["filters"] ?? [:],"offset":args["offset"] as? Int ?? 0,"limit":80],owner:owner))
-        response["failures"]=failures;response["loadedAccounts"]=min(people.count,memberOffset+loaded)
+        // Evicted bodies retain their ordered navigation slots. Rehydrate only
+        // this bounded requested page, then read the same window again.
+        let missing=response["missingPostIds"] as? [String] ?? []
+        for post in missing.prefix(80) {
+            try Task.checkCancellation()
+            do {
+                let body=try await provider("TweetResultByRestId",variables:["tweetId":post,"withCommunity":false,"includePromotedContent":false,"withVoice":false],owner:owner)
+                _=try await run(.parsePostContent,["postId":post,"body":body],owner:owner)
+            }catch is CancellationError {throw CancellationError()}
+            catch{failures.append(["username":"","code":"load_failed","message":error.localizedDescription])}
+        }
+        if !missing.isEmpty {response=try object(await run(.getGroupFeed,input,owner:owner))}
+        let hasMore=(response["providerHasMore"] as? Bool ?? false) || groupRefreshPending[id]?.isEmpty == false
+        let nextMember: Int? = hasMore ? (refresh ? response["nextMemberPageOffset"] as? Int ?? 0 : memberOffset) : nil
+        response["failures"]=failures
         response["nextMemberOffset"]=nextMember.map{$0 as Any} ?? NSNull();response["fromCache"] = !refresh
         return try Self.encoded(response)
     }
@@ -498,6 +554,11 @@ import AVKit
         do { return try await media.imageData(url:source.absoluteString,maxPixelDimension:maxPixelDimension) }
         catch is CancellationError { throw CancellationError() }
         catch {
+            if let native=error as? NativeMediaFailure,case .brokerHTTP(let failure)=native,
+               failure.origin == .upstreamHTTP,[401,429,451].contains(failure.status) {
+                throw AppServiceError(code:failure.status == 429 ? "rate_limited" : "media_unavailable",
+                    message:L10n.text(failure.status == 429 ? "rateLimited" : "loadFailed"))
+            }
             guard host.currentRuntime.foreground, host.currentRuntime.online else { throw error }
             let now = ProcessInfo.processInfo.systemUptime
             if let previous = imageAttempts[url], previous.epoch == recoveryEpoch || now - previous.time < 10 { throw error }

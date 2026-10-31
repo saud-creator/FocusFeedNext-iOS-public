@@ -6,6 +6,7 @@ enum AppOperation: String, Codable {
     case runtimeSnapshot = "runtime_snapshot"
     case sessionStatus = "session_status", checkSession = "check_session", disconnect = "disconnect_x_account"
     case cachedFeed = "get_cached_feed", refreshFeed = "refresh_feed", loadFeedPage = "load_feed_page"
+    case cachedPosts = "get_cached_posts"
     case providerCapabilities = "provider_capabilities", userProfile = "get_user_profile"
     case readIDs = "get_read_ids", setRead = "set_read", hidePost = "hide_post"
     case postContent = "refresh_post_content", bookmarkReplies = "get_bookmark_replies"

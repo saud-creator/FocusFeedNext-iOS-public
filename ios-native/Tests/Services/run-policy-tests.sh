@@ -5,6 +5,7 @@ out=$(mktemp -d)
 trap 'rm -rf "$out"' EXIT
 swiftc -swift-version 5 -D NATIVE_POLICY_HARNESS -parse-as-library \
   "$root/NativeServices/RuntimePolicy.swift" \
+  "$root/NativeServices/MediaFailureProvenance.swift" \
   "$root/NativeServices/RecoveryCoordinator.swift" \
   "$root/NativeServices/SessionTransaction.swift" \
   "$root/NativeServices/LoginHandoff.swift" \

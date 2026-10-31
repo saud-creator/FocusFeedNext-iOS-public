@@ -12,6 +12,8 @@ xcodegen generate --spec project.yml
 if [[ "$mode" == check ]]; then
   destination=$(python3 tools/select-simulator.py)
   test_result=".build/Tests-$(date +%s).xcresult"
+  # A failed new attempt must not leave an earlier passing receipt reusable.
+  python3 -c 'from pathlib import Path; Path(".build/native-test-receipt.json").unlink(missing_ok=True)'
   xcodebuild -project FocusFeedNextNative.xcodeproj -scheme FocusFeedNextNative \
     -destination "$destination" -derivedDataPath .build/DerivedData \
     -resultBundlePath "$test_result" CODE_SIGNING_ALLOWED=NO test

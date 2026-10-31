@@ -120,6 +120,43 @@ import AVFoundation
         XCTAssertEqual(tile.displayItem.url, item.url + "-renewed")
         XCTAssertNil(tile.accessibilityValue); XCTAssertTrue(tile.isEnabled)
     }
+    func testHiddenNavigationFeedReleasesBodiesAndRehydratesOnReturn() async throws {
+        let service = try FeedFixtureServices(count:300); let context = ReaderContext(services:service)
+        context.preferences.set("video.autoplay", "off")
+        let first = FeedViewController(context:context, route:.following)
+        let navigation = UINavigationController(rootViewController:first)
+        try host(navigation); try await settle(navigation)
+        XCTAssertEqual(first.posts.count, 300)
+        let second = FeedViewController(context:context, route:.bookmarks)
+        navigation.pushViewController(second, animated:false); try await settle(navigation)
+        XCTAssertTrue(first.posts.isEmpty); XCTAssertTrue(first.state.posts.isEmpty)
+        XCTAssertEqual(second.posts.count, 300)
+        navigation.popViewController(animated:false); try await settle(navigation)
+        XCTAssertTrue(second.posts.isEmpty); XCTAssertTrue(second.state.posts.isEmpty)
+        XCTAssertEqual(first.posts.count, 300, "Returning to a route must rehydrate its retained session window.")
+    }
+    func testMemoryPressureTrimsDistantBodiesWithoutEndingPagination() async throws {
+        let service = try FeedFixtureServices(count:300); let context = ReaderContext(services:service)
+        context.preferences.set("video.autoplay", "off")
+        let controller = FeedViewController(context:context, route:.bookmarks)
+        try host(controller); try await settle(controller)
+        controller.trimHydratedForMemoryPressure(); try await settle(controller)
+        XCTAssertEqual(controller.state.posts.count, 80)
+        XCTAssertEqual(context.timelines.state("bookmarks").posts.count, 80)
+        XCTAssertEqual(controller.state.nextCachedOffset, 80)
+        XCTAssertFalse(controller.state.exhausted, "Trimming bodies must leave later cached bookmarks reachable.")
+    }
+    func testResumeDestinationsSeparateSharedFeedsAndExcludeSearchAndComments() throws {
+        let service = try FeedFixtureServices(); let context = ReaderContext(services:service)
+        XCTAssertEqual(FeedViewController(context:context, route:.following).resumeDestination, "following")
+        XCTAssertEqual(FeedViewController(context:context, route:.originals).resumeDestination, "originals")
+        XCTAssertEqual(FeedViewController(context:context, route:.focus).resumeDestination, "focus")
+        XCTAssertEqual(FeedViewController(context:context, route:.following, source:"user:reader").resumeDestination, "user:reader")
+        XCTAssertEqual(FeedViewController(context:context, route:.groups, source:"group:fixture").resumeDestination, "group:fixture")
+        XCTAssertNil(SearchViewController(context:context).resumeDestination)
+        let comments = FeedViewController(context:context, route:.bookmarks); comments.automaticallyLoads = false
+        XCTAssertNil(comments.resumeDestination, "A comments viewport must not overwrite its bookmarks marker.")
+    }
     private func assertSeparated(_ controller: FeedViewController) throws {
         let paths = controller.collection.indexPathsForVisibleItems.sorted()
         XCTAssertFalse(paths.isEmpty)
@@ -139,10 +176,10 @@ import AVFoundation
     var imageRequests: [String: Int] = [:]
     var repairRequests: [String] = []
     var failRefresh = false
-    init() throws {
+    init(count: Int = 8) throws {
         let author: [String: Any] = ["id":"45", "username":"fixture_reader", "displayName":"قارئ الاختبار", "verified":false]
         let metrics: [String: Any] = ["replies":0, "reposts":0, "likes":0, "quotes":0, "views":0, "bookmarks":0]
-        let values: [[String: Any]] = (0..<8).map { index in
+        let values: [[String: Any]] = (0..<count).map { index in
             ["id":String(1000 + index), "text":"فقرة عربية للاختبار مع English واسم @reader.\n\nAnother authored paragraph with composed characters 👨‍👩‍👧‍👦.", "author":author, "createdAt":"2026-10-30T10:00:00Z", "isRepost":false, "isPromoted":false, "metrics":metrics, "media": index % 2 == 0 ? [["kind":"image", "url":"ffmedia:fixture\(index)", "width":640, "height":360, "variants":[]]] : [], "isArticle":false, "provider":"fixture"]
         }
         posts = try JSONDecoder().decode([Post].self, from: JSONSerialization.data(withJSONObject: values))

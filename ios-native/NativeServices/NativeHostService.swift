@@ -77,8 +77,8 @@ private final class LoginController: UIViewController, UIAdaptivePresentationCon
         didSet {
             mediaPresenter.service = mediaService
             mediaService?.updateRuntime(currentRuntime)
-            mediaService?.diagnosticEvent = { [weak self] event, reason in
-                self?.journal.record(event, stage: "media", code: reason == "media" ? nil : reason)
+            mediaService?.diagnosticEvent = { [weak self] event, reason, status in
+                self?.journal.record(event, stage: "media", code: reason == "media" ? nil : reason, status: status)
             }
         }
     }

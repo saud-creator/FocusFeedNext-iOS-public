@@ -5,6 +5,7 @@ import UIKit
 
 enum NativeMediaFailure: Error, Equatable {
     case invalidHandle, staleOwnership, unavailable, network, stalled, http(Int), recoveryExhausted, tooLarge
+    case brokerHTTP(NativeMediaHTTPFailure), interruptedBody(Int?), decoder
 }
 
 /// The broker validates account ownership and every upstream redirect. This service
@@ -43,7 +44,7 @@ enum NativeMediaFailure: Error, Equatable {
     var playerFailed: ((UUID, NativeMediaFailure) -> Void)?
     var recoveryOpportunity: (() -> Void)?
     var ownershipInvalidated: (() -> Void)?
-    var diagnosticEvent: ((String, String) -> Void)?
+    var diagnosticEvent: ((String, String, Int?) -> Void)?
 
     init(validateBrokerURL: @escaping (URL) async throws -> Void,
          repair: @escaping (URL, Bool) async throws -> URL) {
@@ -68,6 +69,14 @@ enum NativeMediaFailure: Error, Equatable {
     }
 
     func imageData(url: String, maxPixelDimension: Int = 1600) async throws -> Data {
+        do { return try await loadImage(url: url, maxPixelDimension: maxPixelDimension) }
+        catch {
+            recordFailure(error)
+            throw error
+        }
+    }
+
+    private func loadImage(url: String, maxPixelDimension: Int) async throws -> Data {
         let source = try Self.brokerURL(url)
         let captured = ownership
         try await validateBrokerURL(source)
@@ -161,10 +170,10 @@ enum NativeMediaFailure: Error, Equatable {
         if let task = recoveries[key] { return try await task.value }
         var budget = budgets[key] ?? RecoveryAttemptBudget()
         guard budget.claim(epoch: recoveryEpoch, now: ProcessInfo.processInfo.systemUptime, manual: !automatic) else {
-            diagnosticEvent?("failure", "recovery_exhausted")
+            diagnosticEvent?("failure", "recovery_exhausted", nil)
             throw NativeMediaFailure.recoveryExhausted
         }
-        diagnosticEvent?("recovery", "media")
+        diagnosticEvent?("recovery", "media", nil)
         budgets[key] = budget
         // Bound bookkeeping independently of a long scrolling session.
         if budgets.count > 512 { budgets = [key: budget] }
@@ -306,7 +315,7 @@ enum NativeMediaFailure: Error, Equatable {
               let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
                 kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true,
                 kCGImageSourceThumbnailMaxPixelSize: maximum, kCGImageSourceShouldCacheImmediately: true
-              ] as CFDictionary), let encoded = UIImage(cgImage: image).pngData() else { throw NativeMediaFailure.unavailable }
+              ] as CFDictionary), let encoded = UIImage(cgImage: image).pngData() else { throw NativeMediaFailure.decoder }
         return CachedImage(data: encoded, cost: image.bytesPerRow * image.height + encoded.count)
     }
     private func touch(_ key: String) { order.removeAll { $0 == key }; order.append(key) }
@@ -320,12 +329,29 @@ enum NativeMediaFailure: Error, Equatable {
         cache[key] = value; order.append(key); cacheCost += value.cost
     }
     private func clearImageCache() { cache.removeAll(); order.removeAll(); cacheCost = 0 }
+    private func recordFailure(_ error: Error) {
+        if error is CancellationError { return }
+        let code: String
+        var status: Int? = nil
+        switch error {
+        case NativeMediaFailure.brokerHTTP(let failure): code = failure.origin.rawValue; status = failure.status
+        case NativeMediaFailure.interruptedBody(let responseStatus): code = "interrupted_body"; status = responseStatus
+        case NativeMediaFailure.decoder: code = "decoder_failure"
+        case NativeMediaFailure.invalidHandle: code = "invalid_handle"
+        case NativeMediaFailure.staleOwnership: code = "stale_ownership"
+        case NativeMediaFailure.tooLarge: code = "media_size_limit"
+        case NativeMediaFailure.network: code = "network_failure"
+        case NativeRecoveryError.timeout: code = "timeout"
+        default: code = "unknown_media_failure"
+        }
+        diagnosticEvent?("failure", code, status)
+    }
     func diagnosticSnapshot() -> [String: Any] {
         ["accountEpoch": ownership.accountEpoch, "brokerEpoch": ownership.brokerEpoch,
          "imageCacheCostBytes": cacheCost, "imageCacheBudgetBytes": cacheLimit,
          "decodedImages": cache.count, "imageRequests": downloads.count,
          "pendingRecoveries": recoveries.count, "activePlayers": current == nil ? 0 : 1,
-         "recoveryEpoch": recoveryEpoch]
+         "recoveryEpoch": recoveryEpoch, "processMemory": NativeProcessMemory.snapshot()]
     }
     deinit { audioObservers.forEach(NotificationCenter.default.removeObserver) }
 }
@@ -340,6 +366,7 @@ private final class BoundedBrokerImageDownload: NSObject, URLSessionDataDelegate
     private var task: URLSessionDataTask?
     private var data = Data()
     private var cancelled = false
+    private var responseStatus: Int?
     init(url: URL, maximumBytes: Int) { self.url = url; self.maximumBytes = maximumBytes }
     func run() async throws -> Data {
         try await withCheckedThrowingContinuation { continuation in
@@ -368,8 +395,13 @@ private final class BoundedBrokerImageDownload: NSObject, URLSessionDataDelegate
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            completionHandler(.cancel); finish(.failure(NativeMediaFailure.http((response as? HTTPURLResponse)?.statusCode ?? 0))); return
+            let http = response as? HTTPURLResponse
+            let failure = NativeMediaHTTPFailure(status:http?.statusCode ?? 0,
+                brokerOrigin:http?.value(forHTTPHeaderField:"x-focusfeed-failure-origin"),
+                trustedResponse:response.url == url)
+            completionHandler(.cancel); finish(.failure(NativeMediaFailure.brokerHTTP(failure))); return
         }
+        lock.lock(); responseStatus = http.statusCode; lock.unlock()
         guard response.expectedContentLength <= Int64(maximumBytes) else { completionHandler(.cancel); finish(.failure(NativeMediaFailure.tooLarge)); return }
         completionHandler(.allow)
     }
@@ -381,7 +413,11 @@ private final class BoundedBrokerImageDownload: NSObject, URLSessionDataDelegate
         if exceeds { finish(.failure(NativeMediaFailure.tooLarge)) }
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        lock.lock(); let result = data; lock.unlock()
-        finish(error.map { .failure($0) } ?? .success(result))
+        lock.lock(); let result = data; let status = responseStatus; let wasCancelled = cancelled; lock.unlock()
+        if let error {
+            if wasCancelled || (error as NSError).code == NSURLErrorCancelled { finish(.failure(CancellationError())) }
+            else if let status { finish(.failure(NativeMediaFailure.interruptedBody(status))) }
+            else { finish(.failure(NativeMediaFailure.network)) }
+        } else { finish(.success(result)) }
     }
 }

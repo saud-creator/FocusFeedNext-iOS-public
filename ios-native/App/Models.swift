@@ -114,6 +114,7 @@ struct FeedResponse: Codable {
     var missingPostIds: [String]? = nil
 }
 struct SearchResponse: Codable { var posts: [Post]; var readIds: [String]; var nextOffset: Int? }
+struct CachedPostsResponse: Codable { var posts: [Post]; var readIds: [String]; var missingPostIds: [String] }
 struct CommentResponse: Codable { var posts: [Post]; var cursor: String? }
 struct ArticleBlock: Codable { var kind: String; var text: String }
 struct Article: Codable { var title: String; var blocks: [ArticleBlock] }

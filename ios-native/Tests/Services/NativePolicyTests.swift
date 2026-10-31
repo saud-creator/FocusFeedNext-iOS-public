@@ -4,6 +4,15 @@ import Foundation
 /// harness. They exercise ownership and interruption state, not live X traffic.
 private enum NativePolicyCases {
     static func run(_ check: (Bool, String) -> Void) {
+        let queued = NativeMediaHTTPFailure(status:503, brokerOrigin:"local_queue", trustedResponse:true)
+        let upstream = NativeMediaHTTPFailure(status:503, brokerOrigin:"upstream_http", trustedResponse:true)
+        check(queued.status == upstream.status && queued.origin != upstream.origin, "equal status retains distinct broker provenance")
+        check(queued.origin == .localQueue, "only broker provenance identifies local queue exhaustion")
+        check(NativeMediaHTTPFailure(status:429, brokerOrigin:"upstream_http", trustedResponse:true).origin == .upstreamHTTP, "upstream rate limiting is not local capacity")
+        check(NativeMediaHTTPFailure(status:429, brokerOrigin:nil, trustedResponse:true).origin == .unknown, "status alone cannot infer provenance")
+        check(NativeMediaHTTPFailure(status:503, brokerOrigin:"local_queue", trustedResponse:false).origin == .unknown, "untrusted responses cannot assert broker provenance")
+        check(NativeMediaHTTPFailure(status:503, brokerOrigin:"private=https://invalid.example", trustedResponse:true).origin == .unknown, "arbitrary header content is discarded")
+
         var active = ActiveTimeBudget(limit: 10)
         check(!active.update(now: 0, active: true), "fresh budget")
         check(!active.update(now: 5, active: true), "foreground accrues active time")

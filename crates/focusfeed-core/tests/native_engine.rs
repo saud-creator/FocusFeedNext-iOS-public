@@ -502,6 +502,13 @@ fn payload_eviction_retains_complete_bookmark_index_and_reports_rehydration_ids(
     assert!(!page["missingPostIds"].as_array().unwrap().is_empty());
     assert_eq!(page["nextCursor"], "older");
 
+    call(&core, Op::IngestFollowing, json!({"accounts":[author("2","reader")],"complete":true}), 1);
+    call(&core, Op::UpsertList, json!({"id":"evicted-list","name":"Reading"}), 1);
+    call(&core, Op::SetListMember, json!({"listId":"evicted-list","authorId":"2","member":true}), 1);
+    let group = call(&core, Op::GetGroupFeed, json!({"groupId":"evicted-list","limit":80}), 1);
+    assert_eq!(group["totalCached"], 72);
+    assert!(group["missingPostIds"].as_array().unwrap().iter().any(|id| id == "1000"));
+
     // TweetResultByRestId rehydrates the evicted body through the same detail
     // path used by media repair. This must not masquerade as a new feed page.
     assert!(page["missingPostIds"]
@@ -533,6 +540,10 @@ fn payload_eviction_retains_complete_bookmark_index_and_reports_rehydration_ids(
         .unwrap()
         .iter()
         .any(|id| id == "1000"));
+    let restored_group = call(&core, Op::GetGroupFeed, json!({"groupId":"evicted-list","limit":80}), 1);
+    assert_eq!(restored_group["totalCached"], 72);
+    assert_eq!(restored_group["posts"][0]["id"], "1000");
+    assert!(!restored_group["missingPostIds"].as_array().unwrap().iter().any(|id| id == "1000"));
     let slice = call(
         &core,
         Op::GetBookmarkSlice,
@@ -604,4 +615,71 @@ fn continuation_returns_only_its_new_page_and_group_reads_use_durable_members() 
     assert_eq!(group["totalCached"], 2);
     assert_eq!(group["posts"].as_array().unwrap().len(), 1);
     assert_eq!(group["nextOffset"], 1);
+}
+
+#[test]
+fn local_list_member_cursors_continue_each_provider_timeline_beyond_its_first_page() {
+    let (_dir, core) = engine();
+    call(&core, Op::IngestFollowing, json!({"accounts":[author("2","reader"),author("3","third")],"complete":true}), 1);
+    call(&core, Op::UpsertList, json!({"id":"local","name":"Reading"}), 1);
+    for id in ["2", "3"] {
+        call(&core, Op::SetListMember, json!({"listId":"local","authorId":id,"member":true}), 1);
+    }
+    for (author_id, username, post_id, cursor) in [("2","reader","10","reader-next"),("3","third","20","third-next")] {
+        let mut item = post(post_id); item["author"] = author(author_id, username);
+        call(&core, Op::IngestFeed, json!({"feed":format!("user-id:{author_id}"),"body":page(vec![item],Some(cursor))}), 1);
+    }
+    let first = call(&core, Op::GetGroupFeed, json!({"groupId":"local","limit":1}), 1);
+    assert_eq!(first["totalCached"], 2);
+    assert_eq!(first["providerHasMore"], true);
+    assert_eq!(first["memberPages"][0]["source"], "user-id:2");
+    assert_eq!(first["memberPages"][0]["cursor"], "reader-next");
+    assert_eq!(first["memberPages"][1]["cursor"], "third-next");
+    // The adapter executes these independent cursor reads without treating the
+    // first merged cache page as the end of the List.
+    for (author_id, username, post_id) in [("2","renamed_reader","11"),("3","third","21")] {
+        let mut item = post(post_id); item["author"] = author(author_id, username);
+        call(&core, Op::IngestFeed, json!({"feed":format!("user-id:{author_id}"),"body":page(vec![item],None),"append":true}), 1);
+    }
+    let mut discovered = std::collections::HashSet::new();
+    for offset in 0..4 {
+        let window = call(&core, Op::GetGroupFeed, json!({"groupId":"local","limit":1,"offset":offset}), 1);
+        assert_eq!(window["totalCached"], 4);
+        assert_eq!(window["providerHasMore"], false);
+        assert_eq!(window["loadedAccounts"], 2);
+        assert!(window["memberPages"].as_array().unwrap().iter().all(|page| page["exhausted"] == true));
+        discovered.insert(window["posts"][0]["id"].as_str().unwrap().to_string());
+        assert_eq!(window["nextOffset"], if offset < 3 { json!(offset+1) } else { Value::Null });
+    }
+    assert_eq!(discovered, ["10","11","20","21"].into_iter().map(String::from).collect());
+    assert!(core.execute(request(Op::IngestFeed,json!({"feed":"user-id:2/secret","body":page(vec![],None)}),1)).is_err());
+}
+
+#[test]
+fn persisted_list_members_without_following_or_profiles_still_have_bounded_provider_navigation() {
+    let directory = tempfile::tempdir().unwrap();
+    {
+        let durable = focusfeed_core::durable::Durable::open(&directory.path().join("preferences.db")).unwrap();
+        durable.upsert_account_list("1","local","Reading","#123456").unwrap();
+        for id in ["2","3","4","5","6","7"] {
+            durable.set_account_list_member("1","local",id,true).unwrap();
+        }
+    }
+    let core = CoreEngine::open(directory.path()).unwrap();
+    call(&core, Op::SetAccount, json!({"account":author("1","owner")}), 1);
+    let first = call(&core, Op::GetGroupFeed, json!({"groupId":"local","memberPageLimit":1000}), 1);
+    assert_eq!(first["memberCount"], 6);
+    assert_eq!(first["memberPages"].as_array().unwrap().len(), 4);
+    assert_eq!(first["unknownMemberIds"].as_array().unwrap().len(), 4);
+    assert_eq!(first["nextMemberPageOffset"], 4);
+    assert_eq!(first["providerHasMore"], true);
+    for page in first["memberPages"].as_array().unwrap() {
+        assert_eq!(page["username"], Value::Null);
+        assert_eq!(page["loaded"], false);
+        assert_eq!(page["exhausted"], false);
+        assert!(page["source"].as_str().unwrap().starts_with("user-id:"));
+    }
+    let rest = call(&core, Op::GetGroupFeed, json!({"groupId":"local","memberPageOffset":4}), 1);
+    assert_eq!(rest["memberPages"].as_array().unwrap().len(), 2);
+    assert_eq!(rest["nextMemberPageOffset"], Value::Null);
 }

@@ -55,7 +55,14 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
         footer.axis = .horizontal; footer.spacing = 8; footer.alignment = .center; footer.addArrangedSubview(readLabel); stack.addArrangedSubview(footer)
     }
     required init?(coder: NSCoder) { fatalError("Use init") }
-    override func prepareForReuse() { super.prepareForReuse(); stop(); current = nil; avatar.cancel(); delegate = nil; expanded = false }
+    override func prepareForReuse() { super.prepareForReuse(); releaseContent() }
+    func releaseContent() {
+        stop(); current = nil; avatar.cancel(); delegate = nil; markRead = nil; expanded = false
+        textView.attributedText = nil; authorButton.setTitle(nil, for:.normal); metadata.text = nil; attribution.text = nil
+        mediaStack.arrangedSubviews.forEach { $0.removeFromSuperview() }; quote.arrangedSubviews.forEach { $0.removeFromSuperview() }; videos = []
+        footer.arrangedSubviews.filter { $0 !== readLabel }.forEach { $0.removeFromSuperview() }
+    }
+    var representedPostID: String? { current?.id }
     func configure(_ post: Post, read: Bool, bookmark: Bool, context: ReaderContext, delegate: PostCellDelegate) {
         stop(); let same = current?.id == post.id; current = post; self.context = context; self.delegate = delegate; self.bookmark = bookmark; if !same { expanded = false }; highlightText = ""
         accessibilityIdentifier = "post.\(post.id)"

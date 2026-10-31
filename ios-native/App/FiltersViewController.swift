@@ -46,14 +46,14 @@ final class FiltersViewController: ReaderScreen, UITableViewDataSource, UITableV
         alert.addAction(UIAlertAction(title: L10n.text("cancel"), style: .cancel)); alert.addAction(UIAlertAction(title: L10n.text("save"), style: .default) { [weak self, weak alert] _ in
             guard let self, let name = alert?.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty, name.count <= 80 else { return }
             let next = presets + [FilterPreset(id: UUID().uuidString, name: name, filters: filters)]
-            Task { do { try await context.services.savePresets(next); presets = next; table.reloadData() } catch { showError(error) } }
+            Task { [self] in do { try await context.services.savePresets(next); presets = next; table.reloadData() } catch { showError(error) } }
         }); present(alert, animated: true)
     }
     func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
         guard indexPath.section == 2, indexPath.row < presets.count else { return nil }
         let action = UIContextualAction(style: .destructive, title: L10n.text("delete")) { [weak self] _, _, done in
             guard let self else { done(false); return }; var next = presets; next.remove(at: indexPath.row)
-            Task { do { try await context.services.savePresets(next); presets = next; table.reloadData(); done(true) } catch { showError(error); done(false) } }
+            Task { [self] in do { try await context.services.savePresets(next); presets = next; table.reloadData(); done(true) } catch { showError(error); done(false) } }
         }; return UISwipeActionsConfiguration(actions: [action])
     }
 }

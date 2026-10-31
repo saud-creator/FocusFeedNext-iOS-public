@@ -17,6 +17,7 @@ extension Notification.Name {
     private var playbackStates: [String: ReaderPlaybackState] = [:]
     lazy var timelines = TimelineRepository(context: self)
     private var eventsTask: Task<Void, Never>?
+    private var memoryRevision: Int = 0
     init(services: AppServices) { self.services = services }
     func start() async throws {
         let entries = try await services.settings()
@@ -40,7 +41,10 @@ extension Notification.Name {
                 case .mediaRecoveryOpportunity: NotificationCenter.default.post(name: .readerMediaRecoveryOpportunity, object: self)
                 case .followingProgress: NotificationCenter.default.post(name: .readerFollowingChanged, object: self)
                 case .recovery(let state): recovery = state; changed()
-                case .runtimeChanged: runtime = try? await services.call(.runtimeSnapshot); changed()
+                case .runtimeChanged:
+                    runtime = try? await services.call(.runtimeSnapshot)
+                    if let revision = runtime?.memoryRevision, revision != memoryRevision { memoryRevision = revision; timelines.trimForMemoryPressure() }
+                    changed()
                 }
             }
         }

@@ -53,6 +53,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+          key: native-v2
       - name: Install project generator and record Apple toolchain
         run: |
           brew install xcodegen
@@ -60,12 +61,32 @@ jobs:
           if [[ -n "$selected" ]]; then sudo xcode-select -s "$selected/Contents/Developer"; fi
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
-      - name: Native build, bridge and UI tests
+      - name: Foundation policies and Swift syntax
         run: |
           bash ios-native/Tests/Services/run-policy-tests.sh
           xcrun swiftc -frontend -parse -swift-version 5 ios-native/App/*.swift ios-native/Integration/*.swift ios-native/NativeServices/*.swift
-          bash ios-native/tools/typecheck-native.sh
-          bash ios-native/tools/build-native.sh check
+      - name: Restore matching host bridge
+        id: host-bridge
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            target/debug/libfocusfeed_ffi.dylib
+            target/debug/focusfeed-bindgen
+          key: native-host-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'crates/**', 'source/src-tauri/src/**/*.rs', 'source/src-tauri/plugins/ios-reader/src/fault.rs') }}
+      - name: UIKit and bridge type checking
+        env:
+          NATIVE_HOST_BRIDGE_CACHED: '${{ steps.host-bridge.outputs.cache-hit }}'
+        run: bash ios-native/tools/typecheck-native.sh
+      - name: Preserve host bridge for compiler iteration
+        if: always() && steps.host-bridge.outcome == 'success' && steps.host-bridge.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            target/debug/libfocusfeed_ffi.dylib
+            target/debug/focusfeed-bindgen
+          key: ${{ steps.host-bridge.outputs.cache-primary-key }}
+      - name: Linked native service, bridge and UI tests
+        run: bash ios-native/tools/build-native.sh check
       - name: Unsigned native archive
         env:
           NATIVE_BUILD_NUMBER: '100.${{ github.run_number }}'

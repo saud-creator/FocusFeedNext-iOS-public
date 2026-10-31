@@ -3,10 +3,12 @@
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$repo"
-cargo build --locked -p focusfeed-ffi --features bindgen
+if [[ "${NATIVE_HOST_BRIDGE_CACHED:-false}" != true || ! -f target/debug/libfocusfeed_ffi.dylib || ! -x target/debug/focusfeed-bindgen ]]; then
+  cargo build --locked -p focusfeed-ffi --features bindgen
+fi
 mkdir -p ios-native/Generated
-cargo run --locked -p focusfeed-ffi --features bindgen --bin focusfeed-bindgen -- \
-  generate target/debug/libfocusfeed_ffi.dylib --language swift --out-dir ios-native/Generated
+target/debug/focusfeed-bindgen generate target/debug/libfocusfeed_ffi.dylib \
+  --language swift --out-dir ios-native/Generated
 sdk=$(xcrun --sdk iphonesimulator --show-sdk-path)
 modulemap="$repo/ios-native/Generated/FocusFeedNativeFFI.modulemap"
 xcrun swiftc -typecheck -parse-as-library -swift-version 5 \

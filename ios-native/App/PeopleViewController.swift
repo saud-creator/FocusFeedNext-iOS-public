@@ -59,13 +59,13 @@ final class PeopleViewController: ReaderScreen, UITableViewDataSource, UITableVi
         Task { do {
             let groups: [ReaderList] = try await context.services.call(.groups)
             let sheet = UIAlertController(title: L10n.text("addToList"), message: groups.isEmpty ? L10n.text("listEmpty") : nil, preferredStyle: .actionSheet)
-            for group in groups { sheet.addAction(UIAlertAction(title: group.name, style: .default) { [weak self] _ in guard let self else { return }; Task { do { try await context.services.command(.setGroupMember, ["groupId": .string(group.id), "authorId": .string(author.id), "member": .bool(true)]) } catch { showError(error) } } }) }
+            for group in groups { sheet.addAction(UIAlertAction(title: group.name, style: .default) { [weak self] _ in guard let self else { return }; Task { [self] in do { try await context.services.command(.setGroupMember, ["groupId": .string(group.id), "authorId": .string(author.id), "member": .bool(true)]) } catch { showError(error) } } }) }
             sheet.addAction(UIAlertAction(title: L10n.text("cancel"), style: .cancel)); sheet.popoverPresentationController?.sourceView = view; sheet.popoverPresentationController?.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1); present(sheet, animated: true)
         } catch { showError(error) } }
     }
     private func unfollow(_ author: Author) {
         confirm(title: "\(L10n.text("unfollow")) @\(author.username)?", message: L10n.text("unfollowBody") + "\n" + L10n.text("actionNoRetry"), action: L10n.text("unfollow"), destructive: true) { [weak self] in
-            guard let self else { return }; Task { do { try await context.services.command(.unfollow, ["username": .string(author.username), "confirmed": .bool(true)]); load(startIfNeeded: false) } catch { showError(error) } }
+            guard let self else { return }; Task { [self] in do { try await context.services.command(.unfollow, ["username": .string(author.username), "confirmed": .bool(true)]); load(startIfNeeded: false) } catch { showError(error) } }
         }
     }
     deinit { NotificationCenter.default.removeObserver(self) }

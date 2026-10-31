@@ -13,6 +13,8 @@ settings:
     ENABLE_BITCODE: NO
     CODE_SIGNING_ALLOWED: NO
     SWIFT_INCLUDE_PATHS: '$(inherited) $(SRCROOT)/Generated'
+    HEADER_SEARCH_PATHS: '$(inherited) $(SRCROOT)/Generated'
+    OTHER_SWIFT_FLAGS: '$(inherited) -Xcc -fmodule-map-file=$(SRCROOT)/Generated/FocusFeedNativeFFI.modulemap'
 targets:
   FocusFeedNextNative:
     type: application

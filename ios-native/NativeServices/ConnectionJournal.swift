@@ -24,7 +24,7 @@ final class ConnectionJournal {
         for (key, values) in [
             "event": ["start","stage","navigation","cookies","request","response","fallback","failure","recovery","cancelled","committed","connected","background","resume"],
             "stage": ["login","cookies","transport","transport_navigation","transport_origin","transport_process","transport_script","bootstrap","identity","provider","storage","bridge","queue","connected","media","local_listener","registration","upstream","decoder"],
-            "code": ["missing_cookies","transport_initialization","transaction_bootstrap","authentication_expired","provider_rejection","rate_limited","account_challenge","timeout","cancelled","background_paused","session_storage","network_failure","unsupported_response","bridge_failure","invalid_handle","expired_registration","local_queue","upstream_http","decoder_failure","recovery_exhausted","stale_ownership"],
+            "code": ["missing_cookies","transport_initialization","transaction_bootstrap","authentication_expired","provider_rejection","rate_limited","account_challenge","timeout","cancelled","background_paused","session_storage","network_failure","unsupported_response","bridge_failure","invalid_handle","expired_registration","registration","local_queue","upstream_http","upstream_network","decoder_failure","interrupted_body","media_size_limit","unknown_media_failure","recovery_exhausted","stale_ownership"],
             "nativeErrorDomain": ["url","webkit","other"],
             "engine": ["native","webkit"], "page": ["login","home","challenge","other"],
             "operation": ProviderHTTPTransport.operations, "resource": ["home","metadata","api"]

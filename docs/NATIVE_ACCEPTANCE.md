@@ -7,9 +7,11 @@ be used to assert physical acceptance without the associated device report.
 
 - Baseline: public `129c47847bbbd336edd69f05db6780ed19379e56`.
 - Branch: `codex/native-ios-quality`.
-- Core: 155 unit tests, 12 integration tests and 1 FFI test passed on
+- Core: 155 unit tests, 14 integration tests and 1 FFI test passed on
   Windows/MSVC. These include cancellation during action preparation, retained
   ownership after dispatch, and late-cancelled account-transition acknowledgements.
+  List regressions also cover per-member provider cursors, members no longer
+  followed, and ordered navigation after post-body eviction.
 - Shared desktop: lint/build completed and 652 tests in 51 files passed. Existing
   lint warnings remain; the native target does not package that renderer.
 - FFI: compiled successfully with UniFFI exactly 0.32.1; generated Swift API
@@ -22,6 +24,9 @@ be used to assert physical acceptance without the associated device report.
   cycles passed in run `41100182402`. The generated Swift boundary built from
   UniFFI 0.32.1 and reached UIKit type checking. That run found a missing
   `override` on the Settings initializer; the source has been corrected.
+  Run `41180221128` passed core, desktop and privacy checks, then found an
+  explicit-`self` capture error in the article photo callback. That source is
+  corrected in the next batch. Its Foundation harness also passed 429 assertions.
 - Full UIKit compilation, linked Swift/bridge/UI tests and the Xcode archive:
   pending a successful macOS workflow. The previous failed run produced no IPA.
 - Signed upgrade, live-provider recovery and measured device performance:

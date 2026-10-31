@@ -324,11 +324,37 @@ struct Action {
     preparation_deadline: u64,
     executing: bool,
 }
+/// Lightweight session navigation survives body eviction. It contains neither
+/// post text nor media, and is accounted for separately from hydrated payloads.
+struct NavigationPost {
+    author_id: String,
+    created_at_millis: i64,
+}
+impl NavigationPost {
+    fn from_post(post: &Post) -> Self {
+        Self {
+            author_id: post.author.id.clone(),
+            created_at_millis: chrono::DateTime::parse_from_rfc3339(&post.created_at)
+                .map(|time| time.timestamp_millis()).unwrap_or(0),
+        }
+    }
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupMemberPage {
+    author_id: String,
+    username: Option<String>,
+    source: String,
+    cursor: Option<String>,
+    loaded: bool,
+    exhausted: bool,
+}
 struct EngineState {
     account: Option<Author>,
     generation: u64,
     revisions: HashMap<String, u64>,
     indices: HashMap<String, Vec<String>>,
+    navigation: HashMap<String, NavigationPost>,
     bookmark_complete: bool,
     resident: HashMap<String, usize>,
     lru: VecDeque<String>,
@@ -365,6 +391,7 @@ impl CoreEngine {
                 generation: 0,
                 revisions: HashMap::new(),
                 indices: HashMap::new(),
+                navigation: HashMap::new(),
                 bookmark_complete: false,
                 resident: HashMap::new(),
                 lru: VecDeque::new(),
@@ -537,6 +564,7 @@ impl CoreEngine {
         state.media.stop();
         self.db.clear_cache()?;
         state.indices.clear();
+        state.navigation.clear();
         state.resident.clear();
         state.payload_bytes = 0;
         Ok(())
@@ -636,6 +664,7 @@ impl CoreEngine {
                     self.db.clear_cache()?;
                     s.media.registry.invalidate_all();
                     s.indices.clear();
+                    s.navigation.clear();
                     s.resident.clear();
                     s.lru.clear();
                     s.payload_bytes = 0;
@@ -685,6 +714,9 @@ impl CoreEngine {
                 }
                 self.check(r)?;
                 self.db.save_feed_page(&feed, &page)?;
+                for post in &page.posts {
+                    s.navigation.insert(post.id.clone(), NavigationPost::from_post(post));
+                }
                 let prior = s.indices.entry(feed.clone()).or_default();
                 let mut ids: Vec<String> = page.posts.iter().map(|p| p.id.clone()).collect();
                 if a.get("append").and_then(Value::as_bool).unwrap_or(false) {
@@ -920,35 +952,7 @@ impl CoreEngine {
                 authors.extend(self.db.authors_by_ids(&extras)?);
                 Ok(json!(authors.iter().map(|author|json!({"author":self.safe_author(s,author),"following":following.contains(&author.id),"member":members.contains(&author.id)})).collect::<Vec<_>>()))
             }
-            GetGroupFeed => {
-                let account = self.account(s)?;
-                let id = text(a, "groupId")?;
-                let list = self
-                    .durable
-                    .account_lists(account)?
-                    .into_iter()
-                    .find(|list| list.id == id)
-                    .ok_or_else(CoreError::invalid)?;
-                let all = self
-                    .db
-                    .group_timeline(&list.member_ids, &filters(a)?, i64::MAX)?;
-                let offset = a
-                    .get("offset")
-                    .and_then(Value::as_u64)
-                    .unwrap_or(0)
-                    .min(1_000_000) as usize;
-                let limit = limit(a);
-                let selected = all
-                    .iter()
-                    .skip(offset)
-                    .take(limit)
-                    .cloned()
-                    .collect::<Vec<_>>();
-                let read = self.db.read_ids_for_posts(&selected)?;
-                Ok(
-                    json!({"posts":selected.iter().map(|post|self.safe_post(s,post)).collect::<Vec<_>>(),"fromCache":true,"provider":"ios-direct","lastSync":null,"readIds":read,"totalCached":all.len(),"nextCursor":null,"failures":[],"nextOffset":(offset+selected.len()<all.len()).then_some(offset+selected.len()),"memberCount":list.member_ids.len(),"loadedAccounts":self.db.authors_by_ids(&list.member_ids)?.len()}),
-                )
-            }
+            GetGroupFeed => self.group_feed_value(s, a),
             UpsertList => {
                 let account = self.account(s)?;
                 self.check(r)?;
@@ -1077,7 +1081,7 @@ impl CoreEngine {
                 Ok(json!({"cancelled":true}))
             }
             Diagnostics => Ok(
-                json!({"accountGeneration":s.generation,"payloadBytes":s.payload_bytes,"payloadBudgetBytes":PAYLOAD_BUDGET_BYTES,"residentPosts":s.resident.len(),"indexedPosts":s.indices.values().map(Vec::len).sum::<usize>(),"media":s.media.health(),"pendingAction":s.action.is_some(),"provider":"ios-direct","synthetic":false}),
+                json!({"accountGeneration":s.generation,"payloadBytes":s.payload_bytes,"payloadBudgetBytes":PAYLOAD_BUDGET_BYTES,"residentPosts":s.resident.len(),"indexedPosts":s.indices.values().map(Vec::len).sum::<usize>(),"navigationPosts":s.navigation.len(),"navigationEstimatedBytes":s.navigation.iter().map(|(id,post)|std::mem::size_of::<NavigationPost>()+id.len()+post.author_id.len()).sum::<usize>(),"media":s.media.health(),"pendingAction":s.action.is_some(),"provider":"ios-direct","synthetic":false}),
             ),
             Search => {
                 let query = text(a, "query")?;
@@ -1116,6 +1120,7 @@ impl CoreEngine {
                 self.db.clear_cache()?;
                 s.media.registry.invalidate_all();
                 s.indices.clear();
+                s.navigation.clear();
                 s.revisions.clear();
                 s.resident.clear();
                 s.lru.clear();
@@ -1145,6 +1150,7 @@ impl CoreEngine {
                 from_cache: false,
             },
         )?;
+        s.navigation.insert(post.id.clone(), NavigationPost::from_post(post));
         if let Some(old) = s.resident.insert(post.id.clone(), cost) {
             s.payload_bytes = s.payload_bytes.saturating_sub(old);
         }
@@ -1164,6 +1170,81 @@ impl CoreEngine {
         }
         self.db.evict_native_payloads(&evict)?;
         Ok(())
+    }
+    fn group_feed_value(&self, s: &EngineState, args: &Value) -> Result<Value, CoreError> {
+        let list = self.durable.account_lists(self.account(s)?)?.into_iter()
+            .find(|list| list.id == text(args, "groupId").unwrap_or_default())
+            .ok_or_else(CoreError::invalid)?;
+        let members: HashSet<_> = list.member_ids.iter().map(String::as_str).collect();
+        let authors = self.db.authors_by_ids(&list.member_ids)?;
+        let author_names: HashMap<_, _> = authors.iter()
+            .map(|author| (author.id.as_str(), author.username.as_str())).collect();
+        let member_offset = args.get("memberPageOffset").and_then(Value::as_u64)
+            .unwrap_or(0).min(list.member_ids.len() as u64) as usize;
+        let member_limit = args.get("memberPageLimit").and_then(Value::as_u64)
+            .unwrap_or(4).clamp(1, 4) as usize;
+        let mut member_pages = Vec::new();
+        let mut provider_has_more = false;
+        let mut loaded_accounts = 0;
+        let mut unknown_member_ids = Vec::new();
+        for (index, id) in list.member_ids.iter().enumerate() {
+            // Numeric identity remains usable after an unfollow, a handle
+            // change, or a fresh launch without a cached author profile.
+            let source = format!("user-id:{id}");
+            let username = author_names.get(id.as_str()).copied();
+            let legacy = username.map(|name| format!("user:{name}"));
+            let cached_source = if s.indices.contains_key(&source) { Some(source.as_str()) }
+                else { legacy.as_deref().filter(|source| s.indices.contains_key(*source)) };
+            let loaded = cached_source.is_some();
+            let cursor = cached_source.map(|source| self.db.cursor(source)).transpose()?.flatten();
+            let exhausted = loaded && cursor.is_none();
+            loaded_accounts += usize::from(loaded);
+            provider_has_more |= !exhausted;
+            if index >= member_offset && member_pages.len() < member_limit {
+                if username.is_none() { unknown_member_ids.push(id.clone()); }
+                member_pages.push(GroupMemberPage {
+                    author_id: id.clone(), username: username.map(str::to_string), source,
+                    cursor, loaded, exhausted,
+                });
+            }
+        }
+        // Rank navigation identities, not hydrated bodies. An evicted post must
+        // retain its slot and be explicitly rehydrated before rendering.
+        let mut chronological: Vec<_> = s.navigation.iter()
+            .filter(|(_, post)| members.contains(post.author_id.as_str())).collect();
+        chronological.sort_by(|(left_id, left), (right_id, right)| {
+            right.created_at_millis.cmp(&left.created_at_millis).then_with(|| left_id.cmp(right_id))
+        });
+        let mut author_rank: HashMap<&str, usize> = HashMap::new();
+        let mut ranked: Vec<_> = chronological.into_iter().map(|(id, post)| {
+            let rank = author_rank.entry(post.author_id.as_str()).or_default();
+            let result = (*rank, id); *rank += 1; result
+        }).collect();
+        ranked.sort_by_key(|(rank, _)| *rank);
+        let offset = args.get("offset").and_then(Value::as_u64).unwrap_or(0)
+            .min(ranked.len() as u64) as usize;
+        let limit = limit(args);
+        let mut posts = Vec::new();
+        let mut missing = Vec::new();
+        for (_, id) in ranked.iter().skip(offset).take(limit) {
+            match self.db.get_post(id)? {
+                Some(post) => posts.push(post),
+                None => missing.push((*id).clone()),
+            }
+        }
+        let posts = self.db.filter_feed_page(posts, &filters(args)?, limit as i64)?;
+        let read = self.db.read_ids_for_posts(&posts)?;
+        let member_end = member_offset + member_pages.len();
+        Ok(json!({
+            "posts":posts.iter().map(|post|self.safe_post(s,post)).collect::<Vec<_>>(),
+            "fromCache":true,"provider":"ios-direct","lastSync":null,"readIds":read,
+            "totalCached":ranked.len(),"nextCursor":null,"failures":[],
+            "nextOffset":(offset+limit<ranked.len()).then_some(offset+limit),
+            "missingPostIds":missing,"memberCount":list.member_ids.len(),
+            "loadedAccounts":loaded_accounts,"memberPages":member_pages,
+            "nextMemberPageOffset":(member_end<list.member_ids.len()).then_some(member_end),
+            "providerHasMore":provider_has_more,"unknownMemberIds":unknown_member_ids,
+        }))
     }
     fn feed_value(
         &self,
@@ -1377,11 +1458,14 @@ fn text<'a>(value: &'a Value, key: &str) -> Result<&'a str, CoreError> {
 }
 fn feed(value: &Value) -> Result<String, CoreError> {
     let feed = text(value, "feed")?;
+    if feed.strip_prefix("user-id:").is_some_and(|id| crate::security::clean_numeric_id(id).is_none()) {
+        return Err(CoreError::invalid());
+    }
     if feed.len() > 160
         || !(matches!(
             feed,
             "following" | "focus" | "for-you" | "originals" | "bookmarks"
-        ) || feed.starts_with("user:")
+        ) || feed.starts_with("user:") || feed.starts_with("user-id:")
             || feed.starts_with("list:")
             || feed.starts_with("group:"))
     {
