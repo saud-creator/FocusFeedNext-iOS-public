@@ -27,6 +27,11 @@ be used to assert physical acceptance without the associated device report.
   Run `41180221128` passed core, desktop and privacy checks, then found an
   explicit-`self` capture error in the article photo callback. That source is
   corrected in the next batch. Its Foundation harness also passed 429 assertions.
+  Run `41181456868` passed 435 Foundation assertions, including the typed failure
+  origin checks, and the shared core/desktop/privacy checks. UIKit type checking
+  then identified explicit member captures in filter-preset tasks; those are
+  corrected in the following batch. Linked UIKit tests and IPA creation remain
+  unqualified until their own stages pass.
 - Full UIKit compilation, linked Swift/bridge/UI tests and the Xcode archive:
   pending a successful macOS workflow. The previous failed run produced no IPA.
 - Signed upgrade, live-provider recovery and measured device performance:

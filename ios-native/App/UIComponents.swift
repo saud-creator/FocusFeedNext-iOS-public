@@ -22,7 +22,34 @@ extension UIView {
     var work: Task<Void, Never>?
     init(context: ReaderContext) { self.context = context; super.init(nibName: nil, bundle: nil) }
     required init?(coder: NSCoder) { fatalError("Use dependency injection") }
-    override func viewDidLoad() { super.viewDidLoad(); ReaderTheme.apply(context.preferences, to: self) }
+    override func viewDidLoad() {
+        super.viewDidLoad(); ReaderTheme.apply(context.preferences, to: self)
+        NotificationCenter.default.addObserver(self, selector:#selector(recoverScreenImages), name:.readerMediaRecoveryOpportunity, object:context)
+    }
+    @objc private func recoverScreenImages() { if let root = viewIfLoaded { recoverVisibleImages(in:root) } }
+    /// The service owns retry budgets. Screens only report eligible images in
+    /// the visible viewport; collection cells use the feed's existing path.
+    func recoverVisibleImages(in root: UIView) {
+        guard viewIfLoaded?.window != nil, context.runtime?.foreground != false, presentedViewController == nil else { return }
+        func visible(_ candidate: UIView) -> Bool {
+            guard let window = candidate.window, window === view.window, !candidate.isHidden else { return false }
+            var rect = candidate.convert(candidate.bounds, to:window).intersection(window.bounds)
+            var opacity = candidate.alpha; var ancestor = candidate.superview
+            while let parent = ancestor {
+                if parent.isHidden { return false }; opacity *= parent.alpha
+                if parent.clipsToBounds { rect = rect.intersection(parent.convert(parent.bounds, to:window)) }
+                ancestor = parent.superview
+            }
+            return opacity > 0.01 && !rect.isNull && !rect.isEmpty
+        }
+        func visit(_ candidate: UIView) {
+            guard !(candidate is UICollectionView), !(candidate is PostCell), visible(candidate) else { return }
+            if let tile = candidate as? PhotoTile { tile.recoverIfNeeded(); return }
+            if let image = candidate as? RemoteImageView { image.recoverIfNeeded(); return }
+            candidate.subviews.forEach { visit($0) }
+        }
+        visit(root)
+    }
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         if isMovingFromParent || navigationController?.isBeingDismissed == true { work?.cancel() }
@@ -44,7 +71,7 @@ extension UIView {
         present(sheet, animated: true)
     }
     func openProfile(_ username: String) { navigationController?.pushViewController(ProfileViewController(context: context, username: username), animated: true) }
-    deinit { work?.cancel() }
+    deinit { work?.cancel(); NotificationCenter.default.removeObserver(self) }
 }
 
 final class NoticeView: UIStackView {

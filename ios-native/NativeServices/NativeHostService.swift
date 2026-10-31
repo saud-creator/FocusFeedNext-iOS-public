@@ -83,6 +83,7 @@ private final class LoginController: UIViewController, UIAdaptivePresentationCon
         }
     }
     var currentRuntime: NativeRuntimeSnapshot { NativeRuntimeSnapshot(dictionary: deviceRuntime?.snapshot() ?? [:]) }
+    func recoverVisibleMedia() { mediaPresenter.recoverVisibleMedia() }
     private var browser: WKWebView!
     private var loginBrowser: WKWebView?
     private var loginPopup: WKWebView?

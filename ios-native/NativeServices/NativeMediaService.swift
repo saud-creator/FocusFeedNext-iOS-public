@@ -24,6 +24,9 @@ enum NativeMediaFailure: Error, Equatable {
     private var recoveryDeadlines: [String: NativeActiveDeadline<URL>] = [:]
     private let recoveryDebouncer = NativeRecoveryDebouncer()
     private var budgets: [String: RecoveryAttemptBudget] = [:]
+    private var budgetOrder: [String] = []
+    private var recoveryAliases: [String: String] = [:]
+    private var aliasOrder: [String] = []
     private var recoveryEpoch: UInt64 = 1
     private var runtime = NativeRuntimeSnapshot()
     private var current: (owner: UUID, source: URL, player: AVPlayer)?
@@ -43,7 +46,8 @@ enum NativeMediaFailure: Error, Equatable {
     private var failureHandlers: [UUID: (NativeMediaFailure) -> Void] = [:]
     var playerFailed: ((UUID, NativeMediaFailure) -> Void)?
     var recoveryOpportunity: (() -> Void)?
-    var ownershipInvalidated: (() -> Void)?
+    var ownershipInvalidated: ((Bool) -> Void)?
+    var ownershipSettled: ((Bool) -> Void)?
     var diagnosticEvent: ((String, String, Int?) -> Void)?
 
     init(validateBrokerURL: @escaping (URL) async throws -> Void,
@@ -68,15 +72,15 @@ enum NativeMediaFailure: Error, Equatable {
         })
     }
 
-    func imageData(url: String, maxPixelDimension: Int = 1600) async throws -> Data {
-        do { return try await loadImage(url: url, maxPixelDimension: maxPixelDimension) }
+    func imageData(url: String, maxPixelDimension: Int = 1600, priority: Float = URLSessionTask.highPriority) async throws -> Data {
+        do { return try await loadImage(url: url, maxPixelDimension: maxPixelDimension, priority: priority) }
         catch {
             recordFailure(error)
             throw error
         }
     }
 
-    private func loadImage(url: String, maxPixelDimension: Int) async throws -> Data {
+    private func loadImage(url: String, maxPixelDimension: Int, priority: Float) async throws -> Data {
         let source = try Self.brokerURL(url)
         let captured = ownership
         try await validateBrokerURL(source)
@@ -87,7 +91,7 @@ enum NativeMediaFailure: Error, Equatable {
         let key = "\(captured.accountEpoch):\(captured.brokerEpoch):\(dimension):\(source.absoluteString)"
         if let cached = cache[key] { touch(key); return cached.data }
         let id = UUID()
-        let download = BoundedBrokerImageDownload(url: source, maximumBytes: 16 * 1024 * 1024)
+        let download = BoundedBrokerImageDownload(url: source, maximumBytes: 16 * 1024 * 1024, priority: priority)
         let deadline = NativeActiveDeadline<Data>(seconds: 35, active: runtime.foreground)
         downloads[id] = download
         imageDeadlines[id] = deadline
@@ -123,6 +127,14 @@ enum NativeMediaFailure: Error, Equatable {
     func releasePlayer(owner: UUID) { failureHandlers.removeValue(forKey: owner); if current?.owner == owner { stopPlayer() } }
     func setFailureHandler(owner: UUID, handler: @escaping (NativeMediaFailure) -> Void) { failureHandlers[owner] = handler }
     func pauseAll() { pauseRevision &+= 1; current?.player.pause(); deactivateAudio() }
+    var isForeground: Bool { runtime.foreground }
+    func recoverVisiblePlayerIfNeeded() {
+        guard runtime.foreground, let current, let item = current.player.currentItem else { return }
+        if item.status == .failed { recoverPlayer(owner: current.owner, failure: .unavailable) }
+        else if current.player.timeControlStatus == .waitingToPlayAtSpecifiedRate {
+            recoverPlayer(owner: current.owner, failure: .stalled)
+        }
+    }
 
     func updateRuntime(_ next: NativeRuntimeSnapshot) {
         let opportunity = (!runtime.foreground && next.foreground) ||
@@ -147,26 +159,29 @@ enum NativeMediaFailure: Error, Equatable {
         }
     }
 
-    /// Account/proxy changes are hard ownership boundaries, not automatic retries.
+    /// Account changes dismiss the old presentation. A broker-only change lets
+    /// the same-account presenter capture state and rebuild after cleanup.
     func invalidate(accountEpoch: UInt64, brokerEpoch: UInt64) {
         let next = MediaOwnership(accountEpoch: accountEpoch, brokerEpoch: brokerEpoch)
         guard next != ownership else { return }
-        ownership = next; recoveryEpoch &+= 1
+        let accountChanged = next.accountEpoch != ownership.accountEpoch
         // Give the presenter a chance to capture its playhead before the
         // account/proxy boundary releases the old player item.
-        ownershipInvalidated?()
+        ownershipInvalidated?(accountChanged)
+        ownership = next; recoveryEpoch &+= 1
         downloads.values.forEach { $0.cancel() }; downloads.removeAll()
         imageDeadlines.values.forEach { $0.cancel() }; imageDeadlines.removeAll()
-        recoveries.values.forEach { $0.cancel() }; recoveries.removeAll(); budgets.removeAll()
+        recoveries.values.forEach { $0.cancel() }; recoveries.removeAll(); budgets.removeAll(); budgetOrder.removeAll(); recoveryAliases.removeAll(); aliasOrder.removeAll()
         recoveryDeadlines.values.forEach { $0.cancel() }; recoveryDeadlines.removeAll(); recoveryDebouncer.cancel()
         stopPlayer(); clearImageCache()
         failureHandlers.removeAll()
+        ownershipSettled?(accountChanged)
     }
 
     func recover(url: String, freshSource: Bool = false, automatic: Bool = false) async throws -> URL {
         let source = try Self.brokerURL(url)
         let captured = ownership
-        let key = "\(captured.accountEpoch):\(captured.brokerEpoch):\(source.absoluteString)"
+        let key = recoveryAliases[source.absoluteString] ?? "\(captured.accountEpoch):\(captured.brokerEpoch):\(source.absoluteString)"
         if let task = recoveries[key] { return try await task.value }
         var budget = budgets[key] ?? RecoveryAttemptBudget()
         guard budget.claim(epoch: recoveryEpoch, now: ProcessInfo.processInfo.systemUptime, manual: !automatic) else {
@@ -174,9 +189,15 @@ enum NativeMediaFailure: Error, Equatable {
             throw NativeMediaFailure.recoveryExhausted
         }
         diagnosticEvent?("recovery", "media", nil)
+        if budgets[key] == nil { budgetOrder.append(key) }
         budgets[key] = budget
-        // Bound bookkeeping independently of a long scrolling session.
-        if budgets.count > 512 { budgets = [key: budget] }
+        // Match one media-registry lifetime without resetting every other
+        // source's attempt history when a long session reaches the bound.
+        while budgets.count > 4096, !budgetOrder.isEmpty {
+            let oldest = budgetOrder.removeFirst(); budgets.removeValue(forKey:oldest)
+            recoveryAliases = recoveryAliases.filter { $0.value != oldest }
+            aliasOrder.removeAll { recoveryAliases[$0] == nil }
+        }
         let deadline = NativeActiveDeadline<URL>(seconds: 30, active: runtime.foreground)
         recoveryDeadlines[key] = deadline
         let task = Task { @MainActor in
@@ -193,6 +214,14 @@ enum NativeMediaFailure: Error, Equatable {
         recoveries[key] = task
         defer { recoveries.removeValue(forKey: key); recoveryDeadlines.removeValue(forKey: key) }
         let result = try await task.value
+        guard captured == ownership else { throw NativeMediaFailure.staleOwnership }
+        // Rotating a local registration must not invent another automatic
+        // budget for the same source in this recovery epoch.
+        for alias in [source.absoluteString,result.absoluteString] {
+            if recoveryAliases[alias] == nil { aliasOrder.append(alias) }
+            recoveryAliases[alias] = key
+        }
+        while recoveryAliases.count > 8192, !aliasOrder.isEmpty { recoveryAliases.removeValue(forKey:aliasOrder.removeFirst()) }
         // An unchanged registration must be fetched afresh after a transient failure.
         clearImageCache()
         return result
@@ -367,7 +396,8 @@ private final class BoundedBrokerImageDownload: NSObject, URLSessionDataDelegate
     private var data = Data()
     private var cancelled = false
     private var responseStatus: Int?
-    init(url: URL, maximumBytes: Int) { self.url = url; self.maximumBytes = maximumBytes }
+    private let priority: Float
+    init(url: URL, maximumBytes: Int, priority: Float) { self.url = url; self.maximumBytes = maximumBytes; self.priority = priority }
     func run() async throws -> Data {
         try await withCheckedThrowingContinuation { continuation in
             lock.lock()
@@ -381,7 +411,7 @@ private final class BoundedBrokerImageDownload: NSObject, URLSessionDataDelegate
             let queue = OperationQueue(); queue.maxConcurrentOperationCount = 1
             let session = URLSession(configuration: config, delegate: self, delegateQueue: queue)
             self.session = session
-            let task = session.dataTask(with: url); self.task = task
+            let task = session.dataTask(with: url); task.priority = priority; self.task = task
             lock.unlock(); task.resume()
         }
     }

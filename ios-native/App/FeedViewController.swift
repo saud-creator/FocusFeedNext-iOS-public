@@ -127,7 +127,9 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
             let id = item.postID
             guard let self, let post = posts.first(where: { $0.id == id }), let cell = collection.dequeueReusableCell(withReuseIdentifier: PostCell.reuseID, for: indexPath) as? PostCell else { return nil }
             renderedCells.add(cell)
-            cancelImagePrefetch(for: post)
+            // Give visible cells the broker slots before starting their images.
+            // The speculative budget is only one or two disposable requests.
+            cancelImagePrefetch()
             cell.configure(post, read: state.readIDs.contains(id), bookmark: route == .bookmarks && !includesReplies, context: context, delegate: self)
             cell.highlight(highlightedText)
             if collection.indexPathsForVisibleItems.contains(indexPath) { DispatchQueue.main.async { [weak cell, weak self] in if self?.viewIfLoaded?.window != nil { cell?.visible(read: self?.state.readIDs.contains(id) ?? false) } } }
@@ -196,7 +198,9 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
         case "needsAttention": status.text = L10n.text("attention")
         case "readyToRetry": status.text = L10n.text("retry")
         case "offline": status.text = L10n.text("offline")
-        default: break
+        default:
+            if let last=state.lastSync {status.text="\(L10n.text("updated")) \(ReaderDates.label(last))"}
+            else {status.text=state.fromCache ? L10n.text("cached") : nil}
         }
     }
     @objc private func contentChanged() { guard activeReading, automaticallyLoads else { return }; state = context.timelines.state(source); apply() }
@@ -204,6 +208,7 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
         guard viewIfLoaded?.window != nil, context.runtime?.foreground != false,
               accountGeneration == context.services.accountGeneration else { return }
         collection.visibleCells.compactMap { $0 as? PostCell }.forEach { $0.recoverFailedMedia() }
+        if let header = profileHeader { recoverVisibleImages(in:header) }
     }
     private func loadInitial() {
         work?.cancel(); busy = true; notice.show(L10n.text("loading"), busy: true)
@@ -270,7 +275,7 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
                 guard let self else { return }
                 defer { if imagePrefetch[handle]?.id == id { imagePrefetch.removeValue(forKey: handle) } }
                 guard generation == context.services.accountGeneration else { return }
-                do { _ = try await context.services.imageData(url: handle, maxPixelDimension: pixels); try Task.checkCancellation() }
+                do { _ = try await context.services.prefetchImageData(url: handle, maxPixelDimension: pixels); try Task.checkCancellation() }
                 catch { /* Speculation never presents an error or runs recovery. */ }
             }
             imagePrefetch[handle] = (id, task)

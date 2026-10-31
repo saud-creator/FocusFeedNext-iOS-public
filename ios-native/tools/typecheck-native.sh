@@ -11,7 +11,7 @@ target/debug/focusfeed-bindgen generate target/debug/libfocusfeed_ffi.dylib \
   --language swift --out-dir ios-native/Generated
 sdk=$(xcrun --sdk iphonesimulator --show-sdk-path)
 modulemap="$repo/ios-native/Generated/FocusFeedNativeFFI.modulemap"
-xcrun swiftc -typecheck -parse-as-library -swift-version 5 \
+xcrun swiftc -typecheck -continue-building-after-errors -parse-as-library -swift-version 5 \
   -module-name FocusFeedNextNative -sdk "$sdk" -target arm64-apple-ios16.0-simulator \
   -I ios-native/Generated -Xcc "-fmodule-map-file=$modulemap" \
   ios-native/Generated/*.swift ios-native/App/*.swift \

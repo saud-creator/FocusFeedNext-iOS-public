@@ -27,7 +27,7 @@ final class ListsViewController: ReaderScreen, UITableViewDataSource, UITableVie
         let list = lists[indexPath.row]
         let edit = UIContextualAction(style: .normal, title: L10n.text("edit")) { [weak self] _, _, done in self?.edit(list); done(true) }
         let delete = UIContextualAction(style: .destructive, title: L10n.text("delete")) { [weak self] _, _, done in
-            self?.confirm(title: L10n.text("deleteList"), message: list.name, action: L10n.text("delete"), destructive: true) { [weak self] in guard let self else { return }; Task { [self] in do { try await context.services.command(.deleteGroup, ["id": .string(list.id)]); load(); done(true) } catch { showError(error); done(false) } } }
+            self?.confirm(title: L10n.text("deleteList"), message: list.name, action: L10n.text("delete"), destructive: true) { [weak self] in guard let self else { return }; Task { [self] in do { try await self.context.services.command(.deleteGroup, ["id": .string(list.id)]); self.load(); done(true) } catch { self.showError(error); done(false) } } }
         }; return UISwipeActionsConfiguration(actions: [delete, edit])
     }
 }

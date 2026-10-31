@@ -177,7 +177,7 @@ enum ReaderDates {
     }
     static func label(_ value: String, absolute: Bool = false) -> String {
         guard let date = parse(value) else { return value }
-        if absolute { return date.formatted(date: .abbreviated, time: .shortened) }
+        if absolute { return date.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(L10n.locale)) }
         let f = RelativeDateTimeFormatter(); f.locale = L10n.locale; f.unitsStyle = .abbreviated
         return f.localizedString(for: date, relativeTo: Date())
     }

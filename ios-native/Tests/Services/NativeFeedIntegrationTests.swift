@@ -157,6 +157,69 @@ import AVFoundation
         let comments = FeedViewController(context:context, route:.bookmarks); comments.automaticallyLoads = false
         XCTAssertNil(comments.resumeDestination, "A comments viewport must not overwrite its bookmarks marker.")
     }
+    func testFailedSpeculationUsesDedicatedReadWithoutRecovery() async throws {
+        let service = try FeedFixtureServices(count:30); service.failPrefetch = true
+        let context = ReaderContext(services:service)
+        context.runtime = ReaderRuntimeSnapshot(foreground:true, wifi:true, expensive:false, constrained:false, lowPower:false, thermal:"nominal", reduceMotion:false, reduceTransparency:false, contentSizeScale:1, memoryRevision:0)
+        context.preferences.set("performance.mode", "ultra"); context.preferences.set("video.autoplay", "off")
+        let controller = FeedViewController(context:context); controller.automaticallyLoads = false
+        try host(controller); controller.replacePosts(service.posts); try await settle(controller)
+        let candidate = try prefetchCandidate(controller)
+        let handle = controller.posts[candidate.item].media[0].url
+        service.speculativeOnlyHandles.insert(handle)
+        controller.collectionView(controller.collection, prefetchItemsAt:[candidate])
+        for _ in 0..<15 { await Task.yield(); try await Task.sleep(nanoseconds:1_000_000) }
+        XCTAssertGreaterThan(service.prefetchRequests[handle] ?? 0, 0)
+        XCTAssertEqual(service.speculationThroughVisibleLoader, 0)
+        XCTAssertTrue(service.repairRequests.isEmpty)
+        XCTAssertFalse(controller.posts.isEmpty)
+    }
+    func testVisibleCellCancelsSpeculationBeforeCreatingItsImages() async throws {
+        let service = try FeedFixtureServices(count:30); service.holdPrefetch = true
+        let context = ReaderContext(services:service)
+        context.runtime = ReaderRuntimeSnapshot(foreground:true, wifi:true, expensive:false, constrained:false, lowPower:false, thermal:"nominal", reduceMotion:false, reduceTransparency:false, contentSizeScale:1, memoryRevision:0)
+        context.preferences.set("performance.mode", "ultra"); context.preferences.set("video.autoplay", "off")
+        let controller = FeedViewController(context:context); controller.automaticallyLoads = false
+        try host(controller); controller.replacePosts(service.posts); try await settle(controller)
+        let candidate = try prefetchCandidate(controller)
+        controller.collectionView(controller.collection, prefetchItemsAt:[candidate])
+        for _ in 0..<10 { await Task.yield(); try await Task.sleep(nanoseconds:1_000_000) }
+        let previous = service.cancelledPrefetch
+        controller.collection.scrollToItem(at:candidate, at:.top, animated:false)
+        try await settle(controller)
+        XCTAssertGreaterThan(service.cancelledPrefetch, previous, "Visible image creation must release speculative transfer ownership.")
+        XCTAssertEqual(service.speculationThroughVisibleLoader, 0)
+        XCTAssertTrue(service.repairRequests.isEmpty)
+    }
+    func testScreenRecoveryRespectsAncestorClippingAndLeavesHealthyImagesAlone() async throws {
+        let service = try FeedFixtureServices(); service.failImages = true
+        let context = ReaderContext(services:service); let controller = ReaderScreen(context:context)
+        try host(controller)
+        let scroll = UIScrollView(frame:CGRect(x:20, y:100, width:120, height:120)); scroll.clipsToBounds = true; scroll.contentSize = CGSize(width:120, height:500); controller.view.addSubview(scroll)
+        let visible = RemoteImageView(frame:CGRect(x:0, y:0, width:80, height:80)); scroll.addSubview(visible); visible.load("ffmedia:visible-header", services:service)
+        let clipped = RemoteImageView(frame:CGRect(x:0, y:260, width:80, height:80)); scroll.addSubview(clipped); clipped.load("ffmedia:clipped-header", services:service)
+        let item = PostMedia(kind:"image", url:"ffmedia:visible-article", previewUrl:nil, width:640, height:360, alt:nil, durationMs:nil, variants:[])
+        let tile = PhotoTile(item:item, services:service); tile.frame = CGRect(x:200, y:100, width:120, height:120); controller.view.addSubview(tile)
+        for _ in 0..<15 { await Task.yield(); try await Task.sleep(nanoseconds:1_000_000) }
+        service.failImages = false
+        NotificationCenter.default.post(name:.readerMediaRecoveryOpportunity, object:context)
+        for _ in 0..<15 { await Task.yield(); try await Task.sleep(nanoseconds:1_000_000) }
+        XCTAssertEqual(service.imageRequests["ffmedia:visible-header"], 2)
+        XCTAssertEqual(service.imageRequests["ffmedia:visible-article"], 2)
+        XCTAssertEqual(service.imageRequests["ffmedia:clipped-header"], 1, "A descendant outside the scroll viewport must not recover merely because it has a window.")
+        NotificationCenter.default.post(name:.readerMediaRecoveryOpportunity, object:context)
+        for _ in 0..<5 { await Task.yield() }
+        XCTAssertEqual(service.imageRequests["ffmedia:visible-header"], 2)
+        XCTAssertEqual(service.imageRequests["ffmedia:visible-article"], 2)
+        XCTAssertTrue(service.repairRequests.isEmpty)
+    }
+    private func prefetchCandidate(_ controller: FeedViewController) throws -> IndexPath {
+        let visible = controller.collection.indexPathsForVisibleItems.map(\.item)
+        let last = try XCTUnwrap(visible.max())
+        let runway = max(1, visible.count) * 3
+        let index = controller.posts.indices.first { !visible.contains($0) && $0 > last && $0 <= last + runway && controller.posts[$0].media.first?.kind == "image" }
+        return IndexPath(item:try XCTUnwrap(index), section:0)
+    }
     private func assertSeparated(_ controller: FeedViewController) throws {
         let paths = controller.collection.indexPathsForVisibleItems.sorted()
         XCTAssertFalse(paths.isEmpty)
@@ -175,6 +238,12 @@ import AVFoundation
     var failImages = false
     var imageRequests: [String: Int] = [:]
     var repairRequests: [String] = []
+    var prefetchRequests: [String: Int] = [:]
+    var failPrefetch = false
+    var holdPrefetch = false
+    var cancelledPrefetch = 0
+    var speculativeOnlyHandles = Set<String>()
+    var speculationThroughVisibleLoader = 0
     var failRefresh = false
     init(count: Int = 8) throws {
         let author: [String: Any] = ["id":"45", "username":"fixture_reader", "displayName":"قارئ الاختبار", "verified":false]
@@ -199,6 +268,7 @@ import AVFoundation
     func signIn(presenting: UIViewController) async throws -> SessionSnapshot { throw AppServiceError(code:"fixture", message:"Fixture tests never sign in.") }
     func mediaURL(for handle: String) async throws -> URL { throw AppServiceError(code:"fixture", message:"Fixture media never uses a network URL.") }
     func imageData(url: String, maxPixelDimension: Int) async throws -> Data {
+        if speculativeOnlyHandles.contains(url) { speculationThroughVisibleLoader += 1 }
         imageRequests[url, default:0] += 1
         if delayImages { try await Task.sleep(nanoseconds: 25_000_000) }
         try Task.checkCancellation()
@@ -206,6 +276,15 @@ import AVFoundation
         if malformedImages { return Data("Controlled invalid image data".utf8) }
         let image = UIGraphicsImageRenderer(size: CGSize(width:640, height:360)).image { context in UIColor.systemIndigo.setFill(); context.fill(CGRect(x:0, y:0, width:640, height:360)) }
         return try XCTUnwrap(image.pngData())
+    }
+    func prefetchImageData(url: String, maxPixelDimension: Int) async throws -> Data {
+        prefetchRequests[url, default:0] += 1
+        do {
+            if holdPrefetch { try await Task.sleep(nanoseconds:30_000_000_000) }
+            try Task.checkCancellation()
+            if failPrefetch { throw AppServiceError(code:"fixture_prefetch_failure", message:"Controlled speculative download failure.") }
+            return Data()
+        } catch is CancellationError { cancelledPrefetch += 1; throw CancellationError() }
     }
     func makePlayer(url: String, owner: UUID) async throws -> AVPlayer { throw AppServiceError(code:"fixture", message:"Video playback is outside these layout fixtures.") }
     func releasePlayer(owner: UUID) {}

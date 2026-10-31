@@ -30,7 +30,7 @@ final class ProfileViewController: FeedViewController {
             let metadata = [author.location, author.website, author.joinedAt.map { "\(L10n.text("joined")) \(ReaderDates.label($0, absolute: true))" }].compactMap { $0 }.joined(separator: " · ")
             if !metadata.isEmpty { identity.addArrangedSubview(readerLabel(metadata, style: .footnote, color: .secondaryLabel)) }
             identity.addArrangedSubview(readerButton(L10n.text("relationshipUnknown")) { [weak self] in self?.relationship() })
-            identity.addArrangedSubview(readerButton(L10n.text("creatorSubscription")) { [weak self] in guard let self else { return }; Task { [self] in do { try await context.services.command(.creatorSubscription, ["username": .string(username)]) } catch { showError(error) } } })
+            identity.addArrangedSubview(readerButton(L10n.text("creatorSubscription")) { [weak self] in guard let self else { return }; Task { [self] in do { try await self.context.services.command(.creatorSubscription, ["username": .string(self.username)]) } catch { self.showError(error) } } })
         } else { identity.addArrangedSubview(readerLabel("@\(username)", style: .title2)) }
         identity.addArrangedSubview(profileNotice)
         identity.addArrangedSubview(readerButton(L10n.text("refreshDetails"), symbol: "arrow.clockwise") { [weak self] in self?.fetchDetails(refresh: true) })
@@ -47,7 +47,7 @@ final class ProfileViewController: FeedViewController {
             guard allowed else { showError(AppServiceError(code: "disabled", message: L10n.text("allowAccountActions"))); return }
             let relation: String = try await context.services.call(.relationship, ["username": .string(username)])
             let following = relation == "following"; guard relation == "following" || relation == "notFollowing", following ? context.capabilities?.unfollow == true : context.capabilities?.follow == true else { showError(AppServiceError(code: "unknown", message: L10n.text("relationshipUnknown"))); return }
-            let run: () -> Void = { [weak self] in guard let self else { return }; Task { [self] in do { try await context.services.command(following ? .unfollow : .follow, ["username": .string(username), "confirmed": .bool(true)]); fetchDetails(refresh: true) } catch { showError(error) } } }
+            let run: () -> Void = { [weak self] in guard let self else { return }; Task { [self] in do { try await self.context.services.command(following ? .unfollow : .follow, ["username": .string(self.username), "confirmed": .bool(true)]); self.fetchDetails(refresh: true) } catch { self.showError(error) } } }
             if following { confirm(title: "\(L10n.text("unfollow")) @\(username)?", message: L10n.text("actionNoRetry"), action: L10n.text("unfollow"), destructive: true, perform: run) } else { run() }
         } catch { showError(error) } }
     }

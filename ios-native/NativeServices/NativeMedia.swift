@@ -32,7 +32,20 @@ struct NativeMediaArgs: Decodable {
     private var presentationID: UUID?
     private var completion: (([String: Any]) -> Void)?
     weak var service: NativeMediaService? {
-        didSet { service?.ownershipInvalidated = { [weak self] in self?.dismiss(revision: nil) } }
+        didSet {
+            service?.ownershipInvalidated = { [weak self] accountChanged in
+                guard let self else { return }
+                if accountChanged { dismiss(revision:nil) }
+                else {
+                    (controller as? NativeVideoController)?.prepareForBrokerRestart()
+                    ((controller as? UINavigationController)?.topViewController as? NativePhotoPager)?.prepareForBrokerRestart()
+                }
+            }
+            service?.ownershipSettled = { [weak self] accountChanged in
+                guard let self, !accountChanged else { return }
+                recoverVisibleMedia()
+            }
+        }
     }
     var isPresented: Bool { controller != nil || presentationID != nil }
     func present(_ args: NativeMediaArgs, from root: UIViewController, done: @escaping ([String: Any]) -> Void) -> Bool {
@@ -70,6 +83,12 @@ struct NativeMediaArgs: Decodable {
         reply?(result)
     }
     func pause() { service?.pauseAll() }
+    func recoverVisibleMedia() {
+        guard controller?.viewIfLoaded?.window != nil, service?.isForeground == true else { return }
+        (controller as? NativeVideoController)?.resumeAfterBrokerRestart()
+        ((controller as? UINavigationController)?.topViewController as? NativePhotoPager)?.recoverVisibleMedia()
+        service?.recoverVisiblePlayerIfNeeded()
+    }
 }
 
 @MainActor private final class NativeVideoController: AVPlayerViewController {
@@ -81,19 +100,30 @@ struct NativeMediaArgs: Decodable {
     private let closeButton = UIButton(type: .system)
     private let options = UIButton(type: .system)
     private var loading: Task<Void, Never>?
+    private var loadingID = UUID()
+    private struct PlaybackSnapshot {
+        let position: Double
+        let playing: Bool
+        let muted: Bool
+    }
+    private var brokerSnapshot: PlaybackSnapshot?
     private var endObserver: NSObjectProtocol?
     private var readyObservation: NSKeyValueObservation?
     private var itemObservation: NSKeyValueObservation?
     private var wasPlaying = false
     private var selectedSpeed: Float
     private var looping: Bool
+    private var brokerHasRestarted = false
+    private var selectedQualityLabel: String?
     var finished: (([String: Any]) -> Void)?
     init(source: String, service: NativeMediaService, args: NativeMediaArgs, owner: UUID) {
         self.source = source; self.service = service; self.args = args; self.owner = owner
         selectedSpeed = Float(args.speed ?? 1); looping = args.loop ?? true
+        selectedQualityLabel = args.items[args.index].variants?.first(where: { $0.url == source })?.label
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+    override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); resumeAfterBrokerRestart() }
     override func viewDidLoad() {
         super.viewDidLoad(); view.accessibilityIdentifier = "native-video-loading"
         let overlay = contentOverlayView ?? view!
@@ -139,8 +169,10 @@ struct NativeMediaArgs: Decodable {
         })
         let variants = args.items[args.index].variants ?? []
         let quality = UIMenu(title: arabic ? "الجودة" : "Quality", children: variants.map { variant in
-            UIAction(title: variant.label, state: variant.url == source ? .on : .off) { [weak self] _ in
-                self?.source = variant.url; self?.load(fresh: false); self?.updateOptions()
+            UIAction(title: variant.label, state: variant.label == selectedQualityLabel ? .on : .off) { [weak self] _ in
+                guard let self else { return }
+                self.selectedQualityLabel = variant.label
+                self.source = variant.url; self.load(fresh:false, repairRegistration:self.brokerHasRestarted); self.updateOptions()
             }
         })
         let loop = UIAction(title: arabic ? "تكرار" : "Loop", state: looping ? .on : .off) { [weak self] _ in
@@ -149,21 +181,42 @@ struct NativeMediaArgs: Decodable {
         let children: [UIMenuElement] = variants.isEmpty ? [speed, loop] : [quality, speed, loop]
         options.menu = UIMenu(children: children)
     }
-    private func load(fresh: Bool) {
+    private func playbackSnapshot() -> PlaybackSnapshot {
+        let time = player?.currentTime().seconds ?? args.position ?? 0
+        return PlaybackSnapshot(position:time.isFinite ? time : 0,
+            playing:player.map { $0.rate > 0 || $0.timeControlStatus == .waitingToPlayAtSpecifiedRate } ?? (args.playing ?? true),
+            muted:player?.isMuted ?? args.muted ?? false)
+    }
+    func prepareForBrokerRestart() {
+        brokerHasRestarted = true
+        brokerSnapshot = playbackSnapshot()
+        loadingID = UUID(); loading?.cancel(); loading = nil
+        readyObservation = nil; itemObservation = nil
+    }
+    func resumeAfterBrokerRestart() {
+        guard service.isForeground, let snapshot = brokerSnapshot else { return }
+        brokerSnapshot = nil
+        load(fresh:false, automatic:true, restored:snapshot)
+    }
+    private func load(fresh: Bool, automatic: Bool = false, restored: PlaybackSnapshot? = nil, repairRegistration: Bool = false) {
         loading?.cancel(); retry.isHidden = true; view.accessibilityIdentifier = "native-video-loading"
-        let position = player?.currentTime().seconds ?? args.position ?? 0
-        let shouldPlay = player.map { $0.rate > 0 || $0.timeControlStatus == .waitingToPlayAtSpecifiedRate } ?? (args.playing ?? true)
-        let muted = player?.isMuted ?? args.muted ?? false
+        let snapshot = restored ?? playbackSnapshot()
+        let id = UUID(); loadingID = id
         loading = Task { @MainActor [weak self] in
             guard let self = self else { return }
+            defer { if self.loadingID == id { self.loading = nil } }
             do {
-                let url = fresh ? try await self.service.recover(url: self.source, freshSource: true).absoluteString : self.source
+                let url = fresh || automatic || repairRegistration ? try await self.service.recover(url:self.source, freshSource:fresh, automatic:automatic).absoluteString : self.source
+                try Task.checkCancellation(); guard loadingID == id else { return }
                 let player = try await self.service.makePlayer(url: url, owner: self.owner)
-                try Task.checkCancellation()
+                try Task.checkCancellation(); guard loadingID == id else { return }
                 self.source = url
-                self.player = player; player.isMuted = muted
-                if position.isFinite && position > 0 { await player.seek(to: CMTime(seconds: position, preferredTimescale: 600)) }
-                try Task.checkCancellation()
+                self.player = player; player.isMuted = snapshot.muted
+                service.setFailureHandler(owner:owner) { [weak self] _ in
+                    self?.retry.isHidden = false; self?.view.accessibilityIdentifier = "native-video-failed"
+                }
+                if snapshot.position > 0 { await player.seek(to: CMTime(seconds:snapshot.position, preferredTimescale:600)) }
+                try Task.checkCancellation(); guard loadingID == id else { return }
                 if let observer = self.endObserver { NotificationCenter.default.removeObserver(observer) }
                 self.endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: player.currentItem, queue: .main) { [weak self] _ in
                     guard let self = self, self.looping, UIApplication.shared.applicationState == .active else { return }
@@ -181,9 +234,9 @@ struct NativeMediaArgs: Decodable {
                     }
                 }
                 self.updateOptions()
-                if shouldPlay && UIApplication.shared.applicationState == .active { player.playImmediately(atRate: self.selectedSpeed) }
+                if snapshot.playing && UIApplication.shared.applicationState == .active { player.playImmediately(atRate: self.selectedSpeed) }
             } catch {
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, loadingID == id else { return }
                 self.retry.isHidden = false; self.view.accessibilityIdentifier = "native-video-failed"
             }
         }
@@ -215,6 +268,7 @@ struct NativeMediaArgs: Decodable {
     private let retryLabel: String
     private let arabic: Bool
     private var index: Int
+    private var brokerHasRestarted = false
     var finished: ((Int) -> Void)?
     init(items: [NativeMediaItem], index: Int, service: NativeMediaService, retryLabel: String, arabic: Bool) {
         self.items = items; self.index = index; self.service = service; self.retryLabel = retryLabel; self.arabic = arabic
@@ -227,7 +281,12 @@ struct NativeMediaArgs: Decodable {
         navigationItem.rightBarButtonItem?.accessibilityLabel = arabic ? "إغلاق" : "Close"
         setViewControllers([page(index)], direction: .forward, animated: false); updateTitle()
     }
-    private func page(_ index: Int) -> NativePhotoPage { NativePhotoPage(item: items[index], index: index, service: service, retryLabel: retryLabel) }
+    private func page(_ index: Int) -> NativePhotoPage { NativePhotoPage(item:items[index], index:index, service:service, retryLabel:retryLabel, renewRegistration:brokerHasRestarted) }
+    func prepareForBrokerRestart() {
+        brokerHasRestarted = true
+        (viewControllers?.first as? NativePhotoPage)?.prepareForBrokerRestart()
+    }
+    func recoverVisibleMedia() { (viewControllers?.first as? NativePhotoPage)?.recoverIfNeeded() }
     private func updateTitle() {
         let number = NumberFormatter(); number.locale = Locale(identifier: arabic ? "ar" : "en")
         title = "\(number.string(from: NSNumber(value: index + 1)) ?? String(index + 1)) / \(number.string(from: NSNumber(value: items.count)) ?? String(items.count))"
@@ -259,8 +318,14 @@ struct NativeMediaArgs: Decodable {
     private let retry = UIButton(type: .system)
     private let activity = UIActivityIndicatorView(style: .large)
     private var loading: Task<Void, Never>?
-    init(item: NativeMediaItem, index: Int, service: NativeMediaService, retryLabel: String) {
+    private var loadingID = UUID()
+    private var source: String
+    private var failed = false
+    private var interrupted = false
+    private let renewRegistration: Bool
+    init(item: NativeMediaItem, index: Int, service: NativeMediaService, retryLabel: String, renewRegistration: Bool = false) {
         self.item = item; self.index = index; self.service = service; self.retryLabel = retryLabel
+        self.source = item.url; self.renewRegistration = renewRegistration
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
@@ -279,7 +344,7 @@ struct NativeMediaArgs: Decodable {
         let doubleTap = UITapGestureRecognizer(target: self, action: #selector(zoom(_:))); doubleTap.numberOfTapsRequired = 2; scroll.addGestureRecognizer(doubleTap)
         let dismiss = UIPanGestureRecognizer(target: self, action: #selector(dismissPhoto(_:)))
         dismiss.delegate = self; view.addGestureRecognizer(dismiss)
-        load(fresh: false)
+        load(fresh:false, automatic:renewRegistration)
     }
     override func viewDidLayoutSubviews() { super.viewDidLayoutSubviews(); if scroll.zoomScale == 1 { image.frame = scroll.bounds; scroll.contentSize = scroll.bounds.size } }
     func viewForZooming(in scrollView: UIScrollView) -> UIView? { image }
@@ -298,21 +363,37 @@ struct NativeMediaArgs: Decodable {
         if distance > 100 || distance > 40 && recognizer.velocity(in: view).y > 650 { dismiss(animated: true) }
     }
     @objc private func retryImage() { load(fresh: true) }
-    private func load(fresh: Bool) {
+    func prepareForBrokerRestart() {
+        guard image.image == nil else { return }
+        interrupted = true
+        loadingID = UUID(); loading?.cancel(); loading = nil
+    }
+    func recoverIfNeeded() {
+        guard viewIfLoaded?.window != nil, loading == nil, image.image == nil, failed || interrupted else { return }
+        load(fresh:false, automatic:true)
+    }
+    private func load(fresh: Bool, automatic: Bool = false) {
         loading?.cancel(); retry.isHidden = true; activity.startAnimating(); image.accessibilityIdentifier = "native-photo-loading"
+        let id = UUID(); loadingID = id; failed = false; interrupted = false
         loading = Task { @MainActor [weak self] in
             guard let self = self else { return }
+            defer { if loadingID == id { loading = nil; activity.stopAnimating() } }
             do {
-                let source = fresh ? try await self.service.recover(url: self.item.url, freshSource: true).absoluteString : self.item.url
+                let source = fresh || automatic ? try await self.service.recover(url:self.source, freshSource:fresh, automatic:automatic).absoluteString : self.source
+                try Task.checkCancellation(); guard loadingID == id else { return }
                 let bytes = try await self.service.imageData(url: source, maxPixelDimension: 2048)
-                try Task.checkCancellation()
-                guard let image = UIImage(data: bytes) else { throw NativeMediaFailure.unavailable }
+                try Task.checkCancellation(); guard loadingID == id else { return }
+                guard let image = UIImage(data: bytes) else { throw NativeMediaFailure.decoder }
+                self.source = source
                 self.image.image = image; self.image.accessibilityIdentifier = "native-photo-image"
-            } catch { if !Task.isCancelled { self.retry.isHidden = false; self.image.accessibilityIdentifier = "native-photo-failed" } }
-            self.activity.stopAnimating()
+            } catch {
+                guard loadingID == id else { return }
+                if error is CancellationError { interrupted = true }
+                else { failed = true; retry.isHidden = false; image.accessibilityIdentifier = "native-photo-failed" }
+            }
         }
     }
-    override func viewDidDisappear(_ animated: Bool) { super.viewDidDisappear(animated); loading?.cancel() }
-    override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); if image.image == nil { load(fresh: false) } }
+    override func viewDidDisappear(_ animated: Bool) { super.viewDidDisappear(animated); if image.image == nil { interrupted = true }; loadingID = UUID(); loading?.cancel(); loading = nil; activity.stopAnimating() }
+    override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); if image.image == nil, loading == nil { if failed || interrupted { recoverIfNeeded() } else { load(fresh:false, automatic:renewRegistration) } } }
     deinit { loading?.cancel() }
 }

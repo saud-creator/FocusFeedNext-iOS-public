@@ -45,15 +45,15 @@ final class FiltersViewController: ReaderScreen, UITableViewDataSource, UITableV
         let alert = UIAlertController(title: L10n.text("savePreset"), message: nil, preferredStyle: .alert); alert.addTextField { $0.placeholder = L10n.text("name") }
         alert.addAction(UIAlertAction(title: L10n.text("cancel"), style: .cancel)); alert.addAction(UIAlertAction(title: L10n.text("save"), style: .default) { [weak self, weak alert] _ in
             guard let self, let name = alert?.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty, name.count <= 80 else { return }
-            let next = presets + [FilterPreset(id: UUID().uuidString, name: name, filters: filters)]
-            Task { [self] in do { try await context.services.savePresets(next); presets = next; table.reloadData() } catch { showError(error) } }
+            let next = self.presets + [FilterPreset(id: UUID().uuidString, name: name, filters: self.filters)]
+            Task { [self] in do { try await self.context.services.savePresets(next); self.presets = next; self.table.reloadData() } catch { self.showError(error) } }
         }); present(alert, animated: true)
     }
     func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
         guard indexPath.section == 2, indexPath.row < presets.count else { return nil }
         let action = UIContextualAction(style: .destructive, title: L10n.text("delete")) { [weak self] _, _, done in
-            guard let self else { done(false); return }; var next = presets; next.remove(at: indexPath.row)
-            Task { [self] in do { try await context.services.savePresets(next); presets = next; table.reloadData(); done(true) } catch { showError(error); done(false) } }
+            guard let self else { done(false); return }; var next = self.presets; next.remove(at: indexPath.row)
+            Task { [self] in do { try await self.context.services.savePresets(next); self.presets = next; self.table.reloadData(); done(true) } catch { self.showError(error); done(false) } }
         }; return UISwipeActionsConfiguration(actions: [action])
     }
 }

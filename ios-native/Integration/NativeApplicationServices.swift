@@ -32,6 +32,7 @@ import AVKit
     }
     private var handleOwners: [String: MediaLocator] = [:]
     private var resolvedHandles: [String: String] = [:]
+    private var resolvedHandleOrder: [String] = []
     private var recoveryTask: Task<Void, Never>?
     private var restoring: Task<SessionSnapshot, Error>?
     private var sessionRevision: UInt64 = 0
@@ -186,7 +187,7 @@ import AVKit
             profileJobs.values.forEach { $0.cancel() }; profileJobs.removeAll()
             feedJobs.values.forEach { $0.cancel() }; feedJobs.removeAll()
             recoveryTask?.cancel(); recoveryTask = nil
-            handleOwners.removeAll(); resolvedHandles.removeAll(); imageAttempts.removeAll()
+            handleOwners.removeAll(); resolvedHandles.removeAll(); resolvedHandleOrder.removeAll(); imageAttempts.removeAll()
             sourceRevisions.removeAll()
             groupRefreshPending.removeAll()
             await host.cancelReads()
@@ -279,7 +280,7 @@ import AVKit
             accountGeneration &+= 1; transportGeneration &+= 1; currentAccount = nil
             media.invalidate(accountEpoch: accountGeneration, brokerEpoch: brokerEpoch)
             await host.cancelReads(); try await host.logout(); credentials = nil
-            handleOwners.removeAll(); resolvedHandles.removeAll(); followingComplete = false
+            handleOwners.removeAll(); resolvedHandles.removeAll(); resolvedHandleOrder.removeAll(); followingComplete = false
             sourceRevisions.removeAll()
             groupRefreshPending.removeAll()
             media.invalidate(accountEpoch: accountGeneration, brokerEpoch: brokerEpoch)
@@ -373,7 +374,7 @@ import AVKit
                 await host.cancelReads()
                 _=try await run(.clearSession);accountGeneration &+= 1;currentAccount=nil;followingComplete=false
                 media.invalidate(accountEpoch:accountGeneration,brokerEpoch:brokerEpoch)
-                handleOwners.removeAll();resolvedHandles.removeAll();imageAttempts.removeAll()
+                handleOwners.removeAll();resolvedHandles.removeAll();resolvedHandleOrder.removeAll();imageAttempts.removeAll()
                 sourceRevisions.removeAll()
                 groupRefreshPending.removeAll()
             }
@@ -547,7 +548,13 @@ import AVKit
             resolved=try await run(.getMediaUrl,["handle":replacement])
         }
         let data=try object(resolved);guard let string=data["url"] as? String,let url=URL(string:string)else{throw AppServiceError(code:"expired_media",message:L10n.text("loadFailed"))}
-        resolvedHandles[string]=handle;return url
+        if resolvedHandles[string] == nil {resolvedHandleOrder.append(string)}
+        resolvedHandles[string]=handle
+        if resolvedHandleOrder.count > 8192 {
+            for old in resolvedHandleOrder.prefix(1024) {resolvedHandles.removeValue(forKey:old)}
+            resolvedHandleOrder.removeFirst(1024)
+        }
+        return url
     }
     func imageData(url:String,maxPixelDimension:Int)async throws->Data {
         let source = try await mediaURL(for:url)
@@ -559,7 +566,7 @@ import AVKit
                 throw AppServiceError(code:failure.status == 429 ? "rate_limited" : "media_unavailable",
                     message:L10n.text(failure.status == 429 ? "rateLimited" : "loadFailed"))
             }
-            guard host.currentRuntime.foreground, host.currentRuntime.online else { throw error }
+            guard host.currentRuntime.foreground else { throw error }
             let now = ProcessInfo.processInfo.systemUptime
             if let previous = imageAttempts[url], previous.epoch == recoveryEpoch || now - previous.time < 10 { throw error }
             imageAttempts[url] = (recoveryEpoch, now)
@@ -567,6 +574,13 @@ import AVKit
             let repaired = try await media.recover(url:source.absoluteString,automatic:true)
             return try await media.imageData(url:repaired.absoluteString,maxPixelDimension:maxPixelDimension)
         }
+    }
+    func prefetchImageData(url:String,maxPixelDimension:Int)async throws->Data {
+        // Speculation can warm a registration and the image cache, but cannot
+        // spend a recovery sequence or refresh provider metadata on failure.
+        try Task.checkCancellation()
+        let source=try await mediaURL(for:url)
+        return try await media.imageData(url:source.absoluteString,maxPixelDimension:maxPixelDimension,priority:URLSessionTask.lowPriority)
     }
     func makePlayer(url:String,owner:UUID)async throws->AVPlayer {
         do {return try await media.makePlayer(url:mediaURL(for:url).absoluteString,owner:owner)}
@@ -610,6 +624,14 @@ import AVKit
     }
     private func repair(_ url:URL,fresh:Bool)async throws->URL {
         guard let handle=resolvedHandles[url.absoluteString],let locator=handleOwners[handle]else{throw AppServiceError(code:"expired_media",message:L10n.text("retry"))}
+        do {_=try await run(.validateMediaUrl,["url":url.absoluteString])}
+        catch is CancellationError {throw CancellationError()}
+        catch {
+            // A known private URL from a previous broker generation is only a
+            // locator. Renew locally before probing; never request its old port.
+            let next=try await renew(locator:locator,fresh:false)
+            return try await mediaURL(for:next)
+        }
         let probe = try object(await run(.probeMedia,["url":url.absoluteString]))
         let kind = probe["kind"] as? String ?? "unknown"
         let status = probe["httpStatus"] as? Int
@@ -652,7 +674,8 @@ import AVKit
     func recoverMedia()async throws {
         continuation.yield(.recovery("reconnecting"))
         let health=try object(await run(.mediaHealth))
-        if health["available"] as? Bool != true {let next=try object(await run(.restartMedia));brokerEpoch=(next["epoch"] as? NSNumber)?.uint64Value ?? brokerEpoch+1;media.invalidate(accountEpoch:accountGeneration,brokerEpoch:brokerEpoch);resolvedHandles.removeAll()}
+        if health["available"] as? Bool != true {let next=try object(await run(.restartMedia));brokerEpoch=(next["epoch"] as? NSNumber)?.uint64Value ?? brokerEpoch+1;media.invalidate(accountEpoch:accountGeneration,brokerEpoch:brokerEpoch)}
+        host.recoverVisibleMedia()
         // A healthy local listener is not proof that a CDN asset decoded.
         // Visible cells own their loading/ready/error state after reconfiguration.
         continuation.yield(.mediaRecoveryOpportunity);continuation.yield(.recovery(""))
