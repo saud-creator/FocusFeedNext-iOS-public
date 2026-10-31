@@ -1,0 +1,102 @@
+name: Native iOS quality
+on:
+  push:
+    branches: [codex/native-ios-quality]
+  pull_request:
+    paths: ['crates/**', 'ios-native/**', 'source/**', 'Cargo.*', 'rust-toolchain.toml', '.github/workflows/native-ios.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-ios-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: source
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: source/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check
+  core:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.96.0'
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - run: cargo test --workspace --locked
+      - name: Verify native package validation rules
+        shell: bash
+        run: python ios-native/tools/test-native-verifier.py
+  native:
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    needs: [core, desktop]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.96.0'
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          key: native-v2
+      - name: Install project generator and record Apple toolchain
+        run: |
+          brew install xcodegen
+          selected=$(find /Applications -maxdepth 1 -name 'Xcode_26*.app' | sort -V | tail -n 1)
+          if [[ -n "$selected" ]]; then sudo xcode-select -s "$selected/Contents/Developer"; fi
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+      - name: Foundation policies and Swift syntax
+        run: |
+          bash ios-native/Tests/Services/run-policy-tests.sh
+          xcrun swiftc -frontend -parse -swift-version 5 ios-native/App/*.swift ios-native/Integration/*.swift ios-native/NativeServices/*.swift
+      - name: Restore matching host bridge
+        id: host-bridge
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            target/debug/libfocusfeed_ffi.dylib
+            target/debug/focusfeed-bindgen
+          key: native-host-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'crates/**', 'source/src-tauri/src/**/*.rs', 'source/src-tauri/plugins/ios-reader/src/fault.rs') }}
+      - name: UIKit and bridge type checking
+        env:
+          NATIVE_HOST_BRIDGE_CACHED: '${{ steps.host-bridge.outputs.cache-hit }}'
+        run: bash ios-native/tools/typecheck-native.sh
+      - name: Preserve host bridge for compiler iteration
+        if: always() && steps.host-bridge.outcome == 'success' && steps.host-bridge.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            target/debug/libfocusfeed_ffi.dylib
+            target/debug/focusfeed-bindgen
+          key: ${{ steps.host-bridge.outputs.cache-primary-key }}
+      - name: Linked native service, bridge and UI tests
+        run: bash ios-native/tools/build-native.sh check
+      - name: Unsigned native archive
+        env:
+          NATIVE_BUILD_NUMBER: '100.${{ github.run_number }}'
+        run: bash ios-native/tools/build-native.sh archive
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Native-iOS-evidence
+          path: |
+            ios-native/dist/
+            ios-native/.build/*.xcresult
+            ios-native/Resources/BuildProvenance.json
+          retention-days: 30

@@ -176,24 +176,11 @@ impl Durable {
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        let conn = match Connection::open(path) {
-            Ok(c) => c,
-            Err(e) => {
-                // Losing preferences is survivable; refusing to launch is not.
-                log::warn!("preferences store unreadable, recreating: {e}");
-                let _ = std::fs::remove_file(path);
-                Connection::open(path)?
-            }
-        };
-        let db = Self {
-            conn: Mutex::new(conn),
-        };
-        if db.migrate().is_err() {
-            let mut guard = db.conn.lock().unwrap();
-            *guard = Connection::open_in_memory()?;
-            drop(guard);
-            db.migrate()?;
-        }
+        let conn = Connection::open(path)?;
+        let check: String = conn.query_row("PRAGMA quick_check", [], |row| row.get(0))?;
+        if check != "ok" { return Err(AppError::database("Preferences could not be verified. Original data was preserved.")); }
+        let db = Self { conn: Mutex::new(conn) };
+        db.migrate()?;
         Ok(db)
     }
 
@@ -209,6 +196,7 @@ impl Durable {
         let conn = self.conn.lock().unwrap();
         conn.execute_batch(
             r#"
+            BEGIN IMMEDIATE;
             CREATE TABLE IF NOT EXISTS preferences (
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL
@@ -242,9 +230,22 @@ impl Durable {
                     REFERENCES account_lists(account_id, list_id)
                     ON DELETE CASCADE
             );
+            COMMIT;
             "#,
         )?;
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+        // Existing tables are not repaired by CREATE IF NOT EXISTS. Refuse an
+        // incompatible schema instead of silently starting with missing data.
+        for sql in [
+            "SELECT key,value FROM preferences LIMIT 0",
+            "SELECT id,username,display_name,avatar_url,provider,last_state FROM account_identity LIMIT 0",
+            "SELECT account_id,list_id,name,color,created_at FROM account_lists LIMIT 0",
+            "SELECT account_id,list_id,author_id FROM account_list_members LIMIT 0",
+        ] { conn.prepare(sql)?; }
+        let invalid_members: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM account_list_members m LEFT JOIN account_lists l ON l.account_id=m.account_id AND l.list_id=m.list_id WHERE l.list_id IS NULL)",
+            [], |row| row.get(0))?;
+        if invalid_members { return Err(AppError::database("Local list relationships could not be verified. Original data was preserved.")); }
         Ok(())
     }
 

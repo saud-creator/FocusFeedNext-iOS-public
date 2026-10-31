@@ -31,7 +31,7 @@ pub fn validate(entries: &[(String, String)], portable: bool) -> AppResult<()> {
             }),
             "appearance.accent" | "appearance.background" | "appearance.surface" | "appearance.elevated" | "appearance.border" | "appearance.mediaBackground" => v.is_empty() || ((v.len() == 4 || v.len() == 7) && v.starts_with('#') && v[1..].bytes().all(|c| c.is_ascii_hexdigit())),
             k if k.starts_with("pages.openBehavior") => ["", "off", "refresh", "reset"].contains(&v),
-            "appearance.haptics" | "appearance.collapseLongPosts" | "monitoring.autoCheck" | "startup.preloadBookmarks" | "startup.preloadFollowing" | "content.hideReposts" | "content.unreadOnly" | "actions.advanced" | "video.loop" | "video.clickToggle" | "video.gifAutoplay" | "video.offscreenCleanup" => ["true", "false"].contains(&v),
+            "appearance.haptics" | "appearance.collapseLongPosts" | "monitoring.autoCheck" | "startup.preloadBookmarks" | "startup.preloadFollowing" | "content.hideReposts" | "content.unreadOnly" | "actions.advanced" | "actions.allowUnfollow" | "video.loop" | "video.clickToggle" | "video.gifAutoplay" | "video.offscreenCleanup" => ["true", "false"].contains(&v),
             _ => false,
         };
         if !valid { return Err(invalid()); }

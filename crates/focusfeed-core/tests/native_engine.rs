@@ -1,0 +1,685 @@
+use focusfeed_core::{CoreEngine, CoreOperation as Op, CoreRequest};
+use serde_json::{json, Value};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tempfile::TempDir;
+
+static SEQUENCE: AtomicU64 = AtomicU64::new(1);
+fn now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64
+}
+fn request(operation: Op, args: Value, generation: u64) -> CoreRequest {
+    CoreRequest {
+        request_id: format!("test-{}", SEQUENCE.fetch_add(1, Ordering::Relaxed)),
+        account_generation: generation,
+        source_revision: 0,
+        deadline_millis: now() + 30_000,
+        priority: 1,
+        operation,
+        arguments_json: args.to_string(),
+    }
+}
+fn call(core: &CoreEngine, op: Op, args: Value, generation: u64) -> Value {
+    serde_json::from_str(&core.execute(request(op, args, generation)).unwrap()).unwrap()
+}
+fn author(id: &str, name: &str) -> Value {
+    json!({"id":id,"username":name,"displayName":name,"avatarUrl":"https://pbs.twimg.com/profile_images/test/avatar.jpg"})
+}
+fn post(id: &str) -> Value {
+    json!({"id":id,"text":"Post","author":author("2","reader"),"createdAt":"2026-10-30T08:00:00Z",
+        "media":[{"kind":"image","url":"https://pbs.twimg.com/media/image.jpg","variants":[]}],"provider":"ios-direct"})
+}
+fn page(posts: Vec<Value>, cursor: Option<&str>) -> Value {
+    json!({"posts":posts,"cursor":cursor,"fetchedAt":"2026-10-30T08:00:00Z","provider":"ios-direct","fromCache":false})
+}
+fn engine() -> (TempDir, CoreEngine) {
+    let dir = tempfile::tempdir().unwrap();
+    let core = CoreEngine::open(dir.path()).unwrap();
+    call(
+        &core,
+        Op::SetAccount,
+        json!({"account":author("1","owner")}),
+        1,
+    );
+    (dir, core)
+}
+
+#[test]
+fn stale_cancelled_expired_and_obsolete_source_results_never_ingest() {
+    let (_dir, core) = engine();
+    let args = json!({"feed":"following","body":page(vec![post("10")],None)});
+    let cancelled = request(Op::IngestFeed, args.clone(), 1);
+    core.cancel_request(&cancelled.request_id);
+    assert_eq!(core.execute(cancelled).unwrap_err().code, "cancelled");
+    let mut expired = request(Op::IngestFeed, args.clone(), 1);
+    expired.deadline_millis = 0;
+    assert_eq!(core.execute(expired).unwrap_err().code, "cancelled");
+    let mut fresh = request(Op::IngestFeed, args.clone(), 1);
+    fresh.source_revision = 2;
+    core.execute(fresh).unwrap();
+    let mut obsolete = request(
+        Op::IngestFeed,
+        json!({"feed":"following","body":page(vec![post("11")],None)}),
+        1,
+    );
+    obsolete.source_revision = 1;
+    assert_eq!(core.execute(obsolete).unwrap_err().code, "stale_request");
+    call(
+        &core,
+        Op::SetAccount,
+        json!({"account":author("3","other")}),
+        2,
+    );
+    assert_eq!(
+        core.execute(request(Op::IngestFeed, args, 1))
+            .unwrap_err()
+            .code,
+        "stale_request"
+    );
+    assert_eq!(
+        call(&core, Op::GetFeed, json!({"feed":"following"}), 2)["posts"],
+        json!([])
+    );
+}
+
+#[test]
+fn account_epoch_change_invalidates_old_media_and_repeated_recovery_is_bounded() {
+    let (_dir, core) = engine();
+    let registered = call(
+        &core,
+        Op::RegisterMedia,
+        json!({"url":"https://pbs.twimg.com/media/test.jpg","postId":"10"}),
+        1,
+    );
+    let handle = registered["handle"].as_str().unwrap();
+    assert!(handle.starts_with("ffmedia:"));
+    assert!(!registered.to_string().contains("twimg.com"));
+    let resolved = call(&core, Op::GetMediaUrl, json!({"handle":handle}), 1);
+    let old = resolved["url"].as_str().unwrap();
+    assert!(old.starts_with("http://127.0.0.1:"));
+    assert!(core
+        .execute(request(
+            Op::ValidateMediaUrl,
+            json!({"url":old.replace("127.0.0.1","localhost")}),
+            1
+        ))
+        .is_err());
+    assert!(core
+        .execute(request(
+            Op::ProbeMedia,
+            json!({"url":"https://example.invalid/"}),
+            1
+        ))
+        .is_err());
+    let missing = format!("{}00", old.rsplit_once('/').unwrap().0.to_string() + "/");
+    assert_eq!(
+        call(&core, Op::ProbeMedia, json!({"url":missing}), 1)["kind"],
+        "registration"
+    );
+    call(&core, Op::RestartMedia, json!({}), 1);
+    assert!(core
+        .execute(request(Op::ValidateMediaUrl, json!({"url":old}), 1))
+        .is_err());
+    for _ in 0..100 {
+        let registered = call(
+            &core,
+            Op::RegisterMedia,
+            json!({"url":"https://pbs.twimg.com/media/test.jpg","postId":"10"}),
+            1,
+        );
+        assert!(call(
+            &core,
+            Op::GetMediaUrl,
+            json!({"handle":registered["handle"]}),
+            1
+        )["valid"]
+            .as_bool()
+            .unwrap());
+        call(&core, Op::CancelMedia, json!({}), 1);
+        assert!(core
+            .execute(request(
+                Op::GetMediaUrl,
+                json!({"handle":registered["handle"]}),
+                1
+            ))
+            .is_err());
+    }
+    let diagnostics = call(&core, Op::Diagnostics, json!({}), 1);
+    assert_eq!(diagnostics["media"]["registrations"], 0);
+    assert_eq!(diagnostics["media"]["available"], true);
+    assert!(core
+        .execute(request(
+            Op::RegisterMedia,
+            json!({"url":"https://pbs.twimg.com.evil.test/media/test.jpg"}),
+            1
+        ))
+        .is_err());
+}
+
+#[test]
+fn lists_keep_former_followed_members_and_pin_read_muted_state_matches_canonical_store() {
+    let (_dir, core) = engine();
+    call(
+        &core,
+        Op::IngestFollowing,
+        json!({"accounts":[author("2","reader"),author("3","third")],"syncId":"first","complete":true}),
+        1,
+    );
+    call(
+        &core,
+        Op::UpsertList,
+        json!({"id":"list-a","name":"Read","color":"#123456"}),
+        1,
+    );
+    call(
+        &core,
+        Op::SetListMember,
+        json!({"listId":"list-a","authorId":"2","member":true}),
+        1,
+    );
+    call(
+        &core,
+        Op::PinAccount,
+        json!({"authorId":"2","pinned":true}),
+        1,
+    );
+    let pinned = call(&core, Op::GetPinnedAccounts, json!({}), 1);
+    assert_eq!(pinned[0]["id"], "2");
+    assert!(pinned[0]["avatarUrl"]
+        .as_str()
+        .unwrap()
+        .starts_with("ffmedia:"));
+    call(
+        &core,
+        Op::IngestFollowing,
+        json!({"accounts":[author("3","third")],"syncId":"second","complete":true}),
+        1,
+    );
+    let candidates = call(
+        &core,
+        Op::GetGroupCandidates,
+        json!({"groupId":"list-a"}),
+        1,
+    );
+    let former = candidates
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["author"]["id"] == "2")
+        .unwrap();
+    assert_eq!(former["following"], false);
+    assert_eq!(former["member"], true);
+    assert!(core
+        .execute(request(
+            Op::SetListMember,
+            json!({"listId":"missing","authorId":"3","member":true}),
+            1
+        ))
+        .is_err());
+    call(&core, Op::MarkRead, json!({"postId":"10","read":true}), 1);
+    assert_eq!(call(&core, Op::GetReadIds, json!({}), 1), json!(["10"]));
+    call(
+        &core,
+        Op::SetMutedWord,
+        json!({"word":"spoiler","muted":true}),
+        1,
+    );
+    assert_eq!(
+        call(&core, Op::GetMutedWords, json!({}), 1),
+        json!(["spoiler"])
+    );
+}
+
+#[test]
+fn account_actions_require_confirmation_and_uncertain_results_are_not_replayed() {
+    let (_dir, core) = engine();
+    call(
+        &core,
+        Op::IngestFeed,
+        json!({"feed":"bookmarks","body":page(vec![post("10")],None)}),
+        1,
+    );
+    assert_eq!(
+        core.execute(request(
+            Op::PrepareAction,
+            json!({"operation":"unbookmark","postId":"10"}),
+            1
+        ))
+        .unwrap_err()
+        .code,
+        "confirmation_required"
+    );
+    assert_eq!(
+        core.execute(request(
+            Op::PrepareAction,
+            json!({"operation":"unbookmark","postId":"11","confirmed":true}),
+            1
+        ))
+        .unwrap_err()
+        .code,
+        "not_bookmarked"
+    );
+    assert_eq!(
+        core.execute(request(
+            Op::PrepareAction,
+            json!({"operation":"unfollow","username":"reader"}),
+            1
+        ))
+        .unwrap_err()
+        .code,
+        "confirmation_required"
+    );
+    let action = call(
+        &core,
+        Op::PrepareAction,
+        json!({"operation":"unbookmark","postId":"10","confirmed":true}),
+        1,
+    );
+    call(&core, Op::BeginAction, json!({"token":action["token"]}), 1);
+    assert_eq!(
+        core.execute(request(Op::ClearSession, json!({"disconnect":true}), 1))
+            .unwrap_err()
+            .code,
+        "action_in_flight"
+    );
+    assert_eq!(
+        core.execute(request(
+            Op::SetAccount,
+            json!({"account":author("3","other")}),
+            2
+        ))
+        .unwrap_err()
+        .code,
+        "action_in_flight"
+    );
+    let result = call(
+        &core,
+        Op::FinishAction,
+        json!({"token":action["token"],"outcome":"uncertain"}),
+        1,
+    );
+    assert_eq!(result["requiresReconciliation"], true);
+    assert_eq!(result["automaticRetry"], false);
+    assert_eq!(
+        call(&core, Op::GetFeed, json!({"feed":"bookmarks"}), 1)["posts"][0]["id"],
+        "10"
+    );
+    assert!(core
+        .execute(request(
+            Op::FinishAction,
+            json!({"token":action["token"],"outcome":"succeeded"}),
+            1
+        ))
+        .is_err());
+}
+
+#[test]
+fn cancellation_after_preparation_releases_a_token_the_ui_may_never_receive() {
+    let (_dir, core) = engine();
+    let prepare = request(Op::PrepareAction, json!({"operation":"follow","username":"reader"}), 1);
+    let action: Value = serde_json::from_str(&core.execute(prepare.clone()).unwrap()).unwrap();
+    // Equivalent to Swift task cancellation after Rust committed preparation,
+    // but before its guarded adapter is able to hand the token to mutate().
+    core.cancel_request(&prepare.request_id);
+    assert_eq!(call(&core, Op::Diagnostics, json!({}), 1)["pendingAction"], false);
+    assert_eq!(core.execute(request(Op::BeginAction, json!({"token":action["token"]}), 1))
+        .unwrap_err().code, "stale_request");
+    // A discarded preparation must not strand the account or require restart.
+    call(&core, Op::ClearSession, json!({"disconnect":true}), 1);
+}
+
+#[test]
+fn cancellation_after_dispatch_keeps_the_action_owned_until_an_explicit_outcome() {
+    let (_dir, core) = engine();
+    let prepare = request(Op::PrepareAction, json!({"operation":"follow","username":"reader"}), 1);
+    let action: Value = serde_json::from_str(&core.execute(prepare.clone()).unwrap()).unwrap();
+    let begin = request(Op::BeginAction, json!({"token":action["token"]}), 1);
+    core.execute(begin.clone()).unwrap();
+    core.cancel_request(&prepare.request_id);
+    core.cancel_request(&begin.request_id);
+    assert_eq!(call(&core, Op::Diagnostics, json!({}), 1)["pendingAction"], true);
+    assert_eq!(core.execute(request(Op::ClearSession, json!({"disconnect":true}), 1))
+        .unwrap_err().code, "action_in_flight");
+    assert_eq!(core.execute(request(Op::BeginAction, json!({"token":action["token"]}), 1))
+        .unwrap_err().code, "action_already_started");
+    let outcome = call(&core, Op::FinishAction, json!({"token":action["token"],"outcome":"uncertain"}), 1);
+    assert_eq!(outcome["automaticRetry"], false);
+    assert_eq!(outcome["requiresReconciliation"], true);
+    assert_eq!(call(&core, Op::Diagnostics, json!({}), 1)["pendingAction"], false);
+}
+
+#[test]
+fn a_prepared_action_cannot_claim_remote_success_without_dispatch() {
+    let (_dir, core) = engine();
+    let action = call(&core, Op::PrepareAction, json!({"operation":"follow","username":"reader"}), 1);
+    assert_eq!(core.execute(request(Op::FinishAction, json!({"token":action["token"],"outcome":"succeeded"}), 1))
+        .unwrap_err().code, "invalid_request");
+    call(&core, Op::FinishAction, json!({"token":action["token"],"outcome":"failed"}), 1);
+    assert_eq!(call(&core, Op::Diagnostics, json!({}), 1)["pendingAction"], false);
+}
+
+#[test]
+fn disconnect_generation_cannot_be_reused_by_an_obsolete_restore() {
+    let (_dir, core) = engine();
+    call(&core, Op::ClearSession, json!({"disconnect":true}), 1);
+    assert_eq!(core.execute(request(Op::SetAccount, json!({"account":author("1","owner")}), 1))
+        .unwrap_err().code, "stale_request");
+    assert_eq!(core.execute(request(Op::SetAccount, json!({"account":author("1","owner")}), 2))
+        .unwrap_err().code, "stale_request");
+    assert_eq!(call(&core, Op::Diagnostics, json!({}), 2)["accountGeneration"], 2);
+    let restored = call(&core, Op::SetAccount, json!({"account":author("1","owner")}), 3);
+    assert_eq!(restored["account"]["id"], "1");
+    // A refresh of the already active identity retains its existing epoch.
+    call(&core, Op::SetAccount, json!({"account":author("1","owner")}), 3);
+    assert_eq!(core.execute(request(Op::SetAccount, json!({"account":author("1","owner")}), 2))
+        .unwrap_err().code, "stale_request");
+}
+
+#[test]
+fn verified_upgrade_backup_retains_settings_and_lists_and_corruption_never_deletes_source() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("preferences.db");
+    {
+        let durable = focusfeed_core::durable::Durable::open(&path).unwrap();
+        durable.set_preference("language", "ar").unwrap();
+        durable
+            .upsert_account_list("1", "local", "My list", "#123456")
+            .unwrap();
+        durable
+            .set_account_list_member("1", "local", "2", true)
+            .unwrap();
+    }
+    let core = CoreEngine::open(dir.path()).unwrap();
+    assert_eq!(
+        call(&core, Op::GetPreferences, json!({}), 0)["language"],
+        "ar"
+    );
+    call(
+        &core,
+        Op::SetAccount,
+        json!({"account":author("1","owner")}),
+        1,
+    );
+    assert_eq!(
+        call(&core, Op::GetLists, json!({}), 1)[0]["memberIds"],
+        json!(["2"])
+    );
+    let backup = dir.path().join("preferences.native-migration-v1.backup.db");
+    assert!(backup.exists());
+    let conn = rusqlite::Connection::open(backup).unwrap();
+    let language: String = conn
+        .query_row(
+            "SELECT value FROM preferences WHERE key='language'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(language, "ar");
+    drop(core);
+    let bad = tempfile::tempdir().unwrap();
+    let corrupt = bad.path().join("preferences.db");
+    std::fs::write(&corrupt, b"not sqlite; preserve exactly").unwrap();
+    assert!(CoreEngine::open(bad.path()).is_err());
+    assert_eq!(
+        std::fs::read(corrupt).unwrap(),
+        b"not sqlite; preserve exactly"
+    );
+}
+
+#[test]
+fn resume_markers_are_opt_in_account_and_destination_scoped_and_deleted_on_disconnect() {
+    let (_dir, core) = engine();
+    assert_eq!(call(&core, Op::GetResumeState, json!({}), 1), Value::Null);
+    for (route, id) in [("following", "10"), ("bookmarks", "11")] {
+        call(
+            &core,
+            Op::SetResumeState,
+            json!({"state":{"enabled":true,"route":route,"postID":id,"offset":20.0,"accountID":"1"}}),
+            1,
+        );
+    }
+    assert_eq!(
+        call(&core, Op::GetResumeState, json!({"route":"following"}), 1)["postID"],
+        "10"
+    );
+    assert_eq!(
+        call(&core, Op::GetResumeState, json!({"route":"bookmarks"}), 1)["postID"],
+        "11"
+    );
+    assert!(core
+        .execute(request(
+            Op::SetResumeState,
+            json!({"state":{"enabled":true,"route":"search","postID":"10","offset":0.0}}),
+            1
+        ))
+        .is_err());
+    call(&core, Op::ClearSession, json!({"disconnect":true}), 1);
+    call(
+        &core,
+        Op::SetAccount,
+        json!({"account":author("1","owner")}),
+        3,
+    );
+    assert_eq!(call(&core, Op::GetResumeState, json!({}), 3), Value::Null);
+}
+
+#[test]
+fn payload_eviction_retains_complete_bookmark_index_and_reports_rehydration_ids() {
+    let (_dir, core) = engine();
+    // Each bounded incoming page is below the 8 MiB request ceiling. Traversal
+    // nevertheless exceeds the 64 MiB body budget while every id remains
+    // navigable through the independent order index.
+    let text = "x".repeat(1024 * 1024);
+    for batch in 0..18 {
+        let posts = (0..4)
+            .map(|offset| {
+                let mut item = post(&(1000 + batch * 4 + offset).to_string());
+                item["text"] = json!(text);
+                item
+            })
+            .collect();
+        call(
+            &core,
+            Op::IngestFeed,
+            json!({"feed":"bookmarks","body":page(posts,Some("older")),"append":batch>0,"complete":false}),
+            1,
+        );
+    }
+    let diagnostics = call(&core, Op::Diagnostics, json!({}), 1);
+    assert!(diagnostics["payloadBytes"].as_u64().unwrap() <= 64 * 1024 * 1024);
+    assert_eq!(diagnostics["indexedPosts"], 72);
+    assert!(diagnostics["residentPosts"].as_u64().unwrap() < 72);
+    let page = call(
+        &core,
+        Op::GetFeed,
+        json!({"feed":"bookmarks","limit":80}),
+        1,
+    );
+    assert_eq!(page["totalCached"], 72);
+    assert!(!page["missingPostIds"].as_array().unwrap().is_empty());
+    assert_eq!(page["nextCursor"], "older");
+
+    call(&core, Op::IngestFollowing, json!({"accounts":[author("2","reader")],"complete":true}), 1);
+    call(&core, Op::UpsertList, json!({"id":"evicted-list","name":"Reading"}), 1);
+    call(&core, Op::SetListMember, json!({"listId":"evicted-list","authorId":"2","member":true}), 1);
+    let group = call(&core, Op::GetGroupFeed, json!({"groupId":"evicted-list","limit":80}), 1);
+    assert_eq!(group["totalCached"], 72);
+    assert!(group["missingPostIds"].as_array().unwrap().iter().any(|id| id == "1000"));
+
+    // TweetResultByRestId rehydrates the evicted body through the same detail
+    // path used by media repair. This must not masquerade as a new feed page.
+    assert!(page["missingPostIds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|id| id == "1000"));
+    call(&core, Op::MarkRead, json!({"postId":"1000","read":true}), 1);
+    let raw = json!({"data":{"tweetResult":{"result":{"rest_id":"1000","legacy":{"full_text":"Recovered body","created_at":"Fri Oct 30 08:00:00 +0000 2026"},"core":{"user_results":{"result":{"rest_id":"2","core":{"screen_name":"reader","name":"Reader"}}}}}}}});
+    let detail = call(
+        &core,
+        Op::ParsePostContent,
+        json!({"postId":"1000","body":raw}),
+        1,
+    );
+    assert_eq!(detail["post"]["text"], "Recovered body");
+    let restored = call(
+        &core,
+        Op::GetFeed,
+        json!({"feed":"bookmarks","limit":80}),
+        1,
+    );
+    assert_eq!(restored["posts"][0]["id"], "1000");
+    assert_eq!(restored["totalCached"], page["totalCached"]);
+    assert_eq!(restored["nextCursor"], page["nextCursor"]);
+    assert_eq!(restored["lastSync"], page["lastSync"]);
+    assert!(restored["readIds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|id| id == "1000"));
+    let restored_group = call(&core, Op::GetGroupFeed, json!({"groupId":"evicted-list","limit":80}), 1);
+    assert_eq!(restored_group["totalCached"], 72);
+    assert_eq!(restored_group["posts"][0]["id"], "1000");
+    assert!(!restored_group["missingPostIds"].as_array().unwrap().iter().any(|id| id == "1000"));
+    let slice = call(
+        &core,
+        Op::GetBookmarkSlice,
+        json!({"request":{"direction":"oldest","limit":1}}),
+        1,
+    );
+    assert_eq!(slice["posts"][0]["id"], "1000");
+    assert_eq!(slice["firstPosition"], 0);
+    assert_eq!(slice["totalDiscovered"], 72);
+    assert!(core
+        .execute(request(
+            Op::ParsePostContent,
+            json!({"postId":"9999","body":raw}),
+            1
+        ))
+        .is_err());
+    assert!(
+        call(&core, Op::GetPost, json!({"postId":"9999"}), 1)["missingPostIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|id| id == "9999")
+    );
+}
+
+#[test]
+fn continuation_returns_only_its_new_page_and_group_reads_use_durable_members() {
+    let (_dir, core) = engine();
+    call(
+        &core,
+        Op::IngestFeed,
+        json!({"feed":"following","body":page(vec![post("10")],Some("next"))}),
+        1,
+    );
+    let next = call(
+        &core,
+        Op::IngestFeed,
+        json!({"feed":"following","body":page(vec![post("11")],None),"append":true}),
+        1,
+    );
+    assert_eq!(next["posts"].as_array().unwrap().len(), 1);
+    assert_eq!(next["posts"][0]["id"], "11");
+    assert_eq!(next["totalCached"], 2);
+    call(
+        &core,
+        Op::IngestFollowing,
+        json!({"accounts":[author("2","reader")],"complete":true}),
+        1,
+    );
+    call(
+        &core,
+        Op::UpsertList,
+        json!({"id":"local","name":"Reading"}),
+        1,
+    );
+    call(
+        &core,
+        Op::SetListMember,
+        json!({"listId":"local","authorId":"2","member":true}),
+        1,
+    );
+    let group = call(
+        &core,
+        Op::GetGroupFeed,
+        json!({"groupId":"local","offset":0,"limit":1}),
+        1,
+    );
+    assert_eq!(group["memberCount"], 1);
+    assert_eq!(group["totalCached"], 2);
+    assert_eq!(group["posts"].as_array().unwrap().len(), 1);
+    assert_eq!(group["nextOffset"], 1);
+}
+
+#[test]
+fn local_list_member_cursors_continue_each_provider_timeline_beyond_its_first_page() {
+    let (_dir, core) = engine();
+    call(&core, Op::IngestFollowing, json!({"accounts":[author("2","reader"),author("3","third")],"complete":true}), 1);
+    call(&core, Op::UpsertList, json!({"id":"local","name":"Reading"}), 1);
+    for id in ["2", "3"] {
+        call(&core, Op::SetListMember, json!({"listId":"local","authorId":id,"member":true}), 1);
+    }
+    for (author_id, username, post_id, cursor) in [("2","reader","10","reader-next"),("3","third","20","third-next")] {
+        let mut item = post(post_id); item["author"] = author(author_id, username);
+        call(&core, Op::IngestFeed, json!({"feed":format!("user-id:{author_id}"),"body":page(vec![item],Some(cursor))}), 1);
+    }
+    let first = call(&core, Op::GetGroupFeed, json!({"groupId":"local","limit":1}), 1);
+    assert_eq!(first["totalCached"], 2);
+    assert_eq!(first["providerHasMore"], true);
+    assert_eq!(first["memberPages"][0]["source"], "user-id:2");
+    assert_eq!(first["memberPages"][0]["cursor"], "reader-next");
+    assert_eq!(first["memberPages"][1]["cursor"], "third-next");
+    // The adapter executes these independent cursor reads without treating the
+    // first merged cache page as the end of the List.
+    for (author_id, username, post_id) in [("2","renamed_reader","11"),("3","third","21")] {
+        let mut item = post(post_id); item["author"] = author(author_id, username);
+        call(&core, Op::IngestFeed, json!({"feed":format!("user-id:{author_id}"),"body":page(vec![item],None),"append":true}), 1);
+    }
+    let mut discovered = std::collections::HashSet::new();
+    for offset in 0..4 {
+        let window = call(&core, Op::GetGroupFeed, json!({"groupId":"local","limit":1,"offset":offset}), 1);
+        assert_eq!(window["totalCached"], 4);
+        assert_eq!(window["providerHasMore"], false);
+        assert_eq!(window["loadedAccounts"], 2);
+        assert!(window["memberPages"].as_array().unwrap().iter().all(|page| page["exhausted"] == true));
+        discovered.insert(window["posts"][0]["id"].as_str().unwrap().to_string());
+        assert_eq!(window["nextOffset"], if offset < 3 { json!(offset+1) } else { Value::Null });
+    }
+    assert_eq!(discovered, ["10","11","20","21"].into_iter().map(String::from).collect());
+    assert!(core.execute(request(Op::IngestFeed,json!({"feed":"user-id:2/secret","body":page(vec![],None)}),1)).is_err());
+}
+
+#[test]
+fn persisted_list_members_without_following_or_profiles_still_have_bounded_provider_navigation() {
+    let directory = tempfile::tempdir().unwrap();
+    {
+        let durable = focusfeed_core::durable::Durable::open(&directory.path().join("preferences.db")).unwrap();
+        durable.upsert_account_list("1","local","Reading","#123456").unwrap();
+        for id in ["2","3","4","5","6","7"] {
+            durable.set_account_list_member("1","local",id,true).unwrap();
+        }
+    }
+    let core = CoreEngine::open(directory.path()).unwrap();
+    call(&core, Op::SetAccount, json!({"account":author("1","owner")}), 1);
+    let first = call(&core, Op::GetGroupFeed, json!({"groupId":"local","memberPageLimit":1000}), 1);
+    assert_eq!(first["memberCount"], 6);
+    assert_eq!(first["memberPages"].as_array().unwrap().len(), 4);
+    assert_eq!(first["unknownMemberIds"].as_array().unwrap().len(), 4);
+    assert_eq!(first["nextMemberPageOffset"], 4);
+    assert_eq!(first["providerHasMore"], true);
+    for page in first["memberPages"].as_array().unwrap() {
+        assert_eq!(page["username"], Value::Null);
+        assert_eq!(page["loaded"], false);
+        assert_eq!(page["exhausted"], false);
+        assert!(page["source"].as_str().unwrap().starts_with("user-id:"));
+    }
+    let rest = call(&core, Op::GetGroupFeed, json!({"groupId":"local","memberPageOffset":4}), 1);
+    assert_eq!(rest["memberPages"].as_array().unwrap().len(), 2);
+    assert_eq!(rest["nextMemberPageOffset"], Value::Null);
+}

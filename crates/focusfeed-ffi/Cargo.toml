@@ -1,0 +1,22 @@
+[package]
+name = "focusfeed-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+bindgen = ["uniffi/cli"]
+
+[[bin]]
+name = "focusfeed-bindgen"
+path = "src/bin/bindgen.rs"
+required-features = ["bindgen"]
+
+[dependencies]
+focusfeed-core = { path = "../focusfeed-core" }
+serde_json = "1"
+thiserror = "2"
+uniffi = { version = "=0.32.1" }

@@ -334,6 +334,7 @@ pub fn run() {
             commands::probe_media,
             commands::get_posts_by_authors,
             commands::get_user_profile,
+            commands::recover_account_image,
             commands::get_account_relationship,
             commands::get_connection_metrics,
             commands::open_creator_subscription,

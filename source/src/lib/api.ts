@@ -501,6 +501,8 @@ export const api = {
    */
   userProfile: (username: string,refresh=false) =>
     invoke<Author>("get_user_profile", { username,refresh }),
+  recoverAccountImage: (username: string) =>
+    invoke<string | null>("recover_account_image", { username }),
   accountRelationship: (username: string) => invoke<'following' | 'notFollowing' | 'pending' | 'unknown'>("get_account_relationship", { username }),
   openCreatorSubscription: (username: string) => invoke<void>("open_creator_subscription", { username }),
   postsByAuthors: (authorIds: string[], limit = 60) =>
