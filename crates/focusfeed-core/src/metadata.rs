@@ -247,7 +247,33 @@ pub(crate) fn backup_preferences(path: &Path) -> Result<(), CoreError> {
     }
     let backup = path.with_file_name("preferences.native-migration-v1.backup.db");
     if !backup.exists() {
-        source.backup("main", &backup, None)?;
+        // Publish only a completed, verified snapshot. An interrupted SQLite
+        // backup must never leave a partial file at the protected final name.
+        // persist_noclobber also prevents a second process replacing an earlier
+        // rollback snapshot between the existence check and publication.
+        let pending_dir = tempfile::Builder::new().prefix(".preferences-native-migration-")
+            .tempdir_in(path.parent().ok_or_else(CoreError::storage)?)
+            .map_err(|_| CoreError::storage())?;
+        // The unique owned directory also cleans any SQLite sidecars if a
+        // snapshot/verification step fails before journal normalization.
+        let pending = tempfile::NamedTempFile::new_in(pending_dir.path())
+            .map_err(|_| CoreError::storage())?.into_temp_path();
+        source.backup("main", &pending, None)?;
+        {
+            let snapshot = Connection::open(&pending)?;
+            // An online copy of a WAL-mode source inherits that mode. Collapse
+            // its private sidecars before publishing a standalone rollback
+            // snapshot, rather than renaming only its main file.
+            let mode: String = snapshot.query_row("PRAGMA journal_mode=DELETE", [], |row|row.get(0))?;
+            if mode != "delete" { return Err(CoreError::storage()); }
+            let result: String = snapshot.query_row("PRAGMA quick_check", [], |row|row.get(0))?;
+            if result != "ok" { return Err(CoreError::storage()); }
+        }
+        match pending.persist_noclobber(&backup) {
+            Ok(()) => {},
+            Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {},
+            Err(_) => return Err(CoreError::storage()),
+        }
     }
     #[cfg(unix)]
     {
@@ -340,4 +366,35 @@ mod tests {
         assert_eq!(saved[0].name, "Photos");
         assert!(metadata.presets("2").unwrap().is_empty());
     }
+    #[test]
+    fn migration_backup_includes_committed_wal_and_never_replaces_a_previous_snapshot() {
+        let directory=tempfile::tempdir().unwrap();
+        let path=directory.path().join("preferences.db");
+        let source=Connection::open(&path).unwrap();
+        source.execute_batch("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE preferences(key TEXT PRIMARY KEY,value TEXT NOT NULL); INSERT INTO preferences VALUES('language','ar');").unwrap();
+        backup_preferences(&path).unwrap();
+        let backup=path.with_file_name("preferences.native-migration-v1.backup.db");
+        let verify=Connection::open_with_flags(&backup,rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        assert_eq!(verify.query_row("SELECT value FROM preferences WHERE key='language'",[],|r|r.get::<_,String>(0)).unwrap(),"ar");
+        source.execute("UPDATE preferences SET value='en' WHERE key='language'",[]).unwrap();
+        backup_preferences(&path).unwrap();
+        assert_eq!(verify.query_row("SELECT value FROM preferences WHERE key='language'",[],|r|r.get::<_,String>(0)).unwrap(),"ar");
+        assert_eq!(source.query_row("SELECT value FROM preferences WHERE key='language'",[],|r|r.get::<_,String>(0)).unwrap(),"en");
+        assert_eq!(source.query_row("PRAGMA journal_mode",[],|r|r.get::<_,String>(0)).unwrap(),"wal");
+        assert_eq!(verify.query_row("PRAGMA journal_mode",[],|r|r.get::<_,String>(0)).unwrap(),"delete");
+        assert!(!std::fs::read_dir(directory.path()).unwrap().any(|entry|entry.unwrap().file_name().to_string_lossy().starts_with(".preferences-native-migration-")));
+    }
+    #[test]
+    fn an_invalid_existing_backup_is_retained_and_blocks_migration_without_touching_source() {
+        let directory=tempfile::tempdir().unwrap();
+        let path=directory.path().join("preferences.db");
+        {let source=Connection::open(&path).unwrap();source.execute_batch("CREATE TABLE preferences(key TEXT PRIMARY KEY,value TEXT NOT NULL); INSERT INTO preferences VALUES('theme','oled');").unwrap();}
+        let before=std::fs::read(&path).unwrap();
+        let backup=path.with_file_name("preferences.native-migration-v1.backup.db");
+        std::fs::write(&backup,b"interrupted older evidence - preserve").unwrap();
+        assert!(backup_preferences(&path).is_err());
+        assert_eq!(std::fs::read(&backup).unwrap(),b"interrupted older evidence - preserve");
+        assert_eq!(std::fs::read(&path).unwrap(),before);
+    }
+
 }

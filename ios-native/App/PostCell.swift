@@ -66,8 +66,7 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
     func configure(_ post: Post, read: Bool, bookmark: Bool, context: ReaderContext, delegate: PostCellDelegate) {
         stop(); let same = current?.id == post.id; current = post; self.context = context; self.delegate = delegate; self.bookmark = bookmark; if !same { expanded = false }; highlightText = ""
         accessibilityIdentifier = "post.\(post.id)"
-        contentView.layer.cornerRadius = CGFloat(context.preferences.number("appearance.radius")) + 6
-        contentView.backgroundColor = ReaderTheme.color(context.preferences.string("appearance.surface")) ?? .secondarySystemGroupedBackground
+        updateAppearance(context.preferences)
         attribution.isHidden = !post.isRepost; attribution.text = post.repostedBy.map { "\(L10n.text("reposted")) \($0.label)" }
         authorButton.setTitle("\(post.author.label)\(post.author.verified ? " ✓" : "")\n@\(post.author.username)", for: .normal)
         authorButton.accessibilityLabel = "\(post.author.label), @\(post.author.username)"
@@ -108,11 +107,11 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
     }
     private func renderText() {
         guard let post = current, let context else { return }
-        let collapse = context.preferences.bool("appearance.collapseLongPosts") && post.text.count > 420
-        var text = ReaderPostText.display(post.text, collapsed: collapse && !expanded, limit: 420)
-        if let canonical = post.canonicalURL { text = text.replacingOccurrences(of: canonical.absoluteString, with: "") }
-        let paragraph = NSMutableParagraphStyle(); paragraph.baseWritingDirection = .natural; paragraph.lineSpacing = 3
-        let attributed = NSMutableAttributedString(string: text, attributes: [.font: ReaderTheme.font(.body, preferences: context.preferences), .foregroundColor: UIColor.label, .paragraphStyle: paragraph])
+        let authoredText = ReaderPostText.removingSelfPermalink(from: post.text, canonicalURL: post.canonicalURL)
+        let collapse = context.preferences.bool("appearance.collapseLongPosts") && authoredText.count > 420
+        let text = ReaderPostText.display(authoredText, collapsed: collapse && !expanded, limit: 420)
+        let paragraph = NSMutableParagraphStyle(); paragraph.baseWritingDirection = .natural; paragraph.lineSpacing = context.preferences.string("density") == "compact" ? 1 : 3
+        let attributed = NSMutableAttributedString(string: text, attributes: [.font: ReaderTheme.font(.body, preferences: context.preferences), .foregroundColor: ReaderTheme.text(context.preferences), .paragraphStyle: paragraph])
         let full = NSRange(text.startIndex..., in: text)
         for (pattern, mention) in [("https?://[^\\s]+", false), ("(?<![A-Za-z0-9_])@[A-Za-z0-9_]{1,15}", true)] {
             guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
@@ -130,6 +129,17 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
         expand.isHidden = !collapse; expand.setTitle(L10n.text(expanded ? "showLess" : "showMore"), for: .normal)
     }
     func highlight(_ value: String) { highlightText = value; renderText() }
+    func updateAppearance(_ preferences: ReaderPreferences) {
+        ReaderTheme.styleCard(contentView, preferences: preferences)
+        stack.spacing = ReaderTheme.spacing(preferences)
+        contentView.directionalLayoutMargins = NSDirectionalEdgeInsets(top: preferences.string("density") == "compact" ? 8 : 12, leading: 12, bottom: preferences.string("density") == "compact" ? 8 : 12, trailing: 12)
+        quote.backgroundColor = ReaderTheme.elevated(preferences); quote.layer.borderWidth = 1 / max(1, traitCollection.displayScale); quote.layer.borderColor = ReaderTheme.border(preferences).resolvedColor(with: traitCollection).cgColor
+        authorButton.setTitleColor(ReaderTheme.text(preferences), for: .normal)
+        authorButton.titleLabel?.font = ReaderTheme.font(.headline, preferences: preferences, weight: .semibold)
+        metadata.textColor = ReaderTheme.text(preferences, secondary: true); readLabel.textColor = ReaderTheme.text(preferences, secondary: true)
+        renderText()
+    }
+    override func layoutSubviews() { super.layoutSubviews(); if let context { ReaderTheme.styleCard(contentView, preferences: context.preferences) } }
     @objc private func openAuthor() { if let username = current?.author.username { delegate?.postCellOpenProfile(username) } }
     @objc private func toggleExpand() {
         expanded.toggle(); renderText()
@@ -164,6 +174,33 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
 }
 
 enum ReaderPostText {
+    /// Hide only a complete token identifying this exact post. Whitespace is
+    /// authored content: removing a permalink must not collapse paragraphs.
+    static func removingSelfPermalink(from text: String, canonicalURL: URL?) -> String {
+        guard let canonicalURL, let ownIdentity = postIdentity(canonicalURL),
+              let matcher = try? NSRegularExpression(pattern: "https?://[^\\s]+", options: [.caseInsensitive]) else { return text }
+        let result = NSMutableString(string: text)
+        let punctuation = CharacterSet(charactersIn: ".,!?;:)}]")
+        for match in matcher.matches(in: text, range: NSRange(text.startIndex..., in: text)).reversed() {
+            let token = (text as NSString).substring(with: match.range)
+            var candidate = token
+            while let scalar = candidate.unicodeScalars.last, punctuation.contains(scalar) { candidate.removeLast() }
+            guard let url = URL(string: candidate), postIdentity(url) == ownIdentity else { continue }
+            result.deleteCharacters(in: NSRange(location: match.range.location, length: (candidate as NSString).length))
+        }
+        return result as String
+    }
+    private static func postIdentity(_ url: URL) -> String? {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              ["http", "https"].contains(components.scheme?.lowercased() ?? ""),
+              components.user == nil, components.password == nil else { return nil }
+        var host = components.host?.lowercased() ?? ""
+        if host.hasPrefix("www.") { host = String(host.dropFirst(4)) }
+        guard ["x.com", "twitter.com"].contains(host),
+              components.percentEncodedPath.range(of: "^/[A-Za-z0-9_]{1,15}/status/[0-9]{1,25}/?$", options: .regularExpression) != nil else { return nil }
+        let path = components.percentEncodedPath.split(separator: "/")
+        return "\(path[0].lowercased())/\(path[2])"
+    }
     /// Swift Character boundaries preserve composed emoji. Move the boundary
     /// before any URL or mention that would otherwise be cut in half.
     static func display(_ text: String, collapsed: Bool, limit: Int) -> String {
@@ -182,7 +219,7 @@ enum ReaderPostText {
 
 final class PhotoTile: UIControl {
     private let image = RemoteImageView()
-    private let state = readerLabel(L10n.text("loading"), style: .caption1, color: .secondaryLabel)
+    private let stateLabel = readerLabel(L10n.text("loading"), style: .caption1, color: .secondaryLabel)
     private var failed = false
     private var currentHandle: String
     private var repair: Task<Void, Never>?
@@ -193,19 +230,19 @@ final class PhotoTile: UIControl {
     var displayItem: PostMedia { var value = item; value.url = currentHandle; return value }
     init(item: PostMedia, services: AppServices) {
         self.item = item; self.services = services; currentHandle = item.url; super.init(frame: .zero)
-        backgroundColor = .tertiarySystemFill; layer.cornerRadius = 12; clipsToBounds = true
+        backgroundColor = ReaderTheme.mediaBackground(ReaderTheme.currentPreferences); layer.cornerRadius = 12; clipsToBounds = true
         image.contentMode = .scaleAspectFit; image.translatesAutoresizingMaskIntoConstraints = false; addSubview(image)
         NSLayoutConstraint.activate([image.leadingAnchor.constraint(equalTo: leadingAnchor), image.trailingAnchor.constraint(equalTo: trailingAnchor), image.topAnchor.constraint(equalTo: topAnchor), image.bottomAnchor.constraint(equalTo: bottomAnchor)])
         let ratio = CGFloat(item.height ?? 300) / max(1, CGFloat(item.width ?? 500)); let height = heightAnchor.constraint(equalTo: widthAnchor, multiplier: min(1.3, max(0.35, ratio))); height.priority = .defaultHigh; height.isActive = true; heightAnchor.constraint(greaterThanOrEqualToConstant: 120).isActive = true
-        state.textAlignment = .center; state.translatesAutoresizingMaskIntoConstraints = false; addSubview(state); NSLayoutConstraint.activate([state.centerXAnchor.constraint(equalTo: centerXAnchor), state.centerYAnchor.constraint(equalTo: centerYAnchor), state.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 12), state.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12)])
+        stateLabel.textAlignment = .center; if let label = stateLabel as? ReaderLabel { label.backgroundOverride = backgroundColor; label.updateAppearance(ReaderTheme.currentPreferences) }; stateLabel.translatesAutoresizingMaskIntoConstraints = false; addSubview(stateLabel); NSLayoutConstraint.activate([stateLabel.centerXAnchor.constraint(equalTo: centerXAnchor), stateLabel.centerYAnchor.constraint(equalTo: centerYAnchor), stateLabel.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 12), stateLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12)])
         image.failure = { [weak self] in self?.showFailure() }
-        image.loaded = { [weak self] in self?.state.isHidden = true; self?.accessibilityValue = nil }
+        image.loaded = { [weak self] in self?.stateLabel.isHidden = true; self?.accessibilityValue = nil }
         isAccessibilityElement = true; accessibilityTraits = .button; accessibilityLabel = item.alt?.isEmpty == false ? item.alt : L10n.text("openPhoto")
         addTarget(self, action: #selector(tapped), for: .touchUpInside); load()
     }
     required init?(coder: NSCoder) { fatalError("Use init") }
-    private func load() { failed = false; state.isHidden = false; state.text = L10n.text("loading"); accessibilityValue = L10n.text("loading"); guard !currentHandle.isEmpty else { showFailure(); return }; image.load(currentHandle, services: services) }
-    private func showFailure() { failed = true; state.text = "\(L10n.text("photoFailed")) · \(L10n.text("retry"))"; state.isHidden = false; accessibilityValue = L10n.text("photoFailed") + ", " + L10n.text("retry") }
+    private func load() { failed = false; stateLabel.isHidden = false; stateLabel.text = L10n.text("loading"); accessibilityValue = L10n.text("loading"); guard !currentHandle.isEmpty else { showFailure(); return }; image.load(currentHandle, services: services) }
+    private func showFailure() { failed = true; stateLabel.text = "\(L10n.text("photoFailed")) · \(L10n.text("retry"))"; stateLabel.isHidden = false; accessibilityValue = L10n.text("photoFailed") + ", " + L10n.text("retry") }
     @objc private func tapped() {
         guard repair == nil else { return }
         if failed { retryManually() } else { open?() }
@@ -214,7 +251,7 @@ final class PhotoTile: UIControl {
         guard repair == nil, !currentHandle.isEmpty else { return }
         let id = UUID(); repairID = id
         let handle = currentHandle; let services = services; let generation = services.accountGeneration
-        isEnabled = false; state.text = L10n.text("loading"); accessibilityValue = L10n.text("loading")
+        isEnabled = false; stateLabel.text = L10n.text("loading"); accessibilityValue = L10n.text("loading")
         repair = Task { [weak self] in
             defer { if let self, repairID == id { repair = nil; isEnabled = true } }
             do {
@@ -260,7 +297,7 @@ final class InlinePlayerView: UIView {
     var isPlaying: Bool { (player?.rate ?? 0) > 0 }
     init(item: PostMedia, context: ReaderContext, playbackKey: String) {
         self.item = item; self.context = context; self.playbackKey = playbackKey; selectedURL = context.playbackState(playbackKey)?.selectedHandle ?? Self.initialURL(item, context: context); selectedSpeed = Float(context.playbackState(playbackKey)?.speed ?? context.preferences.number("video.defaultSpeed")); selectedMuted = context.playbackState(playbackKey)?.muted; selectedLoop = context.playbackState(playbackKey)?.loopPlayback ?? context.preferences.bool("video.loop"); savedPosition = context.position(playbackKey); manuallyPaused = context.isPaused(playbackKey); super.init(frame: .zero)
-        backgroundColor = .black; layer.cornerRadius = 12; clipsToBounds = true
+        backgroundColor = ReaderTheme.mediaBackground(context.preferences); layer.cornerRadius = 12; clipsToBounds = true
         heightAnchor.constraint(equalTo: widthAnchor, multiplier: min(1.3, max(0.5, CGFloat(item.height ?? 9) / CGFloat(max(1, item.width ?? 16))))).isActive = true
         poster.contentMode = .scaleAspectFit; addSubview(poster); poster.pin(to: self); poster.load(item.previewUrl, services: context.services)
         playerLayer.videoGravity = .resizeAspect; layer.addSublayer(playerLayer)
@@ -272,7 +309,7 @@ final class InlinePlayerView: UIView {
         settings.menu = UIMenu(children: [UIMenu(title: L10n.text("speed"), children: speeds), UIMenu(title: L10n.text("quality"), children: qualities)])
         let controls = UIStackView(arrangedSubviews: [button, settings, full]); controls.spacing = 12; controls.backgroundColor = UIColor.black.withAlphaComponent(0.55); controls.translatesAutoresizingMaskIntoConstraints = false; addSubview(controls)
         NSLayoutConstraint.activate([controls.leadingAnchor.constraint(equalTo: leadingAnchor), controls.trailingAnchor.constraint(equalTo: trailingAnchor), controls.bottomAnchor.constraint(equalTo: bottomAnchor), controls.heightAnchor.constraint(greaterThanOrEqualToConstant: 44), settings.widthAnchor.constraint(greaterThanOrEqualToConstant: 44), full.widthAnchor.constraint(greaterThanOrEqualToConstant: 44)])
-        notice.translatesAutoresizingMaskIntoConstraints = false; notice.numberOfLines = 0; addSubview(notice); NSLayoutConstraint.activate([notice.topAnchor.constraint(equalTo: topAnchor, constant: 8), notice.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12), notice.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12)])
+        notice.translatesAutoresizingMaskIntoConstraints = false; notice.numberOfLines = 0; notice.backgroundColor = UIColor.black.withAlphaComponent(0.55); addSubview(notice); NSLayoutConstraint.activate([notice.topAnchor.constraint(equalTo: topAnchor, constant: 8), notice.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12), notice.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12)])
     }
     required init?(coder: NSCoder) { fatalError("Use init") }
     private static func initialURL(_ item: PostMedia, context: ReaderContext) -> String {
@@ -334,8 +371,11 @@ final class InlinePlayerView: UIView {
                 if savedPosition > 0 { await next.seek(to: CMTime(seconds: savedPosition, preferredTimescale: 600)) }
                 try Task.checkCancellation()
                 if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
-                endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: next.currentItem, queue: .main) { [weak self] _ in
-                    Task { @MainActor in guard let self, !manuallyPaused, selectedLoop else { return }; player?.seek(to: .zero); player?.playImmediately(atRate: selectedSpeed) }
+                endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: next.currentItem, queue: .main) { [weak self, weak next] _ in
+                    Task { @MainActor [weak self, weak next] in
+                        guard let self, let next, self.player === next, !self.manuallyPaused, self.selectedLoop else { return }
+                        next.seek(to: .zero); next.playImmediately(atRate: self.selectedSpeed)
+                    }
                 }
                 if startPlaying { next.playImmediately(atRate: selectedSpeed) }; button.setTitle(L10n.text(startPlaying ? "pause" : "playVideo"), for: .normal)
             }
@@ -351,19 +391,22 @@ final class InlinePlayerView: UIView {
     private func observe(_ observed: AVPlayer) {
         itemObserver?.invalidate(); statusObserver?.invalidate()
         itemObserver = observed.observe(\.currentItem, options: [.initial, .new]) { [weak self, weak observed] _, _ in
-            Task { @MainActor in guard let self, let observed, player === observed else { return }; observeStatus(observed.currentItem, player: observed) }
+            Task { @MainActor [weak self, weak observed] in
+                guard let self, let observed, self.player === observed else { return }
+                self.observeStatus(observed.currentItem, player: observed)
+            }
         }
     }
     private func observeStatus(_ item: AVPlayerItem?, player observed: AVPlayer) {
         statusObserver?.invalidate(); statusObserver = nil
         guard let item else { return }
         statusObserver = item.observe(\.status, options: [.initial, .new]) { [weak self, weak observed] item, _ in
-            Task { @MainActor in
-                guard let self, let observed, player === observed, observed.currentItem === item else { return }
+            Task { @MainActor [weak self, weak observed, weak item] in
+                guard let self, let observed, let item, self.player === observed, observed.currentItem === item else { return }
                 switch item.status {
-                case .failed: failed = true; notice.text = L10n.text("videoFailed"); button.setTitle(L10n.text("retry"), for: .normal); button.accessibilityLabel = L10n.text("retry"); button.isEnabled = true
-                case .readyToPlay: failed = false; notice.text = nil; button.setTitle(L10n.text(isPlaying ? "pause" : "playVideo"), for: .normal); button.accessibilityLabel = L10n.text(isPlaying ? "pause" : "playVideo")
-                default: notice.text = L10n.text("loading")
+                case .failed: self.failed = true; self.notice.text = L10n.text("videoFailed"); self.button.setTitle(L10n.text("retry"), for: .normal); self.button.accessibilityLabel = L10n.text("retry"); self.button.isEnabled = true
+                case .readyToPlay: self.failed = false; self.notice.text = nil; self.button.setTitle(L10n.text(self.isPlaying ? "pause" : "playVideo"), for: .normal); self.button.accessibilityLabel = L10n.text(self.isPlaying ? "pause" : "playVideo")
+                default: self.notice.text = L10n.text("loading")
                 }
             }
         }

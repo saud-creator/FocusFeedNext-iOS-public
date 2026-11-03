@@ -111,14 +111,14 @@ struct NativeMediaArgs: Decodable {
     private var readyObservation: NSKeyValueObservation?
     private var itemObservation: NSKeyValueObservation?
     private var wasPlaying = false
-    private var selectedSpeed: Float
+    private var playbackRate: Float
     private var looping: Bool
     private var brokerHasRestarted = false
     private var selectedQualityLabel: String?
     var finished: (([String: Any]) -> Void)?
     init(source: String, service: NativeMediaService, args: NativeMediaArgs, owner: UUID) {
         self.source = source; self.service = service; self.args = args; self.owner = owner
-        selectedSpeed = Float(args.speed ?? 1); looping = args.loop ?? true
+        playbackRate = Float(args.speed ?? 1); looping = args.loop ?? true
         selectedQualityLabel = args.items[args.index].variants?.first(where: { $0.url == source })?.label
         super.init(nibName: nil, bundle: nil)
     }
@@ -160,9 +160,9 @@ struct NativeMediaArgs: Decodable {
         let arabic = args.locale == "ar"
         let speeds: [Float] = [0.5, 0.75, 1, 1.25, 1.5, 2]
         let speed = UIMenu(title: arabic ? "السرعة" : "Speed", children: speeds.map { rate in
-            UIAction(title: "\(rate)×", state: rate == selectedSpeed ? .on : .off) { [weak self] _ in
+            UIAction(title: "\(rate)×", state: rate == playbackRate ? .on : .off) { [weak self] _ in
                 guard let self = self else { return }
-                self.selectedSpeed = rate
+                self.playbackRate = rate
                 if (self.player?.rate ?? 0) > 0 { self.player?.rate = rate }
                 self.updateOptions()
             }
@@ -215,12 +215,14 @@ struct NativeMediaArgs: Decodable {
                 service.setFailureHandler(owner:owner) { [weak self] _ in
                     self?.retry.isHidden = false; self?.view.accessibilityIdentifier = "native-video-failed"
                 }
-                if snapshot.position > 0 { await player.seek(to: CMTime(seconds:snapshot.position, preferredTimescale:600)) }
+                if snapshot.position > 0 { try await self.service.seek(player:player, owner:self.owner, position:snapshot.position) }
                 try Task.checkCancellation(); guard loadingID == id else { return }
                 if let observer = self.endObserver { NotificationCenter.default.removeObserver(observer) }
                 self.endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: player.currentItem, queue: .main) { [weak self] _ in
-                    guard let self = self, self.looping, UIApplication.shared.applicationState == .active else { return }
-                    self.player?.seek(to: .zero); self.player?.playImmediately(atRate: self.selectedSpeed)
+                    Task { @MainActor in
+                        guard let self = self, self.looping, UIApplication.shared.applicationState == .active else { return }
+                        self.player?.seek(to: .zero); self.player?.playImmediately(atRate: self.playbackRate)
+                    }
                 }
                 self.itemObservation = player.observe(\.currentItem, options: [.initial, .new]) { [weak self] player, _ in
                     Task { @MainActor in
@@ -234,7 +236,7 @@ struct NativeMediaArgs: Decodable {
                     }
                 }
                 self.updateOptions()
-                if snapshot.playing && UIApplication.shared.applicationState == .active { player.playImmediately(atRate: self.selectedSpeed) }
+                if snapshot.playing && UIApplication.shared.applicationState == .active { player.playImmediately(atRate: self.playbackRate) }
             } catch {
                 guard !Task.isCancelled, loadingID == id else { return }
                 self.retry.isHidden = false; self.view.accessibilityIdentifier = "native-video-failed"
@@ -247,7 +249,7 @@ struct NativeMediaArgs: Decodable {
         let time = player?.currentTime().seconds ?? args.position ?? 0
         return ["index": args.index, "position": time.isFinite ? time : 0,
                 "playing": wasPlaying || (player?.rate ?? 0) > 0 || player?.timeControlStatus == .waitingToPlayAtSpecifiedRate,
-                "speed": Double(selectedSpeed), "muted": player?.isMuted ?? args.muted ?? false,
+                "speed": Double(playbackRate), "muted": player?.isMuted ?? args.muted ?? false,
                 "loop": looping, "source": source]
     }
     override func viewWillDisappear(_ animated: Bool) { wasPlaying = (player?.rate ?? 0) > 0 || player?.timeControlStatus == .waitingToPlayAtSpecifiedRate; super.viewWillDisappear(animated) }

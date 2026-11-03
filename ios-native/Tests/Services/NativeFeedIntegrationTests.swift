@@ -64,6 +64,23 @@ import AVFoundation
         try assertSeparated(controller)
         XCTAssertEqual(controller.view.semanticContentAttribute, .forceRightToLeft)
     }
+    func testRetainedAppearanceSettingsAffectRenderedNativeCardAndMedia() async throws {
+        let service = try FeedFixtureServices(); let context = ReaderContext(services: service)
+        context.preferences = ReaderPreferences(entries: [["density", "compact"], ["appearance.shadow", "strong"], ["appearance.radius", "8"], ["appearance.surface", "#fafafa"], ["appearance.elevated", "#eeeeee"], ["appearance.border", "#224466"], ["appearance.mediaBackground", "#112233"], ["video.autoplay", "off"]])
+        let controller = FeedViewController(context: context); controller.automaticallyLoads = false
+        try host(controller); controller.replacePosts(service.posts); try await settle(controller)
+        let cell = try XCTUnwrap(controller.collection.visibleCells.compactMap { $0 as? PostCell }.first { $0.representedPostID == service.posts.first?.id })
+        XCTAssertEqual(cell.contentView.backgroundColor, ReaderTheme.color("#fafafa"))
+        XCTAssertEqual(cell.contentView.layer.cornerRadius, 14)
+        XCTAssertGreaterThan(cell.contentView.layer.shadowOpacity, 0.1)
+        XCTAssertEqual(UIColor(cgColor: try XCTUnwrap(cell.contentView.layer.borderColor)), ReaderTheme.color("#224466"))
+        let stack = try XCTUnwrap(cell.contentView.subviews.compactMap { $0 as? UIStackView }.first)
+        XCTAssertEqual(stack.spacing, 8)
+        func photo(in root: UIView) -> PhotoTile? { if let tile = root as? PhotoTile { return tile }; for child in root.subviews { if let tile = photo(in: child) { return tile } }; return nil }
+        let tile = try XCTUnwrap(photo(in: cell)); XCTAssertEqual(tile.backgroundColor, ReaderTheme.color("#112233"))
+        context.preferences.set("appearance.shadow", "none"); cell.updateAppearance(context.preferences)
+        XCTAssertEqual(cell.contentView.layer.shadowOpacity, 0)
+    }
     func testFailedRefreshKeepsLoadedPostsAndReadingAnchor() async throws {
         let service = try FeedFixtureServices(); let context = ReaderContext(services: service)
         context.preferences.set("video.autoplay", "off")
@@ -145,6 +162,46 @@ import AVFoundation
         XCTAssertEqual(context.timelines.state("bookmarks").posts.count, 80)
         XCTAssertEqual(controller.state.nextCachedOffset, 80)
         XCTAssertFalse(controller.state.exhausted, "Trimming bodies must leave later cached bookmarks reachable.")
+    }
+    func testEarlierListWindowUsesListCacheAndPreservesMemberProgress() async throws {
+        let service = try FeedFixtureServices(count: 400); let context = ReaderContext(services: service)
+        var window = TimelineRepository.State()
+        window.posts = Array(service.posts[160..<320]); window.windowStart = 160
+        window.groupOffset = 7; window.groupComplete = false
+        context.timelines.retainWorkingSet("group:fixture-list", window)
+        let earlier = try await context.timelines.earlier("group:fixture-list")
+        XCTAssertEqual(service.groupCacheOffsets, [80])
+        XCTAssertEqual(earlier.windowStart, 80)
+        XCTAssertEqual(earlier.posts.first?.id, service.posts[80].id)
+        XCTAssertEqual(earlier.posts.last?.id, service.posts[319].id)
+        XCTAssertEqual(earlier.groupOffset, 7, "Revisiting cached rows must not advance member traversal.")
+        XCTAssertFalse(earlier.groupComplete)
+    }
+    func testSearchCanRevisitEarlierResultsAfterItsWorkingWindowIsTrimmed() async throws {
+        let service = try FeedFixtureServices(count: 500); let context = ReaderContext(services: service)
+        context.preferences.set("video.autoplay", "off")
+        let controller = SearchViewController(context: context)
+        try host(controller)
+        let search = try XCTUnwrap(controller.navigationItem.searchController)
+        search.searchBar.text = "fixture"; controller.updateSearchResults(for: search)
+        try await Task.sleep(nanoseconds: 230_000_000); try await settle(controller)
+        for _ in 0..<4 {
+            let last = max(0, controller.posts.count - 1)
+            controller.collectionView(controller.collection, willDisplay: UICollectionViewCell(frame: .zero), forItemAt: IndexPath(item: last, section: 0))
+            try await settle(controller)
+        }
+        XCTAssertLessThanOrEqual(controller.posts.count, 300)
+        XCTAssertNotEqual(controller.posts.first?.id, service.posts.first?.id, "The fixture must have crossed the bounded working window.")
+        let requestsBefore = service.searchOffsets.count
+        for _ in 0..<5 {
+            controller.collection.setContentOffset(CGPoint(x: 0, y: -controller.collection.adjustedContentInset.top), animated: false)
+            controller.loadEarlierIfNeeded(); try await settle(controller)
+            if controller.posts.first?.id == service.posts.first?.id { break }
+        }
+        XCTAssertGreaterThan(service.searchOffsets.count, requestsBefore)
+        XCTAssertEqual(controller.posts.first?.id, service.posts.first?.id, "A memory budget must not become a search-result ceiling.")
+        XCTAssertLessThanOrEqual(controller.posts.count, 300)
+        XCTAssertEqual(Set(controller.posts.map(\.id)).count, controller.posts.count)
     }
     func testResumeDestinationsSeparateSharedFeedsAndExcludeSearchAndComments() throws {
         let service = try FeedFixtureServices(); let context = ReaderContext(services:service)
@@ -245,6 +302,8 @@ import AVFoundation
     var speculativeOnlyHandles = Set<String>()
     var speculationThroughVisibleLoader = 0
     var failRefresh = false
+    var groupCacheOffsets: [Int] = []
+    var searchOffsets: [Int] = []
     init(count: Int = 8) throws {
         let author: [String: Any] = ["id":"45", "username":"fixture_reader", "displayName":"قارئ الاختبار", "verified":false]
         let metrics: [String: Any] = ["replies":0, "reposts":0, "likes":0, "quotes":0, "views":0, "bookmarks":0]
@@ -259,6 +318,18 @@ import AVFoundation
             if failRefresh { throw AppServiceError(code:"fixture_failure", message:"Controlled fixture refresh failure", retryable:true) }
             return try JSONEncoder().encode(FeedResponse(posts:posts, fromCache:false, provider:"fixture", lastSync:nil, readIds:[], totalCached:posts.count, nextCursor:nil))
         case .cachedFeed: return try JSONEncoder().encode(FeedResponse(posts:posts, fromCache:true, provider:"fixture", lastSync:nil, readIds:[], totalCached:posts.count, nextCursor:nil))
+        case .groupFeed:
+            let offset: Int
+            if case .number(let value)? = request.args["offset"] { offset = Int(value) } else { offset = 0 }
+            groupCacheOffsets.append(offset)
+            let page = Array(posts.dropFirst(offset).prefix(80))
+            return try JSONEncoder().encode(GroupFeedResponse(posts: page, fromCache: true, provider: "fixture", lastSync: nil, readIds: [], totalCached: posts.count, nextCursor: nil, failures: [], nextOffset: offset + page.count < posts.count ? offset + page.count : nil, memberCount: 10, loadedAccounts: 7, nextMemberOffset: 7))
+        case .searchCachedPosts:
+            let offset: Int
+            if case .number(let value)? = request.args["offset"] { offset = Int(value) } else { offset = 0 }
+            searchOffsets.append(offset)
+            let page = Array(posts.dropFirst(offset).prefix(80))
+            return try JSONEncoder().encode(SearchResponse(posts: page, readIds: [], nextOffset: offset + page.count < posts.count ? offset + page.count : nil))
         case .setRead, .hidePost: return Data("null".utf8)
         case .resumeState: return Data("null".utf8)
         default: throw AppServiceError(code:"fixture_unexpected_operation", message:"The fixture does not implement this operation.")

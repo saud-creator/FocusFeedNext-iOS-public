@@ -2,6 +2,43 @@ import Foundation
 
 enum NativeRecoveryError: Error { case timeout }
 
+/// Adapts a callback API whose completion may race cancellation or never arrive.
+/// Cancellation settles Swift immediately and separately stops the owned native
+/// operation. A late callback cannot settle another continuation or newer work.
+@MainActor final class NativeCallbackOperation<Value> {
+    private var continuation: CheckedContinuation<Value, Error>?
+    private var cancelWork: (() -> Void)?
+    private var settled = false
+
+    func run(start: @escaping (@escaping (Result<Value, Error>) -> Void) -> Void,
+             cancel: @escaping () -> Void) async throws -> Value {
+        let result: Value = try await withTaskCancellationHandler(operation: {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                guard !settled else { continuation.resume(throwing: CancellationError()); return }
+                self.continuation = continuation; self.cancelWork = cancel
+                start { [weak self] result in
+                    Task { @MainActor in self?.finish(result) }
+                }
+            }
+        }, onCancel: { Task { @MainActor in self.cancel() } })
+        try Task.checkCancellation()
+        return result
+    }
+    func cancel() {
+        guard !settled else { return }
+        let cancel = cancelWork
+        finish(.failure(CancellationError()))
+        cancel?()
+    }
+    private func finish(_ result: Result<Value, Error>) {
+        guard !settled else { return }; settled = true
+        let continuation = self.continuation
+        self.continuation = nil; cancelWork = nil
+        continuation?.resume(with: result)
+    }
+}
+
 /// A bounded async result. Expiry settles the caller immediately, explicitly
 /// cancels underlying work, and refuses late completion. It never replays writes.
 @MainActor final class NativeActiveDeadline<Value> {
@@ -17,7 +54,7 @@ enum NativeRecoveryError: Error { case timeout }
         self.active = active
     }
     func run(_ operation: @escaping () async throws -> Value) async throws -> Value {
-        try await withTaskCancellationHandler(operation: {
+        let result: Value = try await withTaskCancellationHandler(operation: {
             try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 guard !settled else { continuation.resume(throwing: CancellationError()); return }
@@ -37,6 +74,8 @@ enum NativeRecoveryError: Error { case timeout }
                 }
             }
         }, onCancel: { Task { @MainActor in self.cancel() } })
+        try Task.checkCancellation()
+        return result
     }
     func cancel() { finish(.failure(CancellationError())) }
     private func finish(_ result: Result<Value, Error>) {

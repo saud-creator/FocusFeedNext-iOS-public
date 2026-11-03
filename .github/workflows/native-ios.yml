@@ -100,3 +100,4 @@ jobs:
             ios-native/.build/*.xcresult
             ios-native/Resources/BuildProvenance.json
           retention-days: 30
+          include-hidden-files: true

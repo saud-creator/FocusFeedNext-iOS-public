@@ -12,6 +12,10 @@ be used to assert physical acceptance without the associated device report.
   ownership after dispatch, and late-cancelled account-transition acknowledgements.
   List regressions also cover per-member provider cursors, members no longer
   followed, and ordered navigation after post-body eviction.
+- The 3 November continuation passed 159 core unit tests and 14 integration
+  tests after adding anchored bookmark rehydration and migration rollback/WAL
+  backup regressions. The separate FFI test also passed before that core-only
+  batch. The final backup-cleanup refinement passed its focused regression.
 - Shared desktop: lint/build completed and 652 tests in 51 files passed. Existing
   lint warnings remain; the native target does not package that renderer.
 - FFI: compiled successfully with UniFFI exactly 0.32.1; generated Swift API
@@ -32,6 +36,12 @@ be used to assert physical acceptance without the associated device report.
   then identified explicit member captures in filter-preset tasks; those are
   corrected in the following batch. Linked UIKit tests and IPA creation remain
   unqualified until their own stages pass.
+- Run `41182223815` passed 435 Foundation assertions and reached UIKit type
+  checking. It found inherited UIKit/AVKit name collisions in the photo tile,
+  profile tab and native playback rate, plus explicit capture errors in inline
+  playback callbacks. The continuation corrects these and adds test-module
+  type checking before optimized Rust slice builds. That source still requires
+  its own successful cloud run; the failed run produced no IPA.
 - Full UIKit compilation, linked Swift/bridge/UI tests and the Xcode archive:
   pending a successful macOS workflow. The previous failed run produced no IPA.
 - Signed upgrade, live-provider recovery and measured device performance:

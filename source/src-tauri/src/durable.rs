@@ -194,9 +194,12 @@ impl Durable {
 
     fn migrate(&self) -> AppResult<()> {
         let conn = self.conn.lock().unwrap();
-        conn.execute_batch(
+        // Validate the complete migrated schema before any DDL is committed.
+        // A failed upgrade leaves the existing source database unchanged.
+        conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+        let tx = conn.unchecked_transaction()?;
+        tx.execute_batch(
             r#"
-            BEGIN IMMEDIATE;
             CREATE TABLE IF NOT EXISTS preferences (
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL
@@ -230,10 +233,8 @@ impl Durable {
                     REFERENCES account_lists(account_id, list_id)
                     ON DELETE CASCADE
             );
-            COMMIT;
             "#,
         )?;
-        conn.execute_batch("PRAGMA foreign_keys = ON;")?;
         // Existing tables are not repaired by CREATE IF NOT EXISTS. Refuse an
         // incompatible schema instead of silently starting with missing data.
         for sql in [
@@ -241,11 +242,12 @@ impl Durable {
             "SELECT id,username,display_name,avatar_url,provider,last_state FROM account_identity LIMIT 0",
             "SELECT account_id,list_id,name,color,created_at FROM account_lists LIMIT 0",
             "SELECT account_id,list_id,author_id FROM account_list_members LIMIT 0",
-        ] { conn.prepare(sql)?; }
-        let invalid_members: bool = conn.query_row(
+        ] { tx.prepare(sql)?; }
+        let invalid_members: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM account_list_members m LEFT JOIN account_lists l ON l.account_id=m.account_id AND l.list_id=m.list_id WHERE l.list_id IS NULL)",
             [], |row| row.get(0))?;
         if invalid_members { return Err(AppError::database("Local list relationships could not be verified. Original data was preserved.")); }
+        tx.commit()?;
         Ok(())
     }
 
@@ -803,4 +805,18 @@ mod tests {
             ]
         );
     }
+    #[test]
+    fn failed_schema_validation_rolls_back_every_migration_table() {
+        let conn=Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE preferences(wrong_column TEXT); INSERT INTO preferences VALUES('preserve'); CREATE TABLE unrelated(value TEXT); INSERT INTO unrelated VALUES('owner');").unwrap();
+        let durable=Durable{conn:Mutex::new(conn)};
+        assert!(durable.migrate().is_err());
+        let conn=durable.conn.lock().unwrap();
+        let tables:Vec<String>={let mut statement=conn.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").unwrap();statement.query_map([],|row|row.get(0)).unwrap().collect::<Result<_,_>>().unwrap()};
+        assert_eq!(tables,vec!["preferences","unrelated"]);
+        assert_eq!(conn.query_row("SELECT wrong_column FROM preferences",[],|row|row.get::<_,String>(0)).unwrap(),"preserve");
+        assert_eq!(conn.query_row("SELECT value FROM unrelated",[],|row|row.get::<_,String>(0)).unwrap(),"owner");
+        assert!(conn.is_autocommit());
+    }
+
 }

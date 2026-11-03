@@ -817,27 +817,7 @@ impl CoreEngine {
                 limit(a),
                 true,
             ),
-            GetBookmarkSlice => {
-                let request: BookmarkSliceRequest = decode(a.get("request").unwrap_or(a))?;
-                let mut slice =
-                    self.db
-                        .load_bookmark_slice(&filters(a)?, &request, s.bookmark_complete)?;
-                for post in &mut slice.posts {
-                    *post = self.safe_post(s, post);
-                }
-                let missing = s
-                    .indices
-                    .get("bookmarks")
-                    .into_iter()
-                    .flatten()
-                    .filter(|id| !s.resident.contains_key(*id))
-                    .cloned()
-                    .collect::<Vec<_>>();
-                let mut value = serde_json::to_value(slice).map_err(|_| CoreError::invalid())?;
-                value["totalDiscovered"] = json!(s.indices.get("bookmarks").map_or(0, Vec::len));
-                value["missingPostIds"] = json!(missing.into_iter().take(80).collect::<Vec<_>>());
-                Ok(value)
-            }
+            GetBookmarkSlice => self.bookmark_value(s, a),
             GetProfile => {
                 let username = text(a, "username")?;
                 let id = self.db.author_id_for_username(username)?;
@@ -1244,6 +1224,53 @@ impl CoreEngine {
             "loadedAccounts":loaded_accounts,"memberPages":member_pages,
             "nextMemberPageOffset":(member_end<list.member_ids.len()).then_some(member_end),
             "providerHasMore":provider_has_more,"unknownMemberIds":unknown_member_ids,
+        }))
+    }
+    fn bookmark_value(&self, s: &EngineState, args: &Value) -> Result<Value, CoreError> {
+        let request: BookmarkSliceRequest = decode(args.get("request").unwrap_or(args))?;
+        let filters = filters(args)?;
+        let ids = s.indices.get("bookmarks").map(Vec::as_slice).unwrap_or(&[]);
+        let total = ids.len() as i64;
+        let backwards = matches!(request.direction, BookmarkDirection::Older | BookmarkDirection::Newest);
+        let target = request.limit.clamp(1, 80) as usize;
+        let mut position = if backwards {
+            request.anchor_position.unwrap_or(total).clamp(0, total) - 1
+        } else {
+            request.anchor_position.unwrap_or(-1).clamp(-1, total - 1) + 1
+        };
+        let mut selected: Vec<(i64, String, Option<Post>)> = Vec::new();
+        while position >= 0 && position < total && selected.len() < target {
+            let id = &ids[position as usize];
+            // Filters that do not need the body can skip an evicted row before
+            // requesting it. Other filters are applied after rehydration.
+            if !self.db.is_hidden(id)?
+                && (!(filters.hide_read || filters.unread_only) || !self.db.is_read(id)?)
+            {
+                match self.db.get_post(id)? {
+                    Some(post) => {
+                        if let Some(post) = self.db.filter_feed_page(vec![post], &filters, 1)?.pop() {
+                            selected.push((position, id.clone(), Some(post)));
+                        }
+                    }
+                    None => selected.push((position, id.clone(), None)),
+                }
+            }
+            position += if backwards { -1 } else { 1 };
+        }
+        if backwards { selected.reverse(); }
+        let first = selected.first().map(|(position, _, _)| *position);
+        let last = selected.last().map(|(position, _, _)| *position);
+        let posts: Vec<Post> = selected.iter().filter_map(|(_, _, post)| post.clone()).collect();
+        let missing: Vec<_> = selected.iter().filter(|(_, _, post)| post.is_none())
+            .map(|(_, id, _)| id.clone()).collect();
+        let read_ids = self.db.read_ids_for_posts(&posts)?;
+        Ok(json!({
+            "posts": posts.iter().map(|post|self.safe_post(s,post)).collect::<Vec<_>>(),
+            "readIds": read_ids, "missingPostIds": missing,
+            "firstPosition": first, "lastPosition": last,
+            "totalDiscovered": total, "syncComplete": s.bookmark_complete,
+            "hasOlder": first.is_some_and(|position| position > 0),
+            "hasNewer": last.is_some_and(|position| position + 1 < total),
         }))
     }
     fn feed_value(
@@ -1702,4 +1729,45 @@ mod probe_tests {
         probe.join().unwrap();
         upstream.join().unwrap();
     }
+    #[test]
+    fn bookmark_windows_rehydrate_only_the_requested_index_range() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = CoreEngine::open(directory.path()).unwrap();
+        let request = |op, args: Value, generation| CoreRequest {
+            request_id: format!("window-{op:?}-{}", now()), account_generation:generation,
+            source_revision:0, deadline_millis:now()+30_000,priority:1,operation:op,arguments_json:args.to_string(),
+        };
+        core.execute(request(CoreOperation::SetAccount,json!({"account":{"id":"1","username":"owner","displayName":"Owner"}}),1)).unwrap();
+        let posts: Vec<Value> = (0..10).map(|index|json!({"id":(100+index).to_string(),"text":"Content","author":{"id":"2","username":"reader","displayName":"Reader"},"createdAt":"2026-10-30T08:00:00Z","media":[],"provider":"ios-direct"})).collect();
+        core.execute(request(CoreOperation::IngestFeed,json!({"feed":"bookmarks","body":{"posts":posts,"cursor":"older","fetchedAt":"2026-10-30T08:00:00Z","provider":"ios-direct","fromCache":false}}),1)).unwrap();
+        // Exercise the real payload eviction primitive while retaining every
+        // membership, cursor, read and hidden index, as memory pressure does.
+        let evicted = vec!["100".to_string(),"104".to_string(),"108".to_string()];
+        core.db.evict_native_payloads(&evicted).unwrap();
+        { let mut state=core.state.lock().unwrap();for id in &evicted {let cost=state.resident.remove(id).unwrap();state.payload_bytes-=cost;} }
+        let read = |direction:&str, anchor:Option<i64>| -> Value {
+            serde_json::from_str(&core.execute(request(CoreOperation::GetBookmarkSlice,json!({"request":{"direction":direction,"anchorPosition":anchor,"limit":2}}),1)).unwrap()).unwrap()
+        };
+        let newest=read("newest",None);
+        assert_eq!(newest["missingPostIds"],json!(["108"]));
+        assert_eq!(newest["posts"][0]["id"],"109");
+        assert_eq!(newest["firstPosition"],8);assert_eq!(newest["lastPosition"],9);
+        let middle=read("older",Some(8));
+        assert_eq!(middle["missingPostIds"],json!([]));
+        assert_eq!(middle["posts"].as_array().unwrap().iter().map(|p|p["id"].as_str().unwrap()).collect::<Vec<_>>(),vec!["106","107"]);
+        let oldest=read("oldest",None);
+        assert_eq!(oldest["missingPostIds"],json!(["100"]));
+        assert_eq!(oldest["firstPosition"],0);assert_eq!(oldest["lastPosition"],1);
+        assert_eq!(oldest["hasOlder"],false);assert_eq!(oldest["hasNewer"],true);
+        let newer=read("newer",Some(3));
+        assert_eq!(newer["missingPostIds"],json!(["104"]));
+        assert_eq!(newer["firstPosition"],4);assert_eq!(newer["lastPosition"],5);
+        core.db.hide_post("104").unwrap();
+        let hidden=read("newer",Some(3));
+        assert_eq!(hidden["missingPostIds"],json!([]));
+        assert_eq!(hidden["firstPosition"],5);assert_eq!(hidden["lastPosition"],6);
+        assert_eq!(hidden["totalDiscovered"],10);
+        assert_eq!(core.db.cursor("bookmarks").unwrap().as_deref(),Some("older"));
+    }
+
 }

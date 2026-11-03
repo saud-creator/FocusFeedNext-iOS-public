@@ -18,6 +18,7 @@ final class ReaderNativeUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(signIn.frame.height, 44)
         XCTAssertEqual(app.tabBars.count, 0)
         XCTAssertEqual(app.webViews.count, 0, "The private provider engine must not be exposed to accessibility.")
+        capture("native-welcome")
     }
     func testSettingsNavigationAndPreferenceDraftCancel() throws {
         let app = launch()
@@ -36,6 +37,7 @@ final class ReaderNativeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["welcome.signIn"].waitForExistence(timeout: 5))
         settings.tap(); app.cells["settings.appearance"].tap()
         XCTAssertTrue(app.cells["setting.density"].staticTexts["Comfortable"].exists, "Discard must not persist the draft.")
+        capture("native-settings-appearance")
     }
     func testArabicAccessibilityTextKeepsPrimaryActionsReachable() throws {
         let app = launch(language: "ar", largeText: true)
@@ -47,8 +49,14 @@ final class ReaderNativeUITests: XCTestCase {
         XCTAssertTrue(app.cells["settings.account"].waitForExistence(timeout: 5))
         app.cells["settings.account"].tap()
         XCTAssertTrue(app.staticTexts["تسجيل الدخول إلى X"].waitForExistence(timeout: 5))
+        capture("native-arabic-accessibility-portrait")
         XCUIDevice.shared.orientation = .landscapeLeft
         XCTAssertTrue(app.navigationBars.buttons["حفظ"].isHittable)
+        capture("native-arabic-accessibility-landscape")
         XCUIDevice.shared.orientation = .portrait
+    }
+    private func capture(_ name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
 }

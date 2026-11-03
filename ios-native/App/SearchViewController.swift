@@ -84,6 +84,36 @@ final class SearchViewController: FeedViewController, UISearchResultsUpdating {
     }
     override func refreshTapped() { requestRevision &+= 1; loading = false; loaded = []; readIDs = []; offset = 0; windowStart = 0; Task { await loadSearch() } }
     override func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) { super.collectionView(collectionView, willDisplay: cell, forItemAt: indexPath); if indexPath.item >= posts.count - 5 { Task { await loadSearch() } } }
+    /// The result window is bounded, but earlier matching posts remain reachable.
+    /// The same stable search offset reloads them without a remote X request.
+    override func loadEarlierIfNeeded() {
+        guard !query.isEmpty, windowStart > 0, !loading, collection.contentOffset.y < 120 else { return }
+        loading = true
+        let start = max(0, windowStart - 80); let expected = query; let revision = requestRevision; let anchor = firstAnchor()
+        work = Task { [weak self] in
+            guard let self else { return }
+            defer { if self.requestRevision == revision { self.loading = false } }
+            do {
+                let response: SearchResponse = try await self.context.services.call(.searchCachedPosts, ["query": .string(expected), "offset": .number(Double(start))])
+                guard !Task.isCancelled, self.requestRevision == revision, self.query == expected else { return }
+                let known = Set(self.loaded.map(\.id))
+                self.loaded = response.posts.filter { !known.contains($0.id) } + self.loaded
+                self.windowStart = start
+                if self.loaded.count > 300 { self.loaded = Array(self.loaded.prefix(300)); self.offset = start + self.loaded.count }
+                let retained = Set(self.loaded.map(\.id))
+                self.readIDs = Array(Set(self.readIDs).union(response.readIds)).filter { retained.contains($0) }
+                for (id, read) in self.localReadOverrides {
+                    if read, retained.contains(id), !self.readIDs.contains(id) { self.readIDs.append(id) }
+                    else if !read { self.readIDs.removeAll { $0 == id } }
+                }
+                self.replacePosts(self.loaded, readIDs: self.readIDs); self.restore(anchor); self.showSearchState()
+            } catch {
+                if !(error is CancellationError), self.requestRevision == revision {
+                    self.notice.show(error.localizedDescription, retry: { [weak self] in self?.loadEarlierIfNeeded() })
+                }
+            }
+        }
+    }
     @objc private func searchFilters() {
         let editor = SearchFiltersViewController(context: context, author: author, since: since, filters: filters) { [weak self] author, since, filters in
             guard let self else { return }; self.author = author; self.since = since; self.filters = filters

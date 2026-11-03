@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 @testable import FocusFeedNextNative
 
 /// Local fixture tests only: no provider request or persistent account state.
@@ -31,6 +32,27 @@ import XCTest
         XCTAssertTrue(collapsed.contains("\n\n")); XCTAssertTrue(collapsed.contains("👨‍👩‍👧‍👦"))
         XCTAssertFalse(collapsed.contains("https://"))
     }
+    func testSelfPermalinkRemovalUsesExactPostIdentityAndPreservesOtherURLs() throws {
+        let own = try XCTUnwrap(URL(string: "https://x.com/Reader/status/123"))
+        let otherURLs = [
+            "https://x.com/reader/status/12345", "https://x.com/another/status/123",
+            "https://x.com/reader/status/123/analytics", "https://x.com/reader/status/123abc",
+            "https://x.com/reader/status/00123", "https://example.test/reader/status/123",
+            "https://example.test/?next=https://x.com/reader/status/123", "https://x.com/reader/status/124?quote=123"
+        ]
+        let text = otherURLs.joined(separator: "\n\n")
+        XCTAssertEqual(ReaderPostText.removingSelfPermalink(from: text, canonicalURL: own), text)
+        for alias in ["https://x.com/reader/status/123", "https://twitter.com/READER/status/123?ref=feed#context", "https://www.x.com/Reader/status/123/", "http://www.twitter.com/reader/status/123"] {
+            XCTAssertEqual(ReaderPostText.removingSelfPermalink(from: "Before\n\n\(alias)\n\nAfter", canonicalURL: own), "Before\n\n\n\nAfter")
+        }
+    }
+    func testSelfPermalinkRemovalKeepsAuthoredPunctuationAndParagraphBreaks() throws {
+        let own = try XCTUnwrap(URL(string: "https://x.com/reader/status/123"))
+        let text = "First paragraph 👨‍👩‍👧‍👦.\n\nSecond paragraph (https://twitter.com/reader/status/123?ref=app).\n\nhttps://example.test/article."
+        let expected = "First paragraph 👨‍👩‍👧‍👦.\n\nSecond paragraph ().\n\nhttps://example.test/article."
+        XCTAssertEqual(ReaderPostText.removingSelfPermalink(from: text, canonicalURL: own), expected)
+        XCTAssertEqual(ReaderPostText.removingSelfPermalink(from: text, canonicalURL: nil), text)
+    }
     func testPostModelDecodesCanonicalCoreShapeAndCommentFilterIsExplicit() throws {
         let json = #"{"id":"123","text":"A reply","author":{"id":"45","username":"reader","displayName":"Reader","verified":false},"createdAt":"2026-10-30T10:00:00Z","isRepost":false,"isPromoted":false,"metrics":{"replies":0,"reposts":0,"likes":0,"quotes":0,"views":0,"bookmarks":0},"media":[],"isArticle":false,"inReplyTo":"122","provider":"ios-direct"}"#
         let reply = try JSONDecoder().decode(Post.self, from: Data(json.utf8))
@@ -47,5 +69,15 @@ import XCTest
         let page = try JSONDecoder().decode(FeedResponse.self, from: Data(json.utf8))
         XCTAssertEqual(page.nextOffset, 80); XCTAssertEqual(page.missingPostIds, ["124"])
         XCTAssertEqual(page.totalCached, 400); XCTAssertNil(page.nextCursor)
+    }
+    func testContrastPreferenceChangesSemanticTextAndAcceptsPortableShortHex() throws {
+        let background = try XCTUnwrap(ReaderTheme.color("#abcdef"))
+        XCTAssertEqual(ReaderTheme.color("#abc"), background, "Accepted portable short colors must render, not silently fall back.")
+        var low = ReaderPreferences(entries: [["appearance.surface", "#f0f0f0"], ["appearance.textContrast", "0"]])
+        let lowRatio = ReaderTheme.contrastRatio(ReaderTheme.text(low), ReaderTheme.surface(low), traits: UITraitCollection(userInterfaceStyle: .light))
+        low.set("appearance.textContrast", "100")
+        let highRatio = ReaderTheme.contrastRatio(ReaderTheme.text(low), ReaderTheme.surface(low), traits: UITraitCollection(userInterfaceStyle: .light))
+        XCTAssertGreaterThan(highRatio, lowRatio)
+        XCTAssertGreaterThanOrEqual(highRatio, 4.5)
     }
 }

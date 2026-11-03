@@ -748,7 +748,7 @@ private final class LoginController: UIViewController, UIAdaptivePresentationCon
                 self.connectionTimings.removeAll()
                 self.transportEpoch &+= 1; self.transportNavigation = nil
                 self.browser.stopLoading(); self.loading = false; self.needsReload = true
-                self.browser.configuration.websiteDataStore.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast, completionHandler: install)
+                self.browser.configuration.websiteDataStore.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast, completionHandler: { install() })
             } else { install() }
         }
         drainCookies()

@@ -8,8 +8,21 @@ extension UIView {
     }
 }
 @MainActor func readerLabel(_ text: String = "", style: UIFont.TextStyle = .body, color: UIColor = .label) -> UILabel {
-    let label = UILabel(); label.text = text; label.font = .preferredFont(forTextStyle: style); label.adjustsFontForContentSizeCategory = true; label.numberOfLines = 0; label.textColor = color
+    let label = ReaderLabel(style: style, color: color); label.text = text
     return label
+}
+final class ReaderLabel: UILabel {
+    private let readerStyle: UIFont.TextStyle
+    private let originalColor: UIColor
+    var backgroundOverride: UIColor?
+    init(style: UIFont.TextStyle, color: UIColor) { readerStyle = style; originalColor = color; super.init(frame: .zero); adjustsFontForContentSizeCategory = true; numberOfLines = 0; updateAppearance(ReaderTheme.currentPreferences) }
+    required init?(coder: NSCoder) { fatalError("Use init") }
+    func updateAppearance(_ preferences: ReaderPreferences) {
+        font = ReaderTheme.font(readerStyle, preferences: preferences)
+        if originalColor == .label { textColor = ReaderTheme.text(preferences, on: backgroundOverride) }
+        else if originalColor == .secondaryLabel { textColor = ReaderTheme.text(preferences, secondary: true, on: backgroundOverride) }
+        else { textColor = originalColor }
+    }
 }
 @MainActor func readerButton(_ title: String, symbol: String? = nil, action: @escaping () -> Void) -> UIButton {
     var config = UIButton.Configuration.plain(); config.title = title; config.image = symbol.flatMap(UIImage.init(systemName:)); config.imagePadding = 7; config.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
@@ -26,6 +39,7 @@ extension UIView {
         super.viewDidLoad(); ReaderTheme.apply(context.preferences, to: self)
         NotificationCenter.default.addObserver(self, selector:#selector(recoverScreenImages), name:.readerMediaRecoveryOpportunity, object:context)
     }
+    override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); ReaderTheme.apply(context.preferences, to: self) }
     @objc private func recoverScreenImages() { if let root = viewIfLoaded { recoverVisibleImages(in:root) } }
     /// The service owns retry budgets. Screens only report eligible images in
     /// the visible viewport; collection cells use the feed's existing path.
@@ -97,8 +111,9 @@ final class NoticeView: UIStackView {
 }
 
 final class ReaderTableCell: UITableViewCell {
-    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) { super.init(style: .subtitle, reuseIdentifier: reuseIdentifier); textLabel?.numberOfLines = 0; textLabel?.adjustsFontForContentSizeCategory = true; detailTextLabel?.numberOfLines = 0; detailTextLabel?.adjustsFontForContentSizeCategory = true }
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) { super.init(style: .subtitle, reuseIdentifier: reuseIdentifier); textLabel?.numberOfLines = 0; textLabel?.adjustsFontForContentSizeCategory = true; detailTextLabel?.numberOfLines = 0; detailTextLabel?.adjustsFontForContentSizeCategory = true; updateAppearance(ReaderTheme.currentPreferences) }
     required init?(coder: NSCoder) { fatalError("Use init") }
+    func updateAppearance(_ preferences: ReaderPreferences) { backgroundColor = ReaderTheme.surface(preferences); textLabel?.font = ReaderTheme.font(.body, preferences: preferences); detailTextLabel?.font = ReaderTheme.font(.subheadline, preferences: preferences); textLabel?.textColor = ReaderTheme.text(preferences); detailTextLabel?.textColor = ReaderTheme.text(preferences, secondary: true) }
 }
 
 /// Per-view image ownership prevents a recycled cell accepting another post's late image.

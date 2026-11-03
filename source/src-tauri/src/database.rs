@@ -100,6 +100,13 @@ impl Db {
         Ok(())
     }
 
+    /// Hiding is indexed separately from payload residency, so an evicted
+    /// hidden bookmark never triggers unnecessary provider rehydration.
+    pub fn is_hidden(&self, id: &str) -> AppResult<bool> {
+        Ok(self.conn.lock().unwrap().query_row(
+            "SELECT EXISTS(SELECT 1 FROM hidden_posts WHERE post_id=?1)", [id], |row| row.get(0))?)
+    }
+
     pub fn open(path: &Path) -> AppResult<Self> {
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);

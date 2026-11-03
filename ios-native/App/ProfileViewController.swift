@@ -6,7 +6,7 @@ final class ProfileViewController: FeedViewController {
     private let profileNotice = NoticeView()
     private var detailsTask: Task<Void, Never>?
     private var author: Author?
-    private var tab = 0
+    private var selectedProfileTab = 0
     private var mediaKind = 0
     init(context: ReaderContext, username: String) { self.username = username; super.init(context: context, route: .following, source: "user:\(username)") }
     required init?(coder: NSCoder) { fatalError("Use context") }
@@ -34,13 +34,13 @@ final class ProfileViewController: FeedViewController {
         } else { identity.addArrangedSubview(readerLabel("@\(username)", style: .title2)) }
         identity.addArrangedSubview(profileNotice)
         identity.addArrangedSubview(readerButton(L10n.text("refreshDetails"), symbol: "arrow.clockwise") { [weak self] in self?.fetchDetails(refresh: true) })
-        let tabs = UISegmentedControl(items: [L10n.text("posts"), L10n.text("originals"), L10n.text("media")]); tabs.selectedSegmentIndex = tab; tabs.addTarget(self, action: #selector(changeTab(_:)), for: .valueChanged); tabs.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true; identity.addArrangedSubview(tabs)
-        if tab == 2 { let kinds = UISegmentedControl(items: [L10n.text("all"), L10n.text("photos"), L10n.text("videos")]); kinds.selectedSegmentIndex = mediaKind; kinds.addTarget(self, action: #selector(changeMediaKind(_:)), for: .valueChanged); kinds.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true; identity.addArrangedSubview(kinds); identity.addArrangedSubview(readerLabel(L10n.text("latestFirst"), style: .caption1, color: .secondaryLabel)) }
+        let tabs = UISegmentedControl(items: [L10n.text("posts"), L10n.text("originals"), L10n.text("media")]); tabs.selectedSegmentIndex = selectedProfileTab; tabs.addTarget(self, action: #selector(changeTab(_:)), for: .valueChanged); tabs.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true; identity.addArrangedSubview(tabs)
+        if selectedProfileTab == 2 { let kinds = UISegmentedControl(items: [L10n.text("all"), L10n.text("photos"), L10n.text("videos")]); kinds.selectedSegmentIndex = mediaKind; kinds.addTarget(self, action: #selector(changeMediaKind(_:)), for: .valueChanged); kinds.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true; identity.addArrangedSubview(kinds); identity.addArrangedSubview(readerLabel(L10n.text("latestFirst"), style: .caption1, color: .secondaryLabel)) }
         collection?.collectionViewLayout.invalidateLayout()
     }
-    @objc private func changeTab(_ sender: UISegmentedControl) { tab = sender.selectedSegmentIndex; updatePredicate(); renderIdentity(); apply() }
+    @objc private func changeTab(_ sender: UISegmentedControl) { selectedProfileTab = sender.selectedSegmentIndex; updatePredicate(); renderIdentity(); apply() }
     @objc private func changeMediaKind(_ sender: UISegmentedControl) { mediaKind = sender.selectedSegmentIndex; updatePredicate(); apply() }
-    private func updatePredicate() { filters.hideReposts = tab == 1; let kind = mediaKind; postPredicate = tab == 2 ? { post in !post.media.isEmpty && (kind == 0 || post.media.contains { kind == 1 ? $0.kind == "image" : ["video", "gif"].contains($0.kind) }) } : nil }
+    private func updatePredicate() { filters.hideReposts = selectedProfileTab == 1; let kind = mediaKind; postPredicate = selectedProfileTab == 2 ? { post in !post.media.isEmpty && (kind == 0 || post.media.contains { kind == 1 ? $0.kind == "image" : ["video", "gif"].contains($0.kind) }) } : nil }
     private func relationship() {
         Task { do {
             let allowed: Bool = try await context.services.call(.unfollowAllowed)

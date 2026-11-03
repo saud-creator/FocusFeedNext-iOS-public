@@ -55,7 +55,13 @@ private struct FeedItemIdentity: Hashable {
     func earlier(_ source: String) async throws -> State {
         var current = state(source); guard current.windowStart > 0 else { return current }
         let start = max(0, current.windowStart - 80)
-        let result = try await context.services.feed(source, filters: FeedFilters(), cached: true, offset: start)
+        let result: FeedResponse
+        if source.hasPrefix("group:") {
+            let group: GroupFeedResponse = try await context.services.call(.groupFeed, ["groupId": .string(String(source.dropFirst(6))), "offset": .number(Double(start)), "filters": try .encoded(FeedFilters()), "limit": .number(80)])
+            result = group.feed
+        } else {
+            result = try await context.services.feed(source, filters: FeedFilters(), cached: true, offset: start)
+        }
         let known = Set(current.posts.map(\.id)); current.posts = result.posts.filter { !known.contains($0.id) } + current.posts
         current.windowStart = start; current.readIDs.formUnion(result.readIds)
         if current.posts.count > 300 { current.posts = Array(current.posts.prefix(300)); current.nextCachedOffset = start + current.posts.count; current.exhausted = false }
@@ -108,7 +114,7 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
         let layout = UICollectionViewCompositionalLayout { [weak self] _, environment in
             let item = NSCollectionLayoutItem(layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .estimated(380)))
             let group = NSCollectionLayoutGroup.vertical(layoutSize: item.layoutSize, subitems: [item]); let section = NSCollectionLayoutSection(group: group)
-            section.interGroupSpacing = 12
+            section.interGroupSpacing = self.map { ReaderTheme.spacing($0.context.preferences) } ?? 12
             let inset = max(12, (environment.container.effectiveContentSize.width - 760) / 2)
             section.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: inset, bottom: 20, trailing: inset)
             if self?.profileHeader != nil { section.boundarySupplementaryItems = [NSCollectionLayoutBoundarySupplementaryItem(layoutSize: NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .estimated(300)), elementKind: UICollectionView.elementKindSectionHeader, alignment: .top)] }
@@ -182,6 +188,8 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) { super.traitCollectionDidChange(previousTraitCollection); if previousTraitCollection?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory, collection != nil { let anchor = firstAnchor(); apply(); collection.collectionViewLayout.invalidateLayout(); restore(anchor) } }
     @objc private func contextChanged() {
         ReaderTheme.apply(context.preferences, to: self)
+        collection.visibleCells.compactMap { $0 as? PostCell }.forEach { $0.updateAppearance(context.preferences) }
+        collection.collectionViewLayout.invalidateLayout()
         let policy = ImagePrefetchPolicy.effective(mode: context.preferences.string("performance.mode"), runtime: context.runtime)
         let memory = context.runtime?.memoryRevision ?? 0
         let memoryChanged = memory != lastMemoryRevision
@@ -290,8 +298,8 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
     private func cancelImagePrefetch() { imagePrefetch.values.forEach { $0.task.cancel() }; imagePrefetch.removeAll(keepingCapacity: false) }
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { loadEarlierIfNeeded() }
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) { if !decelerate { loadEarlierIfNeeded() } }
-    private func loadEarlierIfNeeded() {
-        guard source.hasPrefix("group:") == false, state.windowStart > 0, !busy, collection.contentOffset.y < 120 else { return }
+    func loadEarlierIfNeeded() {
+        guard automaticallyLoads, state.windowStart > 0, !busy, collection.contentOffset.y < 120 else { return }
         busy = true; let anchor = firstAnchor()
         work = Task { [weak self] in guard let self else { return }; defer { busy = false }; do { state = try await context.timelines.earlier(source); apply(); restore(anchor) } catch { failure(error) } }
     }
@@ -307,10 +315,10 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
         notice.show(L10n.text("returnPlace"), retry: { [weak self] in guard let self, let offset = heldOffset else { return }; collection.setContentOffset(offset, animated: !UIAccessibility.isReduceMotionEnabled); notice.show(nil); heldOffset = nil })
         Task { [weak self] in try? await Task.sleep(nanoseconds: 10_000_000_000); guard !Task.isCancelled, let self, heldOffset != nil else { return }; heldOffset = nil; notice.show(nil) }
     }
-    private func firstAnchor() -> (String, CGFloat)? {
+    func firstAnchor() -> (String, CGFloat)? {
         guard let index = collection.indexPathsForVisibleItems.sorted().first, let post = posts[safe: index.item], let attributes = collection.layoutAttributesForItem(at: index) else { return nil }; return (post.id, collection.contentOffset.y - attributes.frame.minY)
     }
-    private func restore(_ anchor: (String, CGFloat)?) {
+    func restore(_ anchor: (String, CGFloat)?) {
         guard let anchor, let index = posts.firstIndex(where: { $0.id == anchor.0 }) else { return }
         collection.layoutIfNeeded(); collection.scrollToItem(at: IndexPath(item: index, section: 0), at: .top, animated: false); collection.contentOffset.y += anchor.1
     }

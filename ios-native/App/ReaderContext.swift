@@ -107,18 +107,75 @@ struct ReaderPreferences {
     var portableEntries: [[String]] { entries.filter { pair in !["actions.", "startup.", "window.", "updates."].contains { pair[0].hasPrefix($0) } } }
 }
 
-enum ReaderTheme {
+@MainActor enum ReaderTheme {
+    static private(set) var currentPreferences = ReaderPreferences()
     static func color(_ hex: String) -> UIColor? {
-        let value = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        var value = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        if value.count == 3 { value = value.map { String(repeating: String($0), count: 2) }.joined() }
         guard value.count == 6, let number = UInt32(value, radix: 16) else { return nil }
         return UIColor(red: CGFloat((number >> 16) & 255) / 255, green: CGFloat((number >> 8) & 255) / 255, blue: CGFloat(number & 255) / 255, alpha: 1)
     }
     static func accent(_ preferences: ReaderPreferences) -> UIColor { color(preferences.string("appearance.accent")) ?? UIColor(red: 0.43, green: 0.45, blue: 0.95, alpha: 1) }
+    static func background(_ preferences: ReaderPreferences) -> UIColor { color(preferences.string("appearance.background")) ?? (preferences.string("theme") == "oled" ? .black : .systemGroupedBackground) }
+    static func surface(_ preferences: ReaderPreferences) -> UIColor { color(preferences.string("appearance.surface")) ?? .secondarySystemGroupedBackground }
+    static func elevated(_ preferences: ReaderPreferences) -> UIColor { color(preferences.string("appearance.elevated")) ?? .tertiarySystemGroupedBackground }
+    static func border(_ preferences: ReaderPreferences) -> UIColor { color(preferences.string("appearance.border")) ?? .separator }
+    static func mediaBackground(_ preferences: ReaderPreferences) -> UIColor { color(preferences.string("appearance.mediaBackground")) ?? .black }
+    static func spacing(_ preferences: ReaderPreferences) -> CGFloat { preferences.string("density") == "compact" ? 8 : 12 }
+    static func text(_ preferences: ReaderPreferences, secondary: Bool = false, on background: UIColor? = nil) -> UIColor {
+        let bed = background ?? surface(preferences)
+        let contrast = min(100, max(0, preferences.number("appearance.textContrast"))) / 100
+        return UIColor { traits in
+            let resolved = bed.resolvedColor(with: traits)
+            let white = contrastRatio(.white, resolved, traits: traits)
+            let black = contrastRatio(.black, resolved, traits: traits)
+            let foreground: UIColor = white > black ? .white : .black
+            let strength = CGFloat(secondary ? 0.62 + contrast * 0.25 : 0.82 + contrast * 0.18)
+            return mix(resolved, foreground, fraction: strength)
+        }
+    }
+    private static func mix(_ a: UIColor, _ b: UIColor, fraction: CGFloat) -> UIColor {
+        var ar: CGFloat = 0, ag: CGFloat = 0, ab: CGFloat = 0, aa: CGFloat = 0
+        var br: CGFloat = 0, bg: CGFloat = 0, bb: CGFloat = 0, ba: CGFloat = 0
+        a.getRed(&ar, green: &ag, blue: &ab, alpha: &aa); b.getRed(&br, green: &bg, blue: &bb, alpha: &ba)
+        return UIColor(red: ar + (br-ar)*fraction, green: ag + (bg-ag)*fraction, blue: ab + (bb-ab)*fraction, alpha: 1)
+    }
+    static func contrastRatio(_ a: UIColor, _ b: UIColor, traits: UITraitCollection = .current) -> Double {
+        func luminance(_ color: UIColor) -> Double {
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, alpha: CGFloat = 0
+            color.resolvedColor(with: traits).getRed(&r, green: &g, blue: &b, alpha: &alpha)
+            func linear(_ channel: CGFloat) -> Double { let value = Double(channel); return value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4) }
+            return 0.2126*linear(r) + 0.7152*linear(g) + 0.0722*linear(b)
+        }
+        let first = luminance(a), second = luminance(b)
+        return (max(first, second) + 0.05) / (min(first, second) + 0.05)
+    }
+    static func styleCard(_ view: UIView, preferences: ReaderPreferences) {
+        view.backgroundColor = surface(preferences)
+        view.layer.cornerRadius = CGFloat(preferences.number("appearance.radius")) + 6
+        view.layer.borderWidth = 1 / max(1, view.traitCollection.displayScale)
+        view.layer.borderColor = border(preferences).resolvedColor(with: view.traitCollection).cgColor
+        let intensity = preferences.string("appearance.shadow")
+        view.layer.shadowColor = UIColor.black.cgColor
+        view.layer.shadowOpacity = intensity == "none" ? 0 : intensity == "strong" ? 0.22 : 0.09
+        view.layer.shadowRadius = intensity == "strong" ? 10 : 4
+        view.layer.shadowOffset = CGSize(width: 0, height: intensity == "strong" ? 4 : 2)
+        view.layer.shadowPath = UIBezierPath(roundedRect: view.bounds, cornerRadius: view.layer.cornerRadius).cgPath
+    }
     static func apply(_ preferences: ReaderPreferences, to controller: UIViewController) {
+        currentPreferences = preferences
         controller.overrideUserInterfaceStyle = preferences.string("theme") == "light" ? .light : ["dark", "oled"].contains(preferences.string("theme")) ? .dark : .unspecified
         controller.view.tintColor = accent(preferences)
         controller.view.semanticContentAttribute = L10n.arabic ? .forceRightToLeft : .forceLeftToRight
-        controller.view.backgroundColor = color(preferences.string("appearance.background")) ?? (preferences.string("theme") == "oled" ? .black : .systemGroupedBackground)
+        controller.view.backgroundColor = background(preferences)
+        func visit(_ view: UIView) {
+            if let label = view as? ReaderLabel { label.updateAppearance(preferences) }
+            if let table = view as? UITableView { table.backgroundColor = background(preferences); table.separatorColor = border(preferences) }
+            if let cell = view as? ReaderTableCell { cell.updateAppearance(preferences) }
+            if let segment = view as? UISegmentedControl { segment.backgroundColor = elevated(preferences) }
+            view.subviews.forEach(visit)
+        }
+        visit(controller.view)
     }
     static func font(_ style: UIFont.TextStyle, preferences: ReaderPreferences? = nil, weight: UIFont.Weight? = nil) -> UIFont {
         let preferred = UIFont.preferredFont(forTextStyle: style, compatibleWith: UITraitCollection(preferredContentSizeCategory: .large))

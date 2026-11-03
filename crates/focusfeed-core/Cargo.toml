@@ -22,6 +22,5 @@ hyper-util = { version = "0.1", features = ["tokio", "server"] }
 http-body-util = "0.1"
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 getrandom = "0.2"
-
-[dev-dependencies]
+# Atomic no-clobber publication of verified migration backups.
 tempfile = "3"

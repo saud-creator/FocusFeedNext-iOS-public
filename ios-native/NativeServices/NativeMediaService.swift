@@ -13,6 +13,7 @@ enum NativeMediaFailure: Error, Equatable {
 @MainActor final class NativeMediaService {
     private let validateBrokerURL: (URL) async throws -> Void
     private let repair: (URL, Bool) async throws -> URL
+    private let playerFactory: (URL) -> AVPlayer
     private var ownership = MediaOwnership(accountEpoch: 0, brokerEpoch: 0)
     private var cache: [String: CachedImage] = [:]
     private var order: [String] = []
@@ -22,6 +23,7 @@ enum NativeMediaFailure: Error, Equatable {
     private var imageDeadlines: [UUID: NativeActiveDeadline<Data>] = [:]
     private var recoveries: [String: Task<URL, Error>] = [:]
     private var recoveryDeadlines: [String: NativeActiveDeadline<URL>] = [:]
+    private var seekDeadlines: [UUID: NativeActiveDeadline<Void>] = [:]
     private let recoveryDebouncer = NativeRecoveryDebouncer()
     private var budgets: [String: RecoveryAttemptBudget] = [:]
     private var budgetOrder: [String] = []
@@ -51,8 +53,9 @@ enum NativeMediaFailure: Error, Equatable {
     var diagnosticEvent: ((String, String, Int?) -> Void)?
 
     init(validateBrokerURL: @escaping (URL) async throws -> Void,
-         repair: @escaping (URL, Bool) async throws -> URL) {
-        self.validateBrokerURL = validateBrokerURL; self.repair = repair
+         repair: @escaping (URL, Bool) async throws -> URL,
+         playerFactory: @escaping (URL) -> AVPlayer = { AVPlayer(playerItem:AVPlayerItem(asset:AVURLAsset(url:$0))) }) {
+        self.validateBrokerURL = validateBrokerURL; self.repair = repair; self.playerFactory = playerFactory
         let center = NotificationCenter.default
         audioObservers.append(center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
             guard (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue == AVAudioSession.InterruptionType.began.rawValue else { return }
@@ -117,7 +120,7 @@ enum NativeMediaFailure: Error, Equatable {
         try Task.checkCancellation()
         guard captured == ownership else { throw NativeMediaFailure.staleOwnership }
         stopPlayer()
-        let player = AVPlayer(playerItem: AVPlayerItem(asset: AVURLAsset(url: source)))
+        let player = playerFactory(source)
         player.automaticallyWaitsToMinimizeStalling = true
         current = (owner, source, player)
         observe(player, owner: owner)
@@ -125,6 +128,28 @@ enum NativeMediaFailure: Error, Equatable {
     }
 
     func releasePlayer(owner: UUID) { failureHandlers.removeValue(forKey: owner); if current?.owner == owner { stopPlayer() } }
+    /// AVPlayer's async seek is not inherently bounded by the metadata repair
+    /// deadline. Own its callback and cancellation so an unready asset cannot
+    /// leave native playback recovery permanently in flight.
+    func seek(player: AVPlayer, owner: UUID, position: Double) async throws {
+        guard position.isFinite, position >= 0, current?.owner == owner,
+              current?.player === player, let item = player.currentItem else { throw NativeMediaFailure.staleOwnership }
+        let captured = ownership
+        let deadline = NativeActiveDeadline<Void>(seconds:30, active:runtime.foreground)
+        seekDeadlines[owner]?.cancel(); seekDeadlines[owner] = deadline
+        defer { if seekDeadlines[owner] === deadline { seekDeadlines.removeValue(forKey:owner) } }
+        let operation = NativeCallbackOperation<Void>()
+        try await deadline.run {
+            try await operation.run(start: { complete in
+                player.seek(to:CMTime(seconds:position, preferredTimescale:600), toleranceBefore:.zero, toleranceAfter:.zero) { finished in
+                    complete(finished ? .success(()) : .failure(NativeMediaFailure.unavailable))
+                }
+            }, cancel: { item.cancelPendingSeeks() })
+        }
+        try Task.checkCancellation()
+        guard captured == ownership, current?.owner == owner, current?.player === player,
+              player.currentItem === item else { throw NativeMediaFailure.staleOwnership }
+    }
     func setFailureHandler(owner: UUID, handler: @escaping (NativeMediaFailure) -> Void) { failureHandlers[owner] = handler }
     func pauseAll() { pauseRevision &+= 1; current?.player.pause(); deactivateAudio() }
     var isForeground: Bool { runtime.foreground }
@@ -143,6 +168,7 @@ enum NativeMediaFailure: Error, Equatable {
         runtime = next
         recoveryDeadlines.values.forEach { $0.setActive(next.foreground) }
         imageDeadlines.values.forEach { $0.setActive(next.foreground) }
+        seekDeadlines.values.forEach { $0.setActive(next.foreground) }
         if !next.foreground {
             recoveryDebouncer.cancel()
             pauseAll()
@@ -230,18 +256,33 @@ enum NativeMediaFailure: Error, Equatable {
     private func observe(_ player: AVPlayer, owner: UUID) {
         statusObserver = player.currentItem?.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
             guard item.status == .failed else { return }
-            Task { @MainActor in self?.recoverPlayer(owner: owner, failure: .unavailable) }
+            Task { @MainActor in self?.receiveItemFailure(player:player, item:item, owner:owner) }
         }
-        timeControlObserver = player.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] _, _ in
-            Task { @MainActor in self?.armStallWatchdog(); self?.updateAudio() }
+        timeControlObserver = player.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] player, _ in
+            Task { @MainActor in
+                guard let self, self.current?.player === player else { return }
+                self.armStallWatchdog(); self.updateAudio()
+            }
         }
         rateObserver = player.observe(\.rate, options: [.initial, .new]) { [weak self] player, _ in
             Task { @MainActor in
-                if player.rate > 0 { self?.lastPlaybackRate = player.rate }
-                self?.updateAudio()
+                guard let self, self.current?.player === player else { return }
+                if player.rate > 0 { self.lastPlaybackRate = player.rate }
+                self.updateAudio()
             }
         }
-        muteObserver = player.observe(\.isMuted, options: [.initial, .new]) { [weak self] _, _ in Task { @MainActor in self?.updateAudio() } }
+        muteObserver = player.observe(\.isMuted, options: [.initial, .new]) { [weak self] player, _ in
+            Task { @MainActor in
+                guard let self, self.current?.player === player else { return }
+                self.updateAudio()
+            }
+        }
+    }
+    /// KVO can enqueue an old failure before a new player/item is installed for
+    /// the same screen owner. Validate both identities after returning to main.
+    func receiveItemFailure(player: AVPlayer, item: AVPlayerItem, owner: UUID) {
+        guard current?.owner == owner, current?.player === player, player.currentItem === item else { return }
+        recoverPlayer(owner:owner, failure:.unavailable)
     }
     private func updateAudio() {
         guard runtime.foreground, let player = current?.player, !player.isMuted,
@@ -271,6 +312,7 @@ enum NativeMediaFailure: Error, Equatable {
         _ = stallBudget.update(now: now, active: true)
         // Playback-time observers stop firing during a stall; use an active-only clock.
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+          Task { @MainActor in
             guard let self = self, let current = self.current, current.owner == active.owner else { return }
             let seconds = current.player.currentTime().seconds
             let now = ProcessInfo.processInfo.systemUptime
@@ -280,6 +322,7 @@ enum NativeMediaFailure: Error, Equatable {
                 self.stallTimer?.invalidate(); self.stallTimer = nil
                 self.recoverPlayer(owner: current.owner, failure: .stalled)
             }
+          }
         }
         stallTimer = timer; RunLoop.main.add(timer, forMode: .common)
     }
@@ -297,9 +340,9 @@ enum NativeMediaFailure: Error, Equatable {
             defer { if self.playerRecoveryID == recoveryID { self.playerRecovery = nil; self.playerRecoveryID = nil } }
             do {
                 let repaired = try await self.recover(url: active.source.absoluteString, automatic: true)
-                guard self.current?.owner == owner, self.ownership == captured else { return }
+                guard self.current?.owner == owner, self.current?.player === active.player, self.ownership == captured else { return }
                 try await self.validateBrokerURL(repaired)
-                guard self.current?.owner == owner, self.ownership == captured else { return }
+                guard self.current?.owner == owner, self.current?.player === active.player, self.ownership == captured else { return }
                 let player = active.player
                 self.statusObserver = nil; self.timeControlObserver = nil; self.rateObserver = nil; self.muteObserver = nil
                 self.stallTimer?.invalidate(); self.stallTimer = nil
@@ -309,18 +352,19 @@ enum NativeMediaFailure: Error, Equatable {
                 self.observe(player, owner: owner)
                 player.isMuted = muted
                 if position.isFinite && position > 0 {
-                    await player.seek(to: CMTime(seconds: position, preferredTimescale: 600))
+                    try await self.seek(player:player, owner:owner, position:position)
                 }
-                guard self.current?.owner == owner, self.ownership == captured else { return }
+                guard self.current?.owner == owner, self.current?.player === active.player, self.ownership == captured else { return }
                 if intent && self.runtime.foreground && pause == self.pauseRevision { player.playImmediately(atRate: speed > 0 ? speed : 1) }
             } catch {
-                guard self.current?.owner == owner else { return }
+                guard self.current?.owner == owner, self.current?.player === active.player, self.ownership == captured else { return }
                 self.current?.player.pause(); self.playerFailed?(owner, failure); self.failureHandlers[owner]?(failure)
             }
         }
     }
 
     private func stopPlayer() {
+        seekDeadlines.values.forEach { $0.cancel() }; seekDeadlines.removeAll()
         playerRecovery?.cancel(); playerRecovery = nil; playerRecoveryID = nil
         statusObserver = nil; timeControlObserver = nil; rateObserver = nil; muteObserver = nil
         stallTimer?.invalidate(); stallTimer = nil
