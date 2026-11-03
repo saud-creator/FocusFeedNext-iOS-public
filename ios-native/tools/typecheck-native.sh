@@ -29,9 +29,10 @@ xcrun swiftc -emit-module -enable-testing -parse-as-library -swift-version 5 \
   ios-native/Generated/*.swift ios-native/App/*.swift \
   ios-native/Integration/*.swift ios-native/NativeServices/*.swift
 test_frameworks="$(xcode-select -p)/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks"
+test_swift_modules="$(xcode-select -p)/Platforms/iPhoneSimulator.platform/Developer/usr/lib"
 for target in Services UI; do
   xcrun swiftc -typecheck -continue-building-after-errors -parse-as-library -swift-version 5 \
     -module-name "FocusFeedNext${target}Preflight" -sdk "$sdk" -target arm64-apple-ios16.0-simulator \
-    -I "$module_dir" -I ios-native/Generated -F "$test_frameworks" \
+    -I "$module_dir" -I ios-native/Generated -I "$test_swift_modules" -F "$test_frameworks" \
     -Xcc "-fmodule-map-file=$modulemap" "ios-native/Tests/$target/"*.swift
 done

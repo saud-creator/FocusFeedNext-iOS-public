@@ -7,7 +7,7 @@ be used to assert physical acceptance without the associated device report.
 
 - Baseline: public `129c47847bbbd336edd69f05db6780ed19379e56`.
 - Branch: `codex/native-ios-quality`.
-- Core: 155 unit tests, 14 integration tests and 1 FFI test passed on
+- Core: 159 unit tests, 14 integration tests and 1 FFI test passed on
   Windows/MSVC. These include cancellation during action preparation, retained
   ownership after dispatch, and late-cancelled account-transition acknowledgements.
   List regressions also cover per-member provider cursors, members no longer
@@ -18,6 +18,8 @@ be used to assert physical acceptance without the associated device report.
   batch. The final backup-cleanup refinement passed its focused regression.
 - Shared desktop: lint/build completed and 652 tests in 51 files passed. Existing
   lint warnings remain; the native target does not package that renderer.
+- The existing desktop Rust library also passed all 419 tests locally on
+  3 November after the shared storage changes.
 - FFI: compiled successfully with UniFFI exactly 0.32.1; generated Swift API
   inspected. The interface includes explicit request cancellation.
 - Python archive/provenance validation: 16 structural fixture tests passed,
@@ -42,6 +44,11 @@ be used to assert physical acceptance without the associated device report.
   playback callbacks. The continuation corrects these and adds test-module
   type checking before optimized Rust slice builds. That source still requires
   its own successful cloud run; the failed run produced no IPA.
+- Run `41646501709` passed the application/UniFFI UIKit type check and module
+  emission after those fixes. The added test preflight then exposed an XCTest
+  Swift-overlay search-path issue (the compiler saw only C assertion macros).
+  The next batch includes the platform's Developer/usr/lib Swift-module path.
+  Passing type checking is distinct from linked tests and a device archive.
 - Full UIKit compilation, linked Swift/bridge/UI tests and the Xcode archive:
   pending a successful macOS workflow. The previous failed run produced no IPA.
 - Signed upgrade, live-provider recovery and measured device performance:

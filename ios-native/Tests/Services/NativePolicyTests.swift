@@ -4,6 +4,52 @@ import Foundation
 /// harness. They exercise ownership and interruption state, not live X traffic.
 private enum NativePolicyCases {
     static func run(_ check: (Bool, String) -> Void) {
+        var monitoring = NativeMaintenancePolicy()
+        check(monitoring.configure(generation:1,now:0),"new account initializes maintenance once")
+        monitoring.foreground = true; monitoring.ready = true
+        check(monitoring.delay(now:0) == 300,"default monitor honors five minutes")
+        check(monitoring.delay(now:299) == 1,"monitor does not poll before its interval")
+        check(monitoring.delay(now:300) == 0,"configured deadline becomes due")
+        monitoring.success(now:290)
+        check(monitoring.delay(now:300) == 290,"real foreground success makes a redundant probe unnecessary")
+        monitoring.beganProbe(now:600)
+        check(monitoring.delay(now:610) == 290,"failed probe still waits the normal interval")
+        monitoring.busy = true
+        check(monitoring.delay(now:900) == nil,"user work owns priority")
+        monitoring.busy = false; monitoring.foreground = false
+        check(monitoring.delay(now:900) == nil,"no background monitor timer")
+        monitoring.foreground = true; monitoring.settings = NativeMaintenanceSettings(values:["monitoring.autoCheck":"false"])
+        check(monitoring.delay(now:900) == nil,"disabled monitor performs no automatic check")
+        monitoring.settings = NativeMaintenanceSettings(values:["monitoring.intervalMinutes":"17","startup.preloadBookmarks":"false"])
+        check(monitoring.delay(now:600) == 1020,"saved interval reconfigures the monitor")
+        check(!monitoring.settings.enabled(.bookmarks) && monitoring.settings.enabled(.following),"startup options are independent")
+        check(!monitoring.configure(generation:1,now:1000),"healthy identity does not reset account maintenance")
+        check(monitoring.configure(generation:2,now:1000),"new identity resets maintenance ownership")
+        check(monitoring.delay(now:1000) == 1020,"new generation starts a fresh interval")
+        monitoring.ready = false
+        check(monitoring.delay(now:9000) == nil,"unverified or disconnected accounts never auto-login")
+        var traversal = NativeCursorProgress()
+        do {
+            check(try !traversal.accept(next:"older",pageItems:60),"provider cursor keeps full traversal open")
+            do { _ = try traversal.accept(next:"older",pageItems:60); check(false,"repeated cursor cannot claim completeness") }
+            catch NativeCursorError.repeatedCursor { check(true,"loop settles as partial/error") }
+            check(try traversal.accept(next:nil,pageItems:60),"only terminal cursor completes traversal")
+            var stalled = NativeCursorProgress()
+            _ = try stalled.accept(next:"one",pageItems:0)
+            _ = try stalled.accept(next:"two",pageItems:0)
+            do { _ = try stalled.accept(next:"three",pageItems:0); check(false,"empty pages with rotating cursors cannot loop forever") }
+            catch NativeCursorError.noProgress { check(true,"nonproductive traversal settles without count ceiling") }
+            var longCycle = NativeCursorProgress()
+            var detected = false
+            for index in 0..<2000 {
+                do { _ = try longCycle.accept(next:"cycle-\(index % 300)",pageItems:60) }
+                catch NativeCursorError.repeatedCursor { detected = true; break }
+            }
+            check(detected,"constant-space guard detects cycles longer than a viewport/history window")
+            var completeTraversal = NativeCursorProgress()
+            for index in 0..<10000 { _ = try completeTraversal.accept(next:"page-\(index)",pageItems:60) }
+            check(try completeTraversal.accept(next:nil,pageItems:0),"large legitimate traversal has no application count ceiling")
+        } catch { check(false,"ordinary cursor policy unexpectedly failed") }
         let queued = NativeMediaHTTPFailure(status:503, brokerOrigin:"local_queue", trustedResponse:true)
         let upstream = NativeMediaHTTPFailure(status:503, brokerOrigin:"upstream_http", trustedResponse:true)
         check(queued.status == upstream.status && queued.origin != upstream.origin, "equal status retains distinct broker provenance")
@@ -101,6 +147,19 @@ private enum NativePolicyCases {
             _ = try await deadline.run { try await Task.sleep(nanoseconds: 1_000_000_000); return 1 }
             preconditionFailure("deadline must settle before work")
         } catch NativeRecoveryError.timeout { count += 1 }
+        let callback = NativeCallbackOperation<Int>()
+        var lateCompletion: ((Result<Int, Error>) -> Void)?
+        var nativeCancellations = 0
+        let pending = Task { try await callback.run(start:{ lateCompletion = $0 }, cancel:{ nativeCancellations += 1 }) }
+        for _ in 0..<100 where lateCompletion == nil { await Task.yield() }
+        precondition(lateCompletion != nil,"controlled native callback must start"); count += 1
+        pending.cancel()
+        do { _ = try await pending.value; preconditionFailure("cancelled callback must not wait for native completion") }
+        catch is CancellationError { count += 1 }
+        precondition(nativeCancellations == 1,"owned native work must be cancelled once"); count += 1
+        lateCompletion?(.success(99)); callback.cancel()
+        for _ in 0..<10 { await Task.yield() }
+        precondition(nativeCancellations == 1,"late callback cannot cancel or settle newer work"); count += 1
         print("Native Foundation policy checks passed: \(count) assertions; 100 simulated interruption cycles; no live provider traffic.")
     }
 }
@@ -109,6 +168,22 @@ import XCTest
 @testable import FocusFeedNextNative
 
 final class NativePolicyTests: XCTestCase {
+    @MainActor func testNativeCallbackCancellationDoesNotWaitForLateCompletion() async throws {
+        let operation = NativeCallbackOperation<Int>()
+        var completion: ((Result<Int, Error>) -> Void)?
+        var cancellations = 0
+        let pending = Task { try await operation.run(start:{ completion = $0 }, cancel:{ cancellations += 1 }) }
+        for _ in 0..<100 where completion == nil { await Task.yield() }
+        XCTAssertNotNil(completion)
+        pending.cancel()
+        do { _ = try await pending.value; XCTFail("Cancelled callback returned a value.") }
+        catch is CancellationError {}
+        XCTAssertEqual(cancellations,1)
+        completion?(.success(99)); operation.cancel()
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertEqual(cancellations,1,"A late SDK callback must not settle or cancel an operation twice.")
+    }
+
     func testInterruptionOwnershipAndSessionCompatibility() {
         NativePolicyCases.run { condition, message in XCTAssertTrue(condition, message) }
     }

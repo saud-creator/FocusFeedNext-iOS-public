@@ -19,8 +19,33 @@ import AVKit
     private var cancelled = Set<UUID>()
     private var requestContexts: [UUID: AppRequest] = [:]
     private var profileJobs: [String: Task<Data, Error>] = [:]
+    private var profileJobIDs: [String: UUID] = [:]
     private var feedJobs: [String: Task<Data, Error>] = [:]
-    private var followingJob: Task<Void, Never>?
+    private var feedJobIDs: [String: UUID] = [:]
+    private var maintenanceSettings = NativeMaintenanceSettings()
+    private var maintenanceSuspended = false
+    private var foregroundWork = 0
+    private struct PreloadCheckpoint {
+        let traversalID = UUID().uuidString
+        var cursor: String?
+        var offset = 0
+        var revision: UInt64 = 0
+        var progress = NativeCursorProgress()
+    }
+    private var bookmarkPreload = PreloadCheckpoint()
+    private var followingPreload = PreloadCheckpoint()
+    private var bookmarkPreloadError: String?
+    private lazy var maintenance = NativeMaintenanceScheduler(check: { [weak self] generation in
+        guard let self else { throw CancellationError() }
+        try await self.monitorSession(generation:generation)
+    }, page: { [weak self] kind, generation in
+        guard let self else { throw CancellationError() }
+        return try await self.preloadPage(kind,generation:generation)
+    }, failed: { [weak self] kind, error in
+        guard let self else { return }
+        if kind == .following { self.followingError = error.localizedDescription; self.continuation.yield(.followingProgress) }
+        else { self.bookmarkPreloadError = error.localizedDescription }
+    }, changed: { [weak self] in self?.continuation.yield(.followingProgress) })
     private var followingComplete = false
     private var followingError: String?
     private var groupRefreshPending: [String: Set<String>] = [:]
@@ -67,7 +92,9 @@ import AVKit
     }
     static func open(window: UIWindow) async throws -> NativeApplicationServices {
         let core = try await CoreRepository.open()
-        return NativeApplicationServices(core: core, window: window)
+        let services = NativeApplicationServices(core: core, window: window)
+        await services.refreshMaintenanceSettings()
+        return services
     }
     private static func encoded(_ object: Any) throws -> Data { try JSONSerialization.data(withJSONObject: object, options: [.fragmentsAllowed, .sortedKeys]) }
     private func run(_ operation: NativeOperation, _ args: [String: Any] = [:], owner: UUID? = nil, generation: UInt64? = nil, revision: UInt64? = nil) async throws -> Data {
@@ -131,12 +158,18 @@ import AVKit
         ownedProviderIDs.removeValue(forKey: requestID)?.forEach { host.cancelRequest(id: $0) }
         if cancelled.count > 1024 { cancelled = [requestID] }
     }
-    func pause() { media.pauseAll() }
-    private func snapshot(state: String = "connected", detail: String? = nil) -> SessionSnapshot {
-        SessionSnapshot(state: credentials == nil ? "disconnected" : state, reason: credentials == nil ? "missing_credentials" : "connected", checking: false, account: currentAccount, checkedAt: checkedAt, lastSuccessAt: lastSuccessAt, latencyMs: nil, hasCredentials: credentials != nil, detail: detail)
+    func pause() {
+        media.pauseAll()
+        maintenance.configure(settings:maintenanceSettings,generation:accountGeneration,foreground:false,
+            ready:credentials != nil && currentAccount != nil && !maintenanceSuspended,busy:foregroundWork > 0)
     }
-    private func provider(_ operation: String, variables: [String: Any] = [:], owner: UUID? = nil, candidate: NativeSessionCandidate? = nil, authentication: Bool = false) async throws -> Any {
+    private func snapshot(state: String = "connected", reason: String? = nil, detail: String? = nil) -> SessionSnapshot {
+        SessionSnapshot(state: credentials == nil ? "disconnected" : state, reason: credentials == nil ? "missing_credentials" : reason ?? "connected", checking: false, account: currentAccount, checkedAt: checkedAt, lastSuccessAt: lastSuccessAt, latencyMs: nil, hasCredentials: credentials != nil, detail: detail)
+    }
+    private func provider(_ operation: String, variables: [String: Any] = [:], owner: UUID? = nil, candidate: NativeSessionCandidate? = nil, authentication: Bool = false, background: Bool = false) async throws -> Any {
         guard let session = candidate ?? credentials else { throw AppServiceError(code: "not_authenticated", message: L10n.text("signIn")) }
+        if !background { beginForegroundWork() }
+        defer { if !background { endForegroundWork() } }
         let epoch = accountGeneration; let requestOwner = owner ?? UUID()
         providerSequence &+= 1; let id = String(providerSequence)
         ownedProviderIDs[requestOwner, default: []].insert(id)
@@ -145,7 +178,7 @@ import AVKit
         let write = ["Follow", "Unfollow", "DeleteBookmark"].contains(operation)
         let context = requestContexts[requestOwner]
         let deadline = context?.deadlineMillis ?? UInt64(Date().timeIntervalSince1970 * 1000) + (write || authentication ? 75_000 : 30_000)
-        let request = NativeProviderRequest(operation: operation, variables: values, authToken: session.authToken, ct0: session.ct0, context: NativeRequestContext(id: id, generation: transportGeneration, priority: write || authentication ? 0 : Int(context?.priority ?? 1), deadline: deadline, authentication: authentication))
+        let request = NativeProviderRequest(operation: operation, variables: values, authToken: session.authToken, ct0: session.ct0, context: NativeRequestContext(id: id, generation: transportGeneration, priority: write || authentication ? 0 : background ? 3 : Int(context?.priority ?? 1), deadline: deadline, authentication: authentication))
         let response: NativeProviderResponse
         do { response = try await host.request(request) }
         catch let error as NativeServiceError {
@@ -160,6 +193,10 @@ import AVKit
             throw AppServiceError(code: code == 326 ? "account_challenge" : code == 88 ? "rate_limited" : "provider_rejection", message: L10n.text("accountAttention"))
         }
         guard (200..<300).contains(response.status) else { throw AppServiceError(code: "provider_rejection", message: L10n.text("loadFailed"), retryable: response.status >= 500) }
+        if operation != "Me", credentials != nil, currentAccount != nil, candidate == nil {
+            lastSuccessAt = ISO8601DateFormatter().string(from:Date())
+            maintenance.recordSuccess()
+        }
         return body
     }
     private func validateIdentity(_ body: Any) async throws -> Author { try JSONDecoder().decode(Author.self, from: await run(.parseIdentity, ["body": body])) }
@@ -183,9 +220,9 @@ import AVKit
         let identityChanged = currentAccount?.id != verified.id
         let generation = identityChanged ? accountGeneration + 1 : accountGeneration
         if identityChanged {
-            followingJob?.cancel(); followingJob = nil; followingComplete = false; followingError = nil
-            profileJobs.values.forEach { $0.cancel() }; profileJobs.removeAll()
-            feedJobs.values.forEach { $0.cancel() }; feedJobs.removeAll()
+            maintenance.stop(); followingComplete = false; followingError = nil
+            profileJobs.values.forEach { $0.cancel() }; profileJobs.removeAll(); profileJobIDs.removeAll()
+            feedJobs.values.forEach { $0.cancel() }; feedJobs.removeAll(); feedJobIDs.removeAll()
             recoveryTask?.cancel(); recoveryTask = nil
             handleOwners.removeAll(); resolvedHandles.removeAll(); resolvedHandleOrder.removeAll(); imageAttempts.removeAll()
             sourceRevisions.removeAll()
@@ -201,12 +238,15 @@ import AVKit
         media.invalidate(accountEpoch: generation, brokerEpoch: brokerEpoch)
         guard revision == sessionRevision else { throw CancellationError() }
         currentAccount = try JSONDecoder().decode(Author.self, from: Self.encoded(value["account"] ?? [:]))
-        credentials = candidate
+        credentials = candidate; maintenanceSuspended = false
+        if identityChanged { bookmarkPreload = PreloadCheckpoint(); followingPreload = PreloadCheckpoint(); bookmarkPreloadError = nil }
         checkedAt = ISO8601DateFormatter().string(from:Date()); lastSuccessAt = checkedAt
+        maintenance.recordSuccess(); updateMaintenance()
         let next = snapshot(); continuation.yield(.session(next)); return next
         }
     }
     func signIn(presenting: UIViewController) async throws -> SessionSnapshot {
+        beginForegroundWork(); defer { endForegroundWork() }
         sessionRevision &+= 1
         restoring?.cancel(); restoring = nil; restoringRevision = nil
         let revision = sessionRevision
@@ -263,8 +303,13 @@ import AVKit
     }
     func perform(_ request: AppRequest) async throws -> Data {
         guard request.accountGeneration == accountGeneration, !cancelled.contains(request.requestID) else { throw CancellationError() }
+        // Status/progress/cache evidence must not cancel the worker that just
+        // published it. Remote user requests are also tracked in provider().
+        let foreground = ![AppOperation.followingSnapshot,.runtimeSnapshot,.providerCapabilities,.settings,
+            .readIDs,.setRead,.pinnedAccounts,.unfollowAllowed,.filterPresets,.resumeState,.connectionMetrics,.diagnosticsReport].contains(request.operation)
+        if foreground { beginForegroundWork() }
         requestContexts[request.requestID] = request
-        defer { requestContexts.removeValue(forKey:request.requestID) }
+        defer { requestContexts.removeValue(forKey:request.requestID); if foreground { endForegroundWork() } }
         let args = try object(JSONEncoder().encode(request.args)); let owner = request.requestID
         switch request.operation {
         case .sessionStatus: return try JSONEncoder().encode(try await restoreSession())
@@ -274,7 +319,7 @@ import AVKit
             let revision = sessionRevision
             return try await sessionCommit { [self] in
             guard revision == sessionRevision else { throw CancellationError() }
-            followingJob?.cancel(); followingJob = nil; recoveryTask?.cancel(); profileJobs.values.forEach { $0.cancel() }; feedJobs.values.forEach { $0.cancel() }
+            maintenance.stop(); recoveryTask?.cancel(); profileJobs.values.forEach { $0.cancel() }; feedJobs.values.forEach { $0.cancel() }
             // Core refuses disconnect while an account write still owns its slot.
             _ = try await run(.clearSession, ["disconnect":true])
             accountGeneration &+= 1; transportGeneration &+= 1; currentAccount = nil
@@ -292,11 +337,13 @@ import AVKit
         case .settings:
             let values = try object(await run(.getPreferences)); return try Self.encoded(values.keys.sorted().map { [$0,values[$0] as? String ?? ""] })
         case .setSetting:
-            return try await run(.setPreferences, ["preferences": [args["key"] as? String ?? "": args["value"] as? String ?? ""]], owner: owner)
+            let result = try await run(.setPreferences, ["preferences": [args["key"] as? String ?? "": args["value"] as? String ?? ""]], owner: owner)
+            await refreshMaintenanceSettings(); return result
         case .setPreferencesBatch:
             let entries = args["entries"] as? [[String]] ?? []; var preferences: [String:String] = [:]
             for pair in entries { guard pair.count == 2, preferences[pair[0]] == nil else { throw AppServiceError(code: "invalid_preferences", message: L10n.text("importFailed")) }; preferences[pair[0]] = pair[1] }
-            return try await run(.setPreferences, ["preferences":preferences,"portable":args["portable"] as? Bool ?? false], owner: owner)
+            let result = try await run(.setPreferences, ["preferences":preferences,"portable":args["portable"] as? Bool ?? false], owner: owner)
+            await refreshMaintenanceSettings(); return result
         case .cachedFeed: return try await cachedFeed(args, owner: owner)
         case .cachedPosts:
             guard let ids=args["postIds"] as? [String],ids.count <= 80,
@@ -362,7 +409,7 @@ import AVKit
         case .diagnosticsReport:
             let coreData=try object(await run(.diagnostics))
             let connection=try object(await host.checkedCall(command:"connectionDiagnostics"))
-            let report:[String:Any] = ["version":"0.10.0","reader":"UIKit","core":coreData,"media":media.diagnosticSnapshot(),"connection":connection,"provider":"ios-direct","physicalAcceptance":"requires device test"]
+            let report:[String:Any] = ["version":"0.10.0","reader":"UIKit","core":coreData,"media":media.diagnosticSnapshot(),"connection":connection,"maintenance":["monitorEnabled":maintenanceSettings.autoCheck,"monitorIntervalSeconds":maintenanceSettings.interval,"preloadBookmarksPending":maintenance.pending(.bookmarks),"preloadFollowingPending":maintenance.pending(.following),"bookmarkPreloadError":bookmarkPreloadError as Any? ?? NSNull()],"provider":"ios-direct","physicalAcceptance":"requires device test"]
             return try Self.encoded(String(data:Self.encoded(report),encoding:.utf8) ?? "")
         case .connectionMetrics: return try await host.checkedCall(command:"connectionMetrics")
         case .clearCache:
@@ -408,7 +455,9 @@ import AVKit
         if !refresh {let cached=try await run(.getProfile,["username":username],owner:owner);if cached != Data("null".utf8){return cached}}
         if let job=profileJobs[key]{return try await job.value}
         let task=Task { @MainActor in let body=try await self.provider("UserByScreenName",variables:["screen_name":username,"withSafetyModeUserFields":true],owner:owner);return try await self.run(.ingestProfile,["body":body],owner:owner) }
-        profileJobs[key]=task;defer{profileJobs.removeValue(forKey:key)};return try await task.value
+        let jobID = UUID(); profileJobIDs[key] = jobID; profileJobs[key] = task
+        defer { if profileJobIDs[key] == jobID { profileJobs.removeValue(forKey:key); profileJobIDs.removeValue(forKey:key) } }
+        return try await task.value
     }
     private func liveFeed(_ args:[String:Any],owner:UUID)async throws->Data {
         let requested=args["feed"] as? String ?? "following";let feed=baseFeed(requested);let cursor=args["cursor"] as? String
@@ -433,30 +482,21 @@ import AVKit
             guard self.sourceRevisions[feed] == revision else {throw CancellationError()}
             return try await self.run(.ingestFeed,["feed":feed,"body":body,"append":cursor != nil,"filters":args["filters"] ?? [:]],owner:owner,revision:revision)
         }
-        feedJobs[key]=task;defer{feedJobs.removeValue(forKey:key)};return try await task.value
+        let jobID = UUID(); feedJobIDs[key] = jobID; feedJobs[key] = task
+        defer { if feedJobIDs[key] == jobID { feedJobs.removeValue(forKey:key); feedJobIDs.removeValue(forKey:key) } }
+        return try await task.value
     }
     private func allFollowing()async throws->[[String:Any]] {
         var result:[[String:Any]]=[];var offset=0
         while true {let response=try object(await run(.getFollowing,["offset":offset,"limit":80]));let page=response["accounts"] as? [[String:Any]] ?? [];result+=page;offset+=page.count;if page.isEmpty || offset >= (response["total"] as? Int ?? offset){break}}
         return result
     }
-    private func followingSnapshot()async throws->Data {try Self.encoded(["accounts":try await allFollowing(),"complete":followingComplete,"syncing":followingJob != nil,"state":followingJob != nil ? "loading" : followingError == nil ? "idle" : "failed","lastError":followingError.map { $0 as Any } ?? NSNull(),"lastProgressAt":NSNull()])}
+    private func followingSnapshot()async throws->Data {try Self.encoded(["accounts":try await allFollowing(),"complete":followingComplete,"syncing":maintenance.pending(.following),"state":maintenance.pending(.following) ? "loading" : followingError == nil ? "idle" : "failed","lastError":followingError.map { $0 as Any } ?? NSNull(),"lastProgressAt":NSNull()])}
     private func startFollowing() {
-        guard followingJob==nil,currentAccount != nil else{return};followingError=nil
-        followingJob=Task { @MainActor in
-            defer{self.followingJob=nil;self.continuation.yield(.followingProgress)}
-            do{
-                guard let account=self.currentAccount else{return};let generation=self.accountGeneration;var cursor:String?;var seen=Set<String>();var offset=0
-                repeat{
-                    try Task.checkCancellation();guard generation==self.accountGeneration else{throw CancellationError()};var variables:[String:Any]=["userId":account.id,"count":60,"includePromotedContent":false];if let cursor{variables["cursor"]=cursor}
-                    let body=try await self.provider("Following",variables:variables);let next=self.findBottomCursor(body)
-                    guard generation==self.accountGeneration else{throw CancellationError()}
-                    let response=try self.object(await self.run(.ingestFollowing,["body":body,"offset":offset,"syncId":String(self.accountGeneration),"complete":next==nil]))
-                    offset += (response["accounts"] as? [Any])?.count ?? 0;self.continuation.yield(.followingProgress)
-                    guard let next,!next.isEmpty,seen.insert(next).inserted else{self.followingComplete=true;break};cursor=next
-                }while true
-            }catch is CancellationError{}catch{self.followingError=error.localizedDescription}
-        }
+        guard currentAccount != nil else { return }
+        followingComplete = false; followingError = nil; followingPreload = PreloadCheckpoint()
+        maintenance.request(.following); updateMaintenance()
+        continuation.yield(.followingProgress)
     }
     private func findBottomCursor(_ value:Any)->String? {
         if let object=value as? [String:Any]{if object["cursorType"] as? String == "Bottom"{return object["value"] as? String};for value in object.values{if let found=findBottomCursor(value){return found}}}
@@ -680,7 +720,89 @@ import AVKit
         // Visible cells own their loading/ready/error state after reconfiguration.
         continuation.yield(.mediaRecoveryOpportunity);continuation.yield(.recovery(""))
     }
-    private func runtimeChanged(_ snapshot:NativeRuntimeSnapshot){continuation.yield(.runtimeChanged);if !snapshot.foreground{transportGeneration &+= 1}}
+    private func runtimeChanged(_ snapshot:NativeRuntimeSnapshot) {
+        continuation.yield(.runtimeChanged)
+        if !snapshot.foreground { transportGeneration &+= 1 }
+        updateMaintenance(foreground:snapshot.foreground)
+    }
+    private func beginForegroundWork() { foregroundWork += 1; updateMaintenance() }
+    private func endForegroundWork() { foregroundWork = max(0,foregroundWork - 1); updateMaintenance() }
+    private func updateMaintenance(foreground: Bool? = nil) {
+        maintenance.configure(settings:maintenanceSettings,generation:accountGeneration,
+            foreground:foreground ?? host.currentRuntime.foreground,
+            ready:credentials != nil && currentAccount != nil && !maintenanceSuspended,busy:foregroundWork > 0)
+    }
+    private func refreshMaintenanceSettings() async {
+        do {
+            let data = try await run(.getPreferences)
+            maintenanceSettings = NativeMaintenanceSettings(values:try object(data).compactMapValues { $0 as? String })
+        } catch { /* A saved setting must not be reported as failed by a follow-up read. */ }
+        updateMaintenance()
+    }
+    private func monitorSession(generation: UInt64) async throws {
+        guard generation == accountGeneration, let expected = currentAccount, credentials != nil else { throw CancellationError() }
+        do {
+            let body = try await provider("Me",background:true)
+            let checked = try await validateIdentity(body)
+            try Task.checkCancellation()
+            guard generation == accountGeneration, currentAccount?.id == expected.id else { throw CancellationError() }
+            guard checked.id == expected.id else { throw AppServiceError(code:"identity_mismatch",message:L10n.text("accountAttention")) }
+            // A healthy monitor updates evidence only. It never reconnects the
+            // account, changes its generation, or clears any reader/media state.
+            checkedAt = ISO8601DateFormatter().string(from:Date()); lastSuccessAt = checkedAt
+            maintenance.recordSuccess()
+            continuation.yield(.session(snapshot()))
+        } catch is CancellationError { throw CancellationError() }
+        catch {
+            guard generation == accountGeneration else { throw CancellationError() }
+            checkedAt = ISO8601DateFormatter().string(from:Date())
+            let code = (error as? AppServiceError)?.code ?? "network_failure"
+            if ["authentication_expired","not_authenticated","account_challenge","identity_mismatch"].contains(code) {
+                maintenanceSuspended = true; updateMaintenance()
+            }
+            continuation.yield(.session(snapshot(state:"degraded",reason:code,detail:error.localizedDescription)))
+            throw error
+        }
+    }
+    private func preloadPage(_ kind: NativePreloadKind, generation: UInt64) async throws -> Bool {
+        try Task.checkCancellation()
+        guard generation == accountGeneration, let account = currentAccount else { throw CancellationError() }
+        if kind == .following {
+            var checkpoint = followingPreload
+            var variables:[String:Any] = ["userId":account.id,"count":60,"includePromotedContent":false]
+            if let cursor = checkpoint.cursor { variables["cursor"] = cursor }
+            let body = try await provider("Following",variables:variables,background:true)
+            try Task.checkCancellation()
+            guard generation == accountGeneration, followingPreload.traversalID == checkpoint.traversalID else { throw CancellationError() }
+            let next = findBottomCursor(body)
+            let response = try object(await run(.ingestFollowing,["body":body,"offset":checkpoint.offset,
+                "syncId":checkpoint.traversalID,"complete":next == nil || next?.isEmpty == true]))
+            try Task.checkCancellation()
+            guard generation == accountGeneration, followingPreload.traversalID == checkpoint.traversalID else { throw CancellationError() }
+            let complete = try checkpoint.progress.accept(next:next,pageItems:(response["accounts"] as? [Any])?.count ?? 0)
+            checkpoint.cursor = next; checkpoint.offset += (response["accounts"] as? [Any])?.count ?? 0
+            followingPreload = checkpoint; followingComplete = complete
+            continuation.yield(.followingProgress); return complete
+        }
+        var checkpoint = bookmarkPreload
+        let traversal = checkpoint.traversalID
+        let revision = sourceRevisions["bookmarks"] ?? 0
+        if checkpoint.revision != revision { checkpoint = PreloadCheckpoint(); checkpoint.revision = revision }
+        var variables:[String:Any] = ["count":60,"includePromotedContent":false,"withQuickPromoteEligibilityTweetFields":true,"withVoice":true,"withV2Timeline":true]
+        if let cursor = checkpoint.cursor { variables["cursor"] = cursor }
+        let body = try await provider("Bookmarks",variables:variables,background:true)
+        try Task.checkCancellation()
+        guard generation == accountGeneration, bookmarkPreload.traversalID == traversal,
+              (sourceRevisions["bookmarks"] ?? 0) == revision else { throw CancellationError() }
+        let response = try object(await run(.ingestFeed,["feed":"bookmarks","body":body,"append":checkpoint.cursor != nil,"filters":[:]],revision:revision))
+        try Task.checkCancellation()
+        guard generation == accountGeneration, bookmarkPreload.traversalID == traversal,
+              (sourceRevisions["bookmarks"] ?? 0) == revision else { throw CancellationError() }
+        let next = response["nextCursor"] as? String
+        let complete = try checkpoint.progress.accept(next:next,pageItems:(response["posts"] as? [Any])?.count ?? 0)
+        checkpoint.cursor = next; bookmarkPreload = checkpoint
+        return complete
+    }
     private func scheduleRecovery() {
         // NativeMediaService has already debounced the shared foreground/path
         // opportunity for 750 ms. Do not add another delay in the adapter.
