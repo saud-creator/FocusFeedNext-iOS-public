@@ -45,8 +45,11 @@ passed optimized Swift preflight and 80 of 81 linked tests. All three UI smoke
 tests and the reading-resume/Search regressions passed. The sole failure was
 the unchanged first-page timing limit: 284.31 ms versus 250 ms. It produced no
 IPA. Further rendering optimization must meet the existing measurement boundary
-and limit; reading a stored result bundle with the inspection workflow is
-diagnostic evidence only and does not qualify a candidate.
+and limit. Inspection run [41826225007](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41826225007)
+attributed 283.73 ms to snapshot application and 0.58 ms to subsequent layout
+and visibility. The next check keeps the same timing boundary and limit,
+defers speculative cells until the first viewport is displayed, and reuses
+native action controls across post revisions.
 
 The next source checkpoint adds a reusable diffable People collection,
 coalesced following-progress updates, opaque media overlays for Reduce

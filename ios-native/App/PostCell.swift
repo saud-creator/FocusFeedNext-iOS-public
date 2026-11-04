@@ -23,11 +23,17 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
     private let mediaStack = UIStackView()
     private let quote = UIStackView()
     private let footer = UIStackView()
+    private let actions = UIStackView()
+    private lazy var readAction = makeAction(#selector(toggleRead))
+    private lazy var copyAction = makeAction(#selector(copyLink))
+    private lazy var moreAction = makeAction(#selector(openActions))
+    private var articleAction: UIButton?
+    private var commentsAction: UIButton?
     private let readLabel = readerLabel(style: .caption1, color: .secondaryLabel)
     private var current: Post?
     private var context: ReaderContext?
     private var expanded = false
-    private var bookmark = false
+    private var isRead = false
     private var highlightText = ""
     private var videos: [InlinePlayerView] = []
     private var dwell: Task<Void, Never>?
@@ -46,14 +52,21 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
         authorButton.addTarget(self, action: #selector(openAuthor), for: .touchUpInside)
         header.addArrangedSubview(avatar)
         let identity = UIStackView(arrangedSubviews: [authorButton, metadata]); identity.axis = .vertical; identity.spacing = 1; header.addArrangedSubview(identity)
-        let more = readerButton("", symbol: "ellipsis") { [weak self] in guard let self, let post = current else { return }; delegate?.postCellActions(post, source: self) }; more.accessibilityLabel = L10n.text("more"); more.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true; header.addArrangedSubview(more)
         stack.addArrangedSubview(header)
         textView.isEditable = false; textView.isScrollEnabled = false; textView.backgroundColor = .clear; textView.textContainerInset = .zero; textView.textContainer.lineFragmentPadding = 0; textView.delegate = self; textView.adjustsFontForContentSizeCategory = true; textView.setContentCompressionResistancePriority(.required, for: .vertical); textView.dataDetectorTypes = []
         stack.addArrangedSubview(textView)
         expand.contentHorizontalAlignment = .leading; expand.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true; expand.addTarget(self, action: #selector(toggleExpand), for: .touchUpInside); stack.addArrangedSubview(expand)
         mediaStack.axis = .vertical; mediaStack.spacing = 8; stack.addArrangedSubview(mediaStack)
         quote.axis = .vertical; quote.spacing = 8; quote.isLayoutMarginsRelativeArrangement = true; quote.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12); quote.backgroundColor = .tertiarySystemGroupedBackground; quote.layer.cornerRadius = 12; stack.addArrangedSubview(quote)
-        footer.axis = .horizontal; footer.spacing = 8; footer.alignment = .center; footer.addArrangedSubview(readLabel); stack.addArrangedSubview(footer)
+        actions.axis = .horizontal
+        actions.spacing = 8
+        actions.distribution = .fillEqually
+        [readAction, copyAction, moreAction].forEach { actions.addArrangedSubview($0) }
+        footer.axis = .vertical
+        footer.spacing = 8
+        footer.addArrangedSubview(readLabel)
+        footer.addArrangedSubview(actions)
+        stack.addArrangedSubview(footer)
     }
     required init?(coder: NSCoder) { fatalError("Use init") }
     override func prepareForReuse() { super.prepareForReuse(); releaseContent() }
@@ -61,11 +74,12 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
         stop(); current = nil; avatar.cancel(); delegate = nil; markRead = nil; expanded = false
         textView.attributedText = nil; authorButton.setTitle(nil, for:.normal); metadata.text = nil; attribution.text = nil
         mediaStack.arrangedSubviews.forEach { $0.removeFromSuperview() }; quote.arrangedSubviews.forEach { $0.removeFromSuperview() }; videos = []
-        footer.arrangedSubviews.filter { $0 !== readLabel }.forEach { $0.removeFromSuperview() }
+        articleAction?.isHidden = true
+        commentsAction?.isHidden = true
     }
     var representedPostID: String? { current?.id }
     func configure(_ post: Post, read: Bool, bookmark: Bool, highlight: String = "", context: ReaderContext, delegate: PostCellDelegate) {
-        stop(); let same = current?.id == post.id; current = post; self.context = context; self.delegate = delegate; self.bookmark = bookmark; if !same { expanded = false }; highlightText = highlight
+        stop(); let same = current?.id == post.id; current = post; self.context = context; self.delegate = delegate; isRead = read; if !same { expanded = false }; highlightText = highlight
         accessibilityIdentifier = "post.\(post.id)"
         updateAppearance(context.preferences)
         attribution.isHidden = !post.isRepost; attribution.text = post.repostedBy.map { "\(L10n.text("reposted")) \($0.label)" }
@@ -75,6 +89,7 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
         avatar.backgroundColor = .tertiarySystemFill; avatar.fallbackInitials(post.author.label); avatar.load(post.author.avatarUrl, services: context.services, maxPixel: 120)
         readLabel.text = L10n.text(read ? "read" : "unread")
         mediaStack.arrangedSubviews.forEach { $0.removeFromSuperview() }; videos.removeAll()
+        mediaStack.isHidden = post.media.isEmpty
         for (index, item) in post.media.enumerated() {
             if item.kind == "image" {
                 let tile = PhotoTile(item: item, services: context.services)
@@ -97,13 +112,50 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
                 else { let key = "\(context.services.accountGeneration):\(quoted.id):\(quoted.media.firstIndex(of: item) ?? 0)"; let player = InlinePlayerView(item: item, context: context, playbackKey: key); player.fullscreen = { [weak self, weak player] in guard let player else { return }; let request = player.mediaPresentation(); player.stop(); self?.delegate?.postCellPresentMedia(request) }; quote.addArrangedSubview(player); videos.append(player) }
             }
         }
-        footer.arrangedSubviews.filter { $0 !== readLabel }.forEach { $0.removeFromSuperview() }
-        let actions = UIStackView(); actions.axis = traitCollection.preferredContentSizeCategory.isAccessibilityCategory ? .vertical : .horizontal; actions.spacing = 8; actions.distribution = .fillEqually
-        actions.addArrangedSubview(readerButton(L10n.text(read ? "markUnread" : "markRead"), symbol: read ? "circle" : "checkmark.circle") { [weak self] in self?.delegate?.postCellSetRead(post, read: !read) })
-        actions.addArrangedSubview(readerButton(L10n.text("copyLink"), symbol: "link") { if let url = post.canonicalURL { ReaderClipboard.copyURL(url) } }); footer.addArrangedSubview(actions)
-        if post.isArticle { footer.addArrangedSubview(readerButton(L10n.text("readArticle"), symbol: "doc.text") { [weak self] in self?.delegate?.postCellOpenArticle(post) }) }
-        if bookmark { footer.addArrangedSubview(readerButton(L10n.text("comments"), symbol: "text.bubble") { [weak self] in self?.delegate?.postCellComments(post) }) }
-        footer.axis = .vertical; footer.alignment = .fill
+        actions.axis = traitCollection.preferredContentSizeCategory.isAccessibilityCategory ? .vertical : .horizontal
+        readAction.setTitle(L10n.text(read ? "markUnread" : "markRead"), for: .normal)
+        copyAction.setTitle(L10n.text("copyLink"), for: .normal)
+        copyAction.isEnabled = post.canonicalURL != nil
+        moreAction.setTitle(L10n.text("more"), for: .normal)
+        if post.isArticle, articleAction == nil {
+            let button = makeAction(#selector(openArticle))
+            footer.insertArrangedSubview(button, at: 2)
+            articleAction = button
+        }
+        articleAction?.setTitle(L10n.text("readArticle"), for: .normal)
+        articleAction?.isHidden = !post.isArticle
+        if bookmark, commentsAction == nil {
+            let button = makeAction(#selector(openComments))
+            footer.addArrangedSubview(button)
+            commentsAction = button
+        }
+        commentsAction?.setTitle(L10n.text("comments"), for: .normal)
+        commentsAction?.isHidden = !bookmark
+    }
+    private func makeAction(_ action: Selector) -> UIButton {
+        let button = UIButton(type: .system)
+        button.titleLabel?.font = .preferredFont(forTextStyle: .subheadline)
+        button.titleLabel?.adjustsFontForContentSizeCategory = true
+        button.titleLabel?.numberOfLines = 0
+        button.titleLabel?.textAlignment = .center
+        button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        button.addTarget(self, action: action, for: .touchUpInside)
+        return button
+    }
+    @objc private func toggleRead() {
+        if let post = current { delegate?.postCellSetRead(post, read: !isRead) }
+    }
+    @objc private func copyLink() {
+        if let url = current?.canonicalURL { ReaderClipboard.copyURL(url) }
+    }
+    @objc private func openActions() {
+        if let post = current { delegate?.postCellActions(post, source: moreAction) }
+    }
+    @objc private func openArticle() {
+        if let post = current { delegate?.postCellOpenArticle(post) }
+    }
+    @objc private func openComments() {
+        if let post = current { delegate?.postCellComments(post) }
     }
     private func renderText() {
         guard let post = current, let context else { return }
@@ -139,7 +191,11 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
         shadowBounds = contentView.bounds
         stack.spacing = ReaderTheme.spacing(preferences)
         contentView.directionalLayoutMargins = NSDirectionalEdgeInsets(top: preferences.string("density") == "compact" ? 8 : 12, leading: 12, bottom: preferences.string("density") == "compact" ? 8 : 12, trailing: 12)
-        quote.backgroundColor = ReaderTheme.elevated(preferences); quote.layer.borderWidth = 1 / max(1, traitCollection.displayScale); quote.layer.borderColor = ReaderTheme.border(preferences).resolvedColor(with: traitCollection).cgColor
+        if current?.quoted != nil {
+            quote.backgroundColor = ReaderTheme.elevated(preferences)
+            quote.layer.borderWidth = 1 / max(1, traitCollection.displayScale)
+            quote.layer.borderColor = ReaderTheme.border(preferences).resolvedColor(with: traitCollection).cgColor
+        }
         authorButton.setTitleColor(ReaderTheme.text(preferences), for: .normal)
         authorButton.titleLabel?.font = ReaderTheme.font(.headline, preferences: preferences, weight: .semibold)
         metadata.textColor = ReaderTheme.text(preferences, secondary: true); readLabel.textColor = ReaderTheme.text(preferences, secondary: true)
@@ -253,16 +309,26 @@ final class PhotoTile: UIControl {
     init(item: PostMedia, services: AppServices) {
         self.item = item; self.services = services; currentHandle = item.url; super.init(frame: .zero)
         backgroundColor = ReaderTheme.mediaBackground(ReaderTheme.currentPreferences); layer.cornerRadius = 12; clipsToBounds = true
-        image.contentMode = .scaleAspectFit; image.translatesAutoresizingMaskIntoConstraints = false; addSubview(image)
-        NSLayoutConstraint.activate([image.leadingAnchor.constraint(equalTo: leadingAnchor), image.trailingAnchor.constraint(equalTo: trailingAnchor), image.topAnchor.constraint(equalTo: topAnchor), image.bottomAnchor.constraint(equalTo: bottomAnchor)])
+        image.contentMode = .scaleAspectFit
+        addSubview(image)
         let ratio = CGFloat(item.height ?? 300) / max(1, CGFloat(item.width ?? 500)); let height = heightAnchor.constraint(equalTo: widthAnchor, multiplier: min(1.3, max(0.35, ratio))); height.priority = .defaultHigh; height.isActive = true; heightAnchor.constraint(greaterThanOrEqualToConstant: 120).isActive = true
-        stateLabel.textAlignment = .center; if let label = stateLabel as? ReaderLabel { label.backgroundOverride = backgroundColor; label.updateAppearance(ReaderTheme.currentPreferences) }; stateLabel.translatesAutoresizingMaskIntoConstraints = false; addSubview(stateLabel); NSLayoutConstraint.activate([stateLabel.centerXAnchor.constraint(equalTo: centerXAnchor), stateLabel.centerYAnchor.constraint(equalTo: centerYAnchor), stateLabel.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 12), stateLabel.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12)])
+        stateLabel.textAlignment = .center
+        if let label = stateLabel as? ReaderLabel {
+            label.backgroundOverride = backgroundColor
+            label.updateAppearance(ReaderTheme.currentPreferences)
+        }
+        addSubview(stateLabel)
         image.failure = { [weak self] in self?.showFailure() }
         image.loaded = { [weak self] in self?.stateLabel.isHidden = true; self?.accessibilityValue = nil }
         isAccessibilityElement = true; accessibilityTraits = .button; accessibilityLabel = item.alt?.isEmpty == false ? item.alt : L10n.text("openPhoto")
         addTarget(self, action: #selector(tapped), for: .touchUpInside); load()
     }
     required init?(coder: NSCoder) { fatalError("Use init") }
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        image.frame = bounds
+        stateLabel.frame = bounds.insetBy(dx: min(12, bounds.width / 2), dy: 0)
+    }
     private func load() { failed = false; stateLabel.isHidden = false; stateLabel.text = L10n.text("loading"); accessibilityValue = L10n.text("loading"); guard !currentHandle.isEmpty else { showFailure(); return }; image.load(currentHandle, services: services) }
     private func showFailure() { failed = true; stateLabel.text = "\(L10n.text("photoFailed")) · \(L10n.text("retry"))"; stateLabel.isHidden = false; accessibilityValue = L10n.text("photoFailed") + ", " + L10n.text("retry") }
     @objc private func tapped() {

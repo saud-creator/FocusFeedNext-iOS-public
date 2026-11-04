@@ -119,6 +119,7 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
     private var lastHeight: CGFloat = 0
     private var refreshTimer: Timer?
     private var imagePrefetch: [String: (id: UUID, task: Task<Void, Never>)] = [:]
+    private var firstPostDisplayed = false
     private var lastMemoryRevision = 0
     private var accountGeneration: UInt64 = 0
     private let topActions = UIStackView()
@@ -147,6 +148,9 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
             return section
         }
         collection = UICollectionView(frame: .zero, collectionViewLayout: layout); collection.backgroundColor = .clear; collection.delegate = self; collection.prefetchDataSource = self; collection.alwaysBounceVertical = true; collection.accessibilityIdentifier = "reader.feed"
+        // UIKit also uses this switch for ahead-of-viewport cell preparation.
+        // Build the first viewport before asking for speculative rows.
+        collection.isPrefetchingEnabled = false
         collection.register(PostCell.self, forCellWithReuseIdentifier: PostCell.reuseID); collection.register(FeedHeader.self, forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader, withReuseIdentifier: "header")
         refreshControl.addTarget(self, action: #selector(refreshTapped), for: .valueChanged); collection.refreshControl = refreshControl
         topActions.axis = .horizontal; topActions.spacing = 8; topActions.alignment = .center
@@ -342,6 +346,13 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
     }
     private func failure(_ error: Error) { guard !(error is CancellationError) else { return }; notice.show(error.localizedDescription, retry: { [weak self] in self?.load(refresh: true) }); status.text = L10n.text("attention") }
     func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
+        if !firstPostDisplayed, cell is PostCell {
+            firstPostDisplayed = true
+            // Restore normal prefetch outside UIKit's current snapshot update.
+            DispatchQueue.main.async { [weak collectionView] in
+                collectionView?.isPrefetchingEnabled = true
+            }
+        }
         if let post = posts[safe: indexPath.item] { cancelImagePrefetch(for: post); (cell as? PostCell)?.visible(read: state.readIDs.contains(post.id)) }
         if indexPath.item >= posts.count - 5 && !state.exhausted && !busy && !launchRestoreStopped { load(refresh: false) }
     }
