@@ -5,6 +5,11 @@ on:
   pull_request:
     paths: ['crates/**', 'ios-native/**', 'source/**', 'Cargo.*', 'rust-toolchain.toml', '.github/workflows/native-ios.yml']
   workflow_dispatch:
+    inputs:
+      inspect_run_id:
+        description: 'Read an existing native test result (skip builds)'
+        required: false
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -12,6 +17,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   desktop:
+    if: github.event_name != 'workflow_dispatch' || inputs.inspect_run_id == ''
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -27,6 +33,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run check
   core:
+    if: github.event_name != 'workflow_dispatch' || inputs.inspect_run_id == ''
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -103,3 +110,29 @@ jobs:
             ios-native/Resources/BuildProvenance.json
           retention-days: 30
           include-hidden-files: true
+  inspect:
+    if: github.event_name == 'workflow_dispatch' && inputs.inspect_run_id != ''
+    runs-on: macos-15-intel
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Native-iOS-evidence
+          run-id: ${{ inputs.inspect_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: .native-test-evidence
+      - name: Read native first-page timing activities
+        run: |
+          selected=$(find /Applications -maxdepth 1 -name 'Xcode_26*.app' | sort -V | tail -n 1)
+          if [[ -n "$selected" ]]; then sudo xcode-select -s "$selected/Contents/Developer"; fi
+          python3 ios-native/tools/inspect-native-timing.py .native-test-evidence
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Native-timing-activities
+          path: ios-native/dist/timing-inspection.json
+          retention-days: 30

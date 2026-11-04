@@ -143,6 +143,9 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
         authorButton.setTitleColor(ReaderTheme.text(preferences), for: .normal)
         authorButton.titleLabel?.font = ReaderTheme.font(.headline, preferences: preferences, weight: .semibold)
         metadata.textColor = ReaderTheme.text(preferences, secondary: true); readLabel.textColor = ReaderTheme.text(preferences, secondary: true)
+        // DeviceRuntime already observes Reduce Transparency and publishes a
+        // context appearance update for visible cells; keep one scene observer.
+        videos.forEach { $0.updateAccessibilityAppearance() }
         renderText()
     }
     override func layoutSubviews() {
@@ -300,6 +303,7 @@ final class InlinePlayerView: UIView, UIGestureRecognizerDelegate {
     private var taskID = UUID()
     private var positionRestored = true
     private let notice = readerLabel(style: .caption1, color: .white)
+    private let controls = UIStackView()
     private var button: UIButton!
     private var selectedURL: String
     private var savedPosition = 0.0
@@ -329,12 +333,22 @@ final class InlinePlayerView: UIView, UIGestureRecognizerDelegate {
         let speeds = [0.5, 0.75, 1, 1.25, 1.5, 2.0].map { speed in UIAction(title: "\(speed)×") { [weak self] _ in guard let self else { return }; selectedSpeed = Float(speed); if isPlaying { player?.rate = selectedSpeed } } }
         let qualities = item.variants.map { variant in UIAction(title: variant.label) { [weak self] _ in guard let self else { return }; let playing = isPlaying; selectedURL = variant.url; stop(); play(startPlaying: playing) } }
         settings.menu = UIMenu(children: [UIMenu(title: L10n.text("speed"), children: speeds), UIMenu(title: L10n.text("quality"), children: qualities)])
-        let controls = UIStackView(arrangedSubviews: [button, settings, full]); controls.spacing = 12; controls.backgroundColor = UIColor.black.withAlphaComponent(0.55); controls.translatesAutoresizingMaskIntoConstraints = false; addSubview(controls)
+        controls.addArrangedSubview(button); controls.addArrangedSubview(settings); controls.addArrangedSubview(full)
+        controls.spacing = 12; controls.translatesAutoresizingMaskIntoConstraints = false; addSubview(controls)
         NSLayoutConstraint.activate([controls.leadingAnchor.constraint(equalTo: leadingAnchor), controls.trailingAnchor.constraint(equalTo: trailingAnchor), controls.bottomAnchor.constraint(equalTo: bottomAnchor), controls.heightAnchor.constraint(greaterThanOrEqualToConstant: 44), settings.widthAnchor.constraint(greaterThanOrEqualToConstant: 44), full.widthAnchor.constraint(greaterThanOrEqualToConstant: 44)])
-        notice.translatesAutoresizingMaskIntoConstraints = false; notice.numberOfLines = 0; notice.backgroundColor = UIColor.black.withAlphaComponent(0.55); addSubview(notice); NSLayoutConstraint.activate([notice.topAnchor.constraint(equalTo: topAnchor, constant: 8), notice.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12), notice.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12)])
+        notice.translatesAutoresizingMaskIntoConstraints = false; notice.numberOfLines = 0; addSubview(notice); NSLayoutConstraint.activate([notice.topAnchor.constraint(equalTo: topAnchor, constant: 8), notice.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12), notice.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12)])
+        updateAccessibilityAppearance()
         let tap = UITapGestureRecognizer(target: self, action: #selector(toggleFromSurface)); tap.delegate = self; tap.cancelsTouchesInView = false; addGestureRecognizer(tap)
     }
     required init?(coder: NSCoder) { fatalError("Use init") }
+    func updateAccessibilityAppearance() {
+        let background = ReaderTheme.mediaOverlay(reduceTransparency: context.runtime?.reduceTransparency ?? UIAccessibility.isReduceTransparencyEnabled, contrast: traitCollection.accessibilityContrast)
+        controls.backgroundColor = background; notice.backgroundColor = background
+    }
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if previousTraitCollection?.accessibilityContrast != traitCollection.accessibilityContrast { updateAccessibilityAppearance() }
+    }
     private static func initialURL(_ item: PostMedia, context: ReaderContext) -> String {
         guard !item.variants.isEmpty else { return item.url }
         let preferred = context.preferences.string("video.quality")

@@ -87,4 +87,30 @@ import UIKit
         XCTAssertGreaterThan(highRatio, lowRatio)
         XCTAssertGreaterThanOrEqual(highRatio, 4.5)
     }
+    func testSystemHighContrastStrengthensCustomTextWithoutChangingItsSavedPreference() {
+        let preferences = ReaderPreferences(entries: [["appearance.surface", "#f0f0f0"], ["appearance.textContrast", "0"]])
+        let normal = UITraitCollection(traitsFrom: [UITraitCollection(userInterfaceStyle: .light), UITraitCollection(accessibilityContrast: .normal)])
+        let high = UITraitCollection(traitsFrom: [UITraitCollection(userInterfaceStyle: .light), UITraitCollection(accessibilityContrast: .high)])
+        for secondary in [false, true] {
+            let text = ReaderTheme.text(preferences, secondary: secondary)
+            let original = text.resolvedColor(with: normal)
+            let normalRatio = ReaderTheme.contrastRatio(text, ReaderTheme.surface(preferences), traits: normal)
+            let highRatio = ReaderTheme.contrastRatio(text, ReaderTheme.surface(preferences), traits: high)
+            XCTAssertGreaterThan(highRatio, normalRatio)
+            XCTAssertEqual(highRatio, ReaderTheme.contrastRatio(.black, ReaderTheme.surface(preferences), traits: high), accuracy: 0.001)
+            XCTAssertEqual(text.resolvedColor(with: normal), original, "Turning Increase Contrast off restores the selected appearance.")
+        }
+        XCTAssertEqual(preferences.string("appearance.textContrast"), "0")
+    }
+    func testMediaOverlayAccessibilityPolicyKeepsNormalTransparencyAndOpaqueAlternatives() {
+        XCTAssertEqual(ReaderTheme.mediaOverlay(reduceTransparency: false, contrast: .normal).cgColor.alpha, 0.55, accuracy: 0.001)
+        let contrasts: [UIAccessibilityContrast] = [.normal, .high]
+        for reduceTransparency in [false, true] {
+            for contrast in contrasts where reduceTransparency || contrast == .high {
+                let background = ReaderTheme.mediaOverlay(reduceTransparency: reduceTransparency, contrast: contrast)
+                XCTAssertEqual(background.cgColor.alpha, 1)
+                XCTAssertEqual(ReaderTheme.contrastRatio(.white, background), 21, accuracy: 0.001)
+            }
+        }
+    }
 }

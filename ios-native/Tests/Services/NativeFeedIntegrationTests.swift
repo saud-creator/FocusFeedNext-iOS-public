@@ -163,6 +163,40 @@ import AVFoundation
         XCTAssertFalse(controller.notice.isHidden)
         XCTAssertTrue(controller.notice.label.text?.contains("fixture") == true)
     }
+    func testInlineMediaOverlaysFollowRuntimeTransparencyAndContrastTraitChanges() async throws {
+        let service = try FeedFixtureServices(); let context = ReaderContext(services: service)
+        context.preferences.set("video.autoplay", "off")
+        var runtime = NativeRuntimeSnapshot(); context.runtime = runtime
+        let controller = FeedViewController(context: context); controller.automaticallyLoads = false
+        try host(controller)
+        let shell = try XCTUnwrap(controller.parent)
+        let normal = UITraitCollection(traitsFrom: [UITraitCollection(userInterfaceStyle: .light), UITraitCollection(accessibilityContrast: .normal)])
+        let high = UITraitCollection(traitsFrom: [UITraitCollection(userInterfaceStyle: .light), UITraitCollection(accessibilityContrast: .high)])
+        shell.setOverrideTraitCollection(normal, forChild: controller)
+        var post = try XCTUnwrap(service.posts.first)
+        post.media = [PostMedia(kind: "video", url: "ffmedia:accessibility-fixture", previewUrl: nil, width: 640, height: 360, alt: nil, durationMs: nil, variants: [])]
+        controller.replacePosts([post]); try await settle(controller)
+        func inlineVideo(in root: UIView) -> InlinePlayerView? {
+            if let video = root as? InlinePlayerView { return video }
+            for child in root.subviews { if let video = inlineVideo(in: child) { return video } }
+            return nil
+        }
+        let video = try XCTUnwrap(inlineVideo(in: controller.collection))
+        let controls = try XCTUnwrap(video.subviews.compactMap { $0 as? UIStackView }.first)
+        let notice = try XCTUnwrap(video.subviews.compactMap { $0 as? UILabel }.first)
+        XCTAssertEqual(try XCTUnwrap(controls.backgroundColor).cgColor.alpha, 0.55, accuracy: 0.001)
+        runtime.reduceTransparency = true; context.runtime = runtime; context.changed()
+        XCTAssertEqual(controls.backgroundColor?.cgColor.alpha, 1, "The existing scene/runtime appearance event must update a visible video's controls.")
+        XCTAssertEqual(notice.backgroundColor?.cgColor.alpha, 1)
+        runtime.reduceTransparency = false; context.runtime = runtime; context.changed()
+        XCTAssertEqual(try XCTUnwrap(controls.backgroundColor).cgColor.alpha, 0.55, accuracy: 0.001)
+        shell.setOverrideTraitCollection(high, forChild: controller); try await settle(controller)
+        XCTAssertEqual(controls.backgroundColor?.cgColor.alpha, 1)
+        let noticeBackground = try XCTUnwrap(notice.backgroundColor)
+        XCTAssertEqual(ReaderTheme.contrastRatio(try XCTUnwrap(notice.textColor), noticeBackground, traits: video.traitCollection), 21, accuracy: 0.001)
+        shell.setOverrideTraitCollection(normal, forChild: controller); try await settle(controller)
+        XCTAssertEqual(try XCTUnwrap(controls.backgroundColor).cgColor.alpha, 0.55, accuracy: 0.001)
+    }
     func testMalformedPhotoSettlesIntoAccessibleRetryInsteadOfLoadingForever() async throws {
         let service = try FeedFixtureServices(); service.malformedImages = true
         let item = PostMedia(kind:"image", url:"ffmedia:malformed-fixture", previewUrl:nil, width:640, height:360, alt:"Fixture photo", durationMs:nil, variants:[])

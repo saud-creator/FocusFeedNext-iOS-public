@@ -40,6 +40,19 @@ for the welcome screen, grouped appearance settings, Arabic accessibility text,
 and rotation. They establish those fixture layouts only, not signed-device,
 VoiceOver, live-provider or performance acceptance.
 
+Run [41821511419](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41821511419)
+passed optimized Swift preflight and 80 of 81 linked tests. All three UI smoke
+tests and the reading-resume/Search regressions passed. The sole failure was
+the unchanged first-page timing limit: 284.31 ms versus 250 ms. It produced no
+IPA. Further rendering optimization must meet the existing measurement boundary
+and limit; reading a stored result bundle with the inspection workflow is
+diagnostic evidence only and does not qualify a candidate.
+
+The next source checkpoint adds a reusable diffable People collection,
+coalesced following-progress updates, opaque media overlays for Reduce
+Transparency/high contrast, and stronger custom text under Increase Contrast.
+These changes still require their own linked test run.
+
 ## Required device qualification
 
 Use the affected iPhone running the recorded 0.9.0/090.31 build as comparison.

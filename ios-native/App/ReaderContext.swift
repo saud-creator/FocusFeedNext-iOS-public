@@ -132,6 +132,9 @@ enum ReaderPageOpenBehavior: String { case off, refresh, reset }
     static func elevated(_ preferences: ReaderPreferences) -> UIColor { color(preferences.string("appearance.elevated")) ?? .tertiarySystemGroupedBackground }
     static func border(_ preferences: ReaderPreferences) -> UIColor { color(preferences.string("appearance.border")) ?? .separator }
     static func mediaBackground(_ preferences: ReaderPreferences) -> UIColor { color(preferences.string("appearance.mediaBackground")) ?? .black }
+    static func mediaOverlay(reduceTransparency: Bool, contrast: UIAccessibilityContrast) -> UIColor {
+        .black.withAlphaComponent(reduceTransparency || contrast == .high ? 1 : 0.55)
+    }
     static func spacing(_ preferences: ReaderPreferences) -> CGFloat { preferences.string("density") == "compact" ? 8 : 12 }
     static func text(_ preferences: ReaderPreferences, secondary: Bool = false, on background: UIColor? = nil) -> UIColor {
         let bed = background ?? surface(preferences)
@@ -141,7 +144,7 @@ enum ReaderPageOpenBehavior: String { case off, refresh, reset }
             let white = contrastRatio(.white, resolved, traits: traits)
             let black = contrastRatio(.black, resolved, traits: traits)
             let foreground: UIColor = white > black ? .white : .black
-            let strength = CGFloat(secondary ? 0.62 + contrast * 0.25 : 0.82 + contrast * 0.18)
+            let strength = traits.accessibilityContrast == .high ? CGFloat(1) : CGFloat(secondary ? 0.62 + contrast * 0.25 : 0.82 + contrast * 0.18)
             return mix(resolved, foreground, fraction: strength)
         }
     }
