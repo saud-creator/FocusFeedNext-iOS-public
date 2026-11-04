@@ -1,81 +1,52 @@
 # Native 0.10.0 acceptance record
 
-This record distinguishes implemented source from executed checks. It must not
-be used to assert physical acceptance without the associated device report.
+**Build 100.41 passed automated qualification and unsigned IPA verification.**
+The signed upgrade, live X recovery, and physical iPhone measurements are
+pending. Runtime testing on iOS 16 is pending where a compatible device or
+simulator is available.
 
-## Qualification record
-
-The implementation starts at public commit `129c47847bbbd336edd69f05db6780ed19379e56`
-on `codex/native-ios-quality`. The previous public 0.9.1 unsigned IPA is
-retained with SHA-256
-`9fac858d1f6e0980f010613cb1f3ce7ef3f00a7e28db0fcb58fcc4264d4e858b`.
-The reference installation for upgrade acceptance is 0.9.0 build 31
-(`090.31` in the bundle), source `65CC631F`.
-
-| Check | Evidence |
+| Item | Verified result |
 |---|---|
-| Rust core and UniFFI 0.32.1 | 159 unit tests, 14 engine integration tests and 1 FFI test passed. Coverage includes protected SQLite migration and rollback, bookmark and List navigation after eviction, cancellation, and account action ownership. |
-| Existing desktop | 652 frontend tests and the lint/build completed. The 419-test desktop Rust library suite passed locally after the shared storage changes. |
-| Media policy | The macOS Foundation harness passed 460 assertions, including 100 simulated interruption cycles. |
-| Archive and evidence tooling | 16 structural archive/provenance fixtures and 7 simulator evidence export fixtures passed. |
-| Native app and tests | [Run 41775783710](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41775783710) compiled and linked the application. Its test results exposed missing simulator Keychain entitlements, a first-page timing miss and an incorrect short-hex color fixture. [Run 41783284787](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41783284787) passed 69 service, bridge, and collection tests, including simulator Keychain access and the first-page timing fixture. The native welcome UI test passed. Two UI tests exposed large-text welcome reachability and Settings action-sheet selection issues; [run 41787969454](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41787969454) passed all three UI tests after those changes, plus 70 of 71 service tests including downsampling and 100 in-flight recovery interruptions. The first-page timing fixture missed its unchanged 250 ms limit (479 ms). The next run checks reduced feed layout/formatting work and removes fake main-thread image rendering from the fixture. |
-| Unsigned device archive | Requires passing linked simulator tests, a matching result receipt and package verification. |
-| Signed upgrade, live provider and physical performance | Require the device qualification below. |
+| Packaged source | `3b5e07092c93274b212e83cdbe4d22e6cdb104de` on `codex/native-ios-quality`, based on public commit `129c47847bbbd336edd69f05db6780ed19379e56` |
+| Package | FocusFeedNext 0.10.0 build 100.41, unsigned arm64, `com.focusfeed.next`, iOS 16.0 minimum |
+| IPA SHA-256 | `9c263242b6953dc8b1993a34f369e6af5c645a96db62dbbff2dc7c3a33131579` |
+| Xcode and simulator | Xcode 26.3 (17C529), iPhone SE (3rd generation) simulator, iOS 26.2 (23C54), Apple Silicon host |
+| Linked native tests | 88 passed, 0 failed, 0 skipped. Includes 100 controlled recovery interruptions, fullscreen seek and Retry, People, Arabic accessibility text, rotation, and Settings. |
+| Returned data to first visible post | p95 76.72 ms and maximum 84.37 ms across 20 fresh feed presentations, with a 250 ms simulator limit. |
+| Rust and desktop | Shared Rust workspace, native verifier and evidence fixtures, and desktop checks passed. |
+| Publication privacy | Exact packaged source passed. |
 
-Run [41792587556](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41792587556)
-stopped in Release compilation: Swift's ownership verifier failed while optimizing
-the reading-resume ceiling test. It did not execute the updated timing fixture
-or produce a new IPA. The continuation makes that task-local test explicitly
-asynchronous and adds optimized Swift preflight before Rust slice compilation.
-The 250 ms threshold and Release test configuration remain in place.
+The [qualification run](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41864533403)
+retains the IPA, checksum, source and toolchain manifest, verification report,
+XCTest results, and screenshots. Independent verification matched all 119 tracked
+build inputs, the downloaded result bundle, and the IPA checksum. The verifier
+checked the native scene, required linked frameworks, loopback policy, unsigned
+state, and exclusion of legacy reader and test resources. The
+[privacy run](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41869400295)
+used the same packaged commit.
 
-The continuation also enforces reading resume's three-read cap at native HTTP
-dispatch, including retries inside the retained provider engine. Cached-body,
-profile and List-member reads share that allowance; bootstrap resources and
-manual navigation are outside it. These changes require their own successful
-linked test run before archive qualification.
+Earlier runs exposed timing misses, simulator Keychain configuration, native
+collection initialization, and async XCTest issues. The
+[last completed Intel simulator test](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41851757490)
+passed 87 of 88 tests. The subsequent simulator gate measures the plan's p95
+over 20 observations and keeps the same timing boundary and 250 ms limit.
+The release app is optimized. The service test target compiles without the
+optimizer to avoid the Swift async XCTest crash.
 
-Simulator screenshots from run `41787969454` were exported and visually reviewed
-for the welcome screen, grouped appearance settings, Arabic accessibility text,
-and rotation. They establish those fixture layouts only, not signed-device,
-VoiceOver, live-provider or performance acceptance.
-
-Run [41821511419](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41821511419)
-passed optimized Swift preflight and 80 of 81 linked tests. All three UI smoke
-tests and the reading-resume/Search regressions passed. The sole failure was
-the unchanged first-page timing limit: 284.31 ms versus 250 ms. It produced no
-IPA. Further rendering optimization must meet the existing measurement boundary
-and limit. Inspection run [41826225007](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41826225007)
-attributed 283.73 ms to snapshot application and 0.58 ms to subsequent layout
-and visibility. The next check keeps the same timing boundary and limit,
-defers speculative cells until the first viewport is displayed, and reuses
-native action controls across post revisions.
-
-The next source checkpoint adds a reusable diffable People collection,
-coalesced following-progress updates, opaque media overlays for Reduce
-Transparency/high contrast, and stronger custom text under Increase Contrast.
-Run [41844964641](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41844964641)
-passed the first-page timing fixture at 187.98 ms, all three UI tests and the
-media transparency and contrast checks. The People fixtures uncovered a missing
-initial section while the first account load was pending. A fullscreen seek
-fixture also timed out. The next run tests an initial empty People section and
-waits for the controlled seek callback and Retry states separately. Crash reports
-also show an async XCTest runtime abort. The service test target uses unoptimized
-compilation, while the app under test stays optimized. The timing limit and
-production recovery deadlines are unchanged.
-
-Run [41851757490](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41851757490)
-passed 87 of 88 linked tests, including the corrected People and fullscreen
-fixtures and all three UI tests. Its single first-page observation was 306.43 ms.
-The simulator gate now uses the plan's nearest-rank p95 over 20 fresh feed
-presentations, reports every observation and the maximum, and retains the same
-250 ms limit and returned-data-to-visible-post boundary. This measures the
-declared simulator fixture; repeat the performance matrix on the affected iPhone.
+The comparison installation is **0.9.0 build 31** (`090.31` in the bundle),
+source `65CC631F`. The retained public 0.9.1 rollback input is unsigned, with
+SHA-256 `9fac858d1f6e0980f010613cb1f3ce7ef3f00a7e28db0fcb58fcc4264d4e858b`.
+Retain the owner's known-good signed installation or signed artifact for the
+upgrade check. The unsigned 0.9.1 archive is a separate rollback input.
 
 ## Required device qualification
 
 Use the affected iPhone running the recorded 0.9.0/090.31 build as comparison.
-Install with the same bundle ID, signing team and Keychain access identity.
+Record the comparison results before installing. Sign build 100.41 with the
+same bundle ID, signing team, and Keychain access identity, then install it
+over build 31. If the installation requires deleting the existing app, stop
+before proceeding. In Settings → About, verify version 0.10.0, build 100.41,
+and source beginning with `3b5e070`.
 
 1. Verify session, language/theme, media settings, action permissions, local List
    names/colors/members, and account boundaries after the upgrade.
@@ -95,5 +66,14 @@ Install with the same bundle ID, signing team and Keychain access identity.
    after repeated equivalent viewer/scroll cycles. Do not infer improvement from
    framework choice or simulator timing alone.
 
-Keep the known-good artifact and protected database backup until this checklist
-passes. No production publication is authorized by a CI success alone.
+Record the iPhone model, iOS version, old and new builds, signing identity
+match, and pass/fail result for each step. For each interruption, record the
+trigger, media type, recovery time, and whether it recovered automatically,
+after Retry, or after a force quit.
+
+If media stays stuck, open Settings → Privacy and diagnostics → Connection
+report. Refresh and share the report before force quitting. Keep post links,
+credentials, and private media URLs out of the acceptance record. If sign-in,
+preferences, or Lists fail to carry over, record which failed before changing
+accounts or importing settings. Preserve the known-good artifact and protected
+database backup until upgrade acceptance passes.
