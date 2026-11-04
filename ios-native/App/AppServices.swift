@@ -43,8 +43,8 @@ struct AppRequest: Codable {
     func cancel(requestID: UUID)
     func signIn(presenting: UIViewController) async throws -> SessionSnapshot
     func mediaURL(for handle: String) async throws -> URL
-    func imageData(url: String, maxPixelDimension: Int) async throws -> Data
-    func prefetchImageData(url: String, maxPixelDimension: Int) async throws -> Data
+    func loadImage(url: String, maxPixelDimension: Int) async throws -> UIImage
+    func prefetchImage(url: String, maxPixelDimension: Int) async throws
     func makePlayer(url: String, owner: UUID) async throws -> AVPlayer
     func seekPlayer(player: AVPlayer, owner: UUID, position: Double) async throws
     func pausePlayer(player: AVPlayer, owner: UUID)
@@ -63,7 +63,9 @@ extension AppServices {
     }
     /// Lightweight adapters may share their image loader. Production overrides
     /// this with a speculative download that never starts media recovery.
-    func prefetchImageData(url: String, maxPixelDimension: Int) async throws -> Data { try await imageData(url:url, maxPixelDimension:maxPixelDimension) }
+    func prefetchImage(url: String, maxPixelDimension: Int) async throws {
+        _ = try await loadImage(url: url, maxPixelDimension: maxPixelDimension)
+    }
     /// Test adapters can retain their local handles. The production adapter
     /// overrides this with source/registration recovery before returning.
     func recoverMediaHandle(_ handle: String) async throws -> String { try await recoverMedia(); return handle }

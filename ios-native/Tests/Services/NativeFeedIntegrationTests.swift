@@ -170,6 +170,19 @@ import AVFoundation
         let missing = PhotoTile(item:PostMedia(kind:"image", url:"", previewUrl:nil, width:nil, height:nil, alt:nil, durationMs:nil, variants:[]), services:service)
         XCTAssertTrue(missing.accessibilityValue?.contains(L10n.text("photoFailed")) == true)
     }
+    func testPhotoDecoderReturnsDownsampledBitmapAtItsCacheCost() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 640, height: 360), format: format)
+        let data = renderer.pngData { context in
+            UIColor.systemIndigo.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 640, height: 360))
+        }
+        let decoded = try NativeMediaService.downsample(data, maximum: 256)
+        let bitmap = try XCTUnwrap(decoded.image.cgImage)
+        XCTAssertEqual(max(bitmap.width, bitmap.height), 256)
+        XCTAssertEqual(decoded.cost, bitmap.bytesPerRow * bitmap.height)
+    }
     func testRecoveryOpportunityRetriesOnlyFailedImagesAndAvatars() async throws {
         let service = try FeedFixtureServices(); service.failImages = true
         let item = PostMedia(kind:"image", url:"ffmedia:recovering-photo", previewUrl:nil, width:640, height:360, alt:nil, durationMs:nil, variants:[])
@@ -461,23 +474,26 @@ import AVFoundation
     func cancel(requestID: UUID) {}
     func signIn(presenting: UIViewController) async throws -> SessionSnapshot { throw AppServiceError(code:"fixture", message:"Fixture tests never sign in.") }
     func mediaURL(for handle: String) async throws -> URL { throw AppServiceError(code:"fixture", message:"Fixture media never uses a network URL.") }
-    func imageData(url: String, maxPixelDimension: Int) async throws -> Data {
+    func loadImage(url: String, maxPixelDimension: Int) async throws -> UIImage {
         if speculativeOnlyHandles.contains(url) { speculationThroughVisibleLoader += 1 }
         imageRequests[url, default:0] += 1
         if delayImages { try await Task.sleep(nanoseconds: 25_000_000) }
         try Task.checkCancellation()
         if failImages { throw AppServiceError(code:"fixture_image_failure", message:"Controlled image failure.") }
-        if malformedImages { return Data("Controlled invalid image data".utf8) }
-        let image = UIGraphicsImageRenderer(size: CGSize(width:640, height:360)).image { context in UIColor.systemIndigo.setFill(); context.fill(CGRect(x:0, y:0, width:640, height:360)) }
-        return try XCTUnwrap(image.pngData())
+        if malformedImages {
+            return try NativeMediaService.downsample(Data("Controlled invalid image data".utf8), maximum: maxPixelDimension).image
+        }
+        return UIGraphicsImageRenderer(size: CGSize(width:640, height:360)).image { context in
+            UIColor.systemIndigo.setFill()
+            context.fill(CGRect(x:0, y:0, width:640, height:360))
+        }
     }
-    func prefetchImageData(url: String, maxPixelDimension: Int) async throws -> Data {
+    func prefetchImage(url: String, maxPixelDimension: Int) async throws {
         prefetchRequests[url, default:0] += 1
         do {
             if holdPrefetch { try await Task.sleep(nanoseconds:30_000_000_000) }
             try Task.checkCancellation()
             if failPrefetch { throw AppServiceError(code:"fixture_prefetch_failure", message:"Controlled speculative download failure.") }
-            return Data()
         } catch is CancellationError { cancelledPrefetch += 1; throw CancellationError() }
     }
     func makePlayer(url: String, owner: UUID) async throws -> AVPlayer { throw AppServiceError(code:"fixture", message:"Video playback is outside these layout fixtures.") }

@@ -353,7 +353,7 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
                 guard let self else { return }
                 defer { if imagePrefetch[handle]?.id == id { imagePrefetch.removeValue(forKey: handle) } }
                 guard generation == context.services.accountGeneration else { return }
-                do { _ = try await context.services.prefetchImageData(url: handle, maxPixelDimension: pixels); try Task.checkCancellation() }
+                do { try await context.services.prefetchImage(url: handle, maxPixelDimension: pixels); try Task.checkCancellation() }
                 catch { /* Speculation never presents an error or runs recovery. */ }
             }
             imagePrefetch[handle] = (id, task)

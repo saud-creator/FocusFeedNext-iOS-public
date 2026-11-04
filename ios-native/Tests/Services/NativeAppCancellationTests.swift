@@ -64,7 +64,7 @@ import AVFoundation
     func cancel(requestID: UUID) { cancelledIDs.append(requestID) }
     func signIn(presenting: UIViewController) async throws -> SessionSnapshot { throw unavailable }
     func mediaURL(for handle: String) async throws -> URL { throw unavailable }
-    func imageData(url: String, maxPixelDimension: Int) async throws -> Data { throw unavailable }
+    func loadImage(url: String, maxPixelDimension: Int) async throws -> UIImage { throw unavailable }
     func makePlayer(url: String, owner: UUID) async throws -> AVPlayer { throw unavailable }
     func releasePlayer(owner: UUID) {}
     func presentMedia(_ request: MediaPresentation, from: UIViewController) async throws -> MediaPresentationResult { throw unavailable }

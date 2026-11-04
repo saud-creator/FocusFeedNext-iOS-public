@@ -171,7 +171,7 @@ import AVFoundation
     func cancel(requestID: UUID) {}
     func signIn(presenting: UIViewController) async throws -> SessionSnapshot { throw AppServiceError(code:"fixture", message:"No sign-in in this fixture.") }
     func mediaURL(for handle: String) async throws -> URL { throw AppServiceError(code:"fixture", message:"No network media URL in this fixture.") }
-    func imageData(url: String, maxPixelDimension: Int) async throws -> Data { throw AppServiceError(code:"fixture", message:"No image work in this fixture.") }
+    func loadImage(url: String, maxPixelDimension: Int) async throws -> UIImage { throw AppServiceError(code:"fixture", message:"No image work in this fixture.") }
     func makePlayer(url: String, owner: UUID) async throws -> AVPlayer {
         attempts.append(url)
         if allowPlayerCreation {

@@ -75,7 +75,7 @@ enum NativeMediaFailure: Error, Equatable {
         })
     }
 
-    func imageData(url: String, maxPixelDimension: Int = 1600, priority: Float = URLSessionTask.highPriority) async throws -> Data {
+    func image(url: String, maxPixelDimension: Int = 1600, priority: Float = URLSessionTask.highPriority) async throws -> UIImage {
         do { return try await loadImage(url: url, maxPixelDimension: maxPixelDimension, priority: priority) }
         catch {
             recordFailure(error)
@@ -83,7 +83,7 @@ enum NativeMediaFailure: Error, Equatable {
         }
     }
 
-    private func loadImage(url: String, maxPixelDimension: Int, priority: Float) async throws -> Data {
+    private func loadImage(url: String, maxPixelDimension: Int, priority: Float) async throws -> UIImage {
         let source = try Self.brokerURL(url)
         let captured = ownership
         try await validateBrokerURL(source)
@@ -92,7 +92,7 @@ enum NativeMediaFailure: Error, Equatable {
         // Keep the existing full-screen photo ceiling and scale for display.
         let dimension = min(2048, max(64, maxPixelDimension))
         let key = "\(captured.accountEpoch):\(captured.brokerEpoch):\(dimension):\(source.absoluteString)"
-        if let cached = cache[key] { touch(key); return cached.data }
+        if let cached = cache[key] { touch(key); return cached.image }
         let id = UUID()
         let download = BoundedBrokerImageDownload(url: source, maximumBytes: 16 * 1024 * 1024, priority: priority)
         let deadline = NativeActiveDeadline<Data>(seconds: 35, active: runtime.foreground)
@@ -106,11 +106,20 @@ enum NativeMediaFailure: Error, Equatable {
             }, onCancel: { download.cancel() })
         }
         try Task.checkCancellation()
-        let decoded = try await Task.detached(priority: .userInitiated) { try Self.downsample(bytes, maximum: dimension) }.value
+        let decodePriority: TaskPriority = priority == URLSessionTask.lowPriority ? .utility : .userInitiated
+        let decode = Task.detached(priority: decodePriority) {
+            try Task.checkCancellation()
+            return try Self.downsample(bytes, maximum: dimension)
+        }
+        let decoded = try await withTaskCancellationHandler(operation: {
+            try await decode.value
+        }, onCancel: {
+            decode.cancel()
+        })
         try Task.checkCancellation()
         guard captured == ownership else { throw NativeMediaFailure.staleOwnership }
         insert(decoded, key: key)
-        return decoded.data
+        return decoded.image
     }
 
     func makePlayer(url: String, owner: UUID) async throws -> AVPlayer {
@@ -398,14 +407,19 @@ enum NativeMediaFailure: Error, Equatable {
         return url
     }
 
-    private struct CachedImage { let data: Data; let cost: Int }
-    nonisolated private static func downsample(_ data: Data, maximum: Int) throws -> CachedImage {
+    // ImageIO produces an immutable bitmap. No view or mutable drawing state
+    // crosses from the decode task into the main-actor cache.
+    struct CachedImage: @unchecked Sendable {
+        let image: UIImage
+        let cost: Int
+    }
+    nonisolated static func downsample(_ data: Data, maximum: Int) throws -> CachedImage {
         guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
               let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
                 kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true,
                 kCGImageSourceThumbnailMaxPixelSize: maximum, kCGImageSourceShouldCacheImmediately: true
-              ] as CFDictionary), let encoded = UIImage(cgImage: image).pngData() else { throw NativeMediaFailure.decoder }
-        return CachedImage(data: encoded, cost: image.bytesPerRow * image.height + encoded.count)
+              ] as CFDictionary) else { throw NativeMediaFailure.decoder }
+        return CachedImage(image: UIImage(cgImage: image), cost: image.bytesPerRow * image.height)
     }
     private func touch(_ key: String) { order.removeAll { $0 == key }; order.append(key) }
     private func insert(_ value: CachedImage, key: String) {

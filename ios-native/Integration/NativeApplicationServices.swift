@@ -602,9 +602,9 @@ import AVKit
         }
         return url
     }
-    func imageData(url:String,maxPixelDimension:Int)async throws->Data {
+    func loadImage(url: String, maxPixelDimension: Int) async throws -> UIImage {
         let source = try await mediaURL(for:url)
-        do { return try await media.imageData(url:source.absoluteString,maxPixelDimension:maxPixelDimension) }
+        do { return try await media.image(url:source.absoluteString,maxPixelDimension:maxPixelDimension) }
         catch is CancellationError { throw CancellationError() }
         catch {
             if let native=error as? NativeMediaFailure,case .brokerHTTP(let failure)=native,
@@ -618,15 +618,15 @@ import AVKit
             imageAttempts[url] = (recoveryEpoch, now)
             if imageAttempts.count > 512 { imageAttempts = [url:(recoveryEpoch,now)] }
             let repaired = try await media.recover(url:source.absoluteString,automatic:true)
-            return try await media.imageData(url:repaired.absoluteString,maxPixelDimension:maxPixelDimension)
+            return try await media.image(url:repaired.absoluteString,maxPixelDimension:maxPixelDimension)
         }
     }
-    func prefetchImageData(url:String,maxPixelDimension:Int)async throws->Data {
+    func prefetchImage(url: String, maxPixelDimension: Int) async throws {
         // Speculation can warm a registration and the image cache, but cannot
         // spend a recovery sequence or refresh provider metadata on failure.
         try Task.checkCancellation()
         let source=try await mediaURL(for:url)
-        return try await media.imageData(url:source.absoluteString,maxPixelDimension:maxPixelDimension,priority:URLSessionTask.lowPriority)
+        _ = try await media.image(url:source.absoluteString,maxPixelDimension:maxPixelDimension,priority:URLSessionTask.lowPriority)
     }
     func makePlayer(url:String,owner:UUID)async throws->AVPlayer {
         do {return try await media.makePlayer(url:mediaURL(for:url).absoluteString,owner:owner)}

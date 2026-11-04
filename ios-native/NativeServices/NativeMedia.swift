@@ -456,9 +456,8 @@ struct NativeMediaArgs: Decodable {
             do {
                 let source = fresh || automatic ? try await self.service.recover(url:self.source, freshSource:fresh, automatic:automatic).absoluteString : self.source
                 try Task.checkCancellation(); guard loadingID == id else { return }
-                let bytes = try await self.service.imageData(url: source, maxPixelDimension: 2048)
+                let image = try await self.service.image(url: source, maxPixelDimension: 2048)
                 try Task.checkCancellation(); guard loadingID == id else { return }
-                guard let image = UIImage(data: bytes) else { throw NativeMediaFailure.decoder }
                 self.source = source
                 self.image.image = image; self.image.accessibilityIdentifier = "native-photo-image"
             } catch {

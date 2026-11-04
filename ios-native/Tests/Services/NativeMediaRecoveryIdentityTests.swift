@@ -3,6 +3,39 @@ import AVFoundation
 @testable import FocusFeedNextNative
 
 @MainActor final class NativeMediaRecoveryIdentityTests: XCTestCase {
+    func testHundredInterruptionsDrainRecoveryAndLeaveItUsable() async throws {
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:12345/media/"
+            + String(repeating: "a", count: 48) + "/" + String(repeating: "b", count: 32)))
+        let fixture = HeldMediaRepair()
+        let service = NativeMediaService(validateBrokerURL: { _ in }, repair: { url, _ in
+            try await fixture.repair(url)
+        })
+
+        for cycle in 1...100 {
+            service.invalidate(accountEpoch: UInt64(cycle / 2), brokerEpoch: UInt64(cycle * 2))
+            let entered = expectation(description: "Repair starts in cycle \(cycle)")
+            let drained = expectation(description: "Repair settles in cycle \(cycle)")
+            fixture.holdNextRepair(entered: entered, drained: drained)
+            let interrupted = Task { try await service.recover(url: url.absoluteString, automatic: true) }
+            await fulfillment(of: [entered], timeout: 5)
+
+            // Alternate account replacement with a same-account broker restart.
+            service.invalidate(accountEpoch: UInt64((cycle + 1) / 2), brokerEpoch: UInt64(cycle * 2 + 1))
+            switch await interrupted.result {
+            case .success:
+                XCTFail("An interrupted recovery must not publish its old URL in cycle \(cycle).")
+            case .failure(let error):
+                XCTAssertTrue(error is CancellationError || (error as? NativeMediaFailure) == .staleOwnership)
+            }
+            await fulfillment(of: [drained], timeout: 5)
+            XCTAssertEqual(fixture.active, 0)
+            XCTAssertEqual(service.diagnosticSnapshot()["pendingRecoveries"] as? Int, 0)
+
+            let next = try await service.recover(url: url.absoluteString, automatic: false)
+            XCTAssertEqual(next, url)
+        }
+    }
+
     func testLateRecoveryCannotTakeOwnershipBackFromReplacementWithSameOwner() async throws {
         let source = "http://127.0.0.1:12345/media/" + String(repeating:"a",count:48) + "/" + String(repeating:"b",count:32)
         var pending: CheckedContinuation<URL,Never>?
@@ -71,5 +104,27 @@ import AVFoundation
         XCTAssertEqual(transitions,["before:true","after:true","before:false","after:false","before:true","after:true"])
         service.invalidate(accountEpoch:2,brokerEpoch:2)
         XCTAssertEqual(transitions.count,6,"Repeated ownership publishes must not start another restoration.")
+    }
+}
+
+@MainActor private final class HeldMediaRepair {
+    private var held: (entered: XCTestExpectation, drained: XCTestExpectation)?
+    private(set) var active = 0
+
+    func holdNextRepair(entered: XCTestExpectation, drained: XCTestExpectation) {
+        held = (entered, drained)
+    }
+
+    func repair(_ url: URL) async throws -> URL {
+        guard let wait = held else { return url }
+        held = nil
+        active += 1
+        wait.entered.fulfill()
+        defer {
+            active -= 1
+            wait.drained.fulfill()
+        }
+        try await Task.sleep(nanoseconds: 30_000_000_000)
+        return url
     }
 }

@@ -140,10 +140,9 @@ final class RemoteImageView: UIImageView {
         task = Task { [weak self] in
             defer { if self?.attempt == id { self?.loading = false; self?.task = nil } }
             do {
-                let data = try await services.imageData(url: handle, maxPixelDimension: maxPixel)
+                let decoded = try await services.loadImage(url: handle, maxPixelDimension: maxPixel)
                 try Task.checkCancellation()
                 guard self?.represented == handle, self?.attempt == id else { return }
-                guard let decoded = UIImage(data: data) else { throw AppServiceError(code: "image_decode_failed", message: L10n.text("photoFailed")) }
                 self?.image = decoded; self?.fallback?.isHidden = true; self?.loaded?()
             } catch { if !(error is CancellationError), self?.represented == handle, self?.attempt == id { self?.failed = true; self?.failure?() } }
         }
