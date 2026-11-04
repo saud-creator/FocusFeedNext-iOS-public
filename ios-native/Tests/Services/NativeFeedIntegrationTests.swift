@@ -307,10 +307,26 @@ import AVFoundation
     init(count: Int = 8) throws {
         let author: [String: Any] = ["id":"45", "username":"fixture_reader", "displayName":"قارئ الاختبار", "verified":false]
         let metrics: [String: Any] = ["replies":0, "reposts":0, "likes":0, "quotes":0, "views":0, "bookmarks":0]
-        let values: [[String: Any]] = (0..<count).map { index in
-            ["id":String(1000 + index), "text":"فقرة عربية للاختبار مع English واسم @reader.\n\nAnother authored paragraph with composed characters 👨‍👩‍👧‍👦.", "author":author, "createdAt":"2026-10-30T10:00:00Z", "isRepost":false, "isPromoted":false, "metrics":metrics, "media": index % 2 == 0 ? [["kind":"image", "url":"ffmedia:fixture\(index)", "width":640, "height":360, "variants":[]]] : [], "isArticle":false, "provider":"fixture"]
+        let text = "فقرة عربية للاختبار مع English واسم @reader.\n\nAnother authored paragraph with composed characters 👨‍👩‍👧‍👦."
+        let variants: [[String: Any]] = []
+        var values: [[String: Any]] = []
+        values.reserveCapacity(count)
+        for index in 0..<count {
+            var media: [[String: Any]] = []
+            if index % 2 == 0 {
+                let image: [String: Any] = ["kind": "image", "url": "ffmedia:fixture\(index)", "width": 640, "height": 360, "variants": variants]
+                media.append(image)
+            }
+            let post: [String: Any] = [
+                "id": String(1000 + index), "text": text, "author": author,
+                "createdAt": "2026-10-30T10:00:00Z", "isRepost": false,
+                "isPromoted": false, "metrics": metrics, "media": media,
+                "isArticle": false, "provider": "fixture"
+            ]
+            values.append(post)
         }
-        posts = try JSONDecoder().decode([Post].self, from: JSONSerialization.data(withJSONObject: values))
+        let fixtureData = try JSONSerialization.data(withJSONObject: values)
+        posts = try JSONDecoder().decode([Post].self, from: fixtureData)
     }
     func perform(_ request: AppRequest) async throws -> Data {
         switch request.operation {
@@ -322,14 +338,20 @@ import AVFoundation
             let offset: Int
             if case .number(let value)? = request.args["offset"] { offset = Int(value) } else { offset = 0 }
             groupCacheOffsets.append(offset)
-            let page = Array(posts.dropFirst(offset).prefix(80))
-            return try JSONEncoder().encode(GroupFeedResponse(posts: page, fromCache: true, provider: "fixture", lastSync: nil, readIds: [], totalCached: posts.count, nextCursor: nil, failures: [], nextOffset: offset + page.count < posts.count ? offset + page.count : nil, memberCount: 10, loadedAccounts: 7, nextMemberOffset: 7))
+            let page: [Post] = Array(posts.dropFirst(offset).prefix(80))
+            let end = offset + page.count
+            let nextOffset: Int? = end < posts.count ? end : nil
+            let response = GroupFeedResponse(posts: page, fromCache: true, provider: "fixture", lastSync: nil, readIds: [], totalCached: posts.count, nextCursor: nil, failures: [], nextOffset: nextOffset, memberCount: 10, loadedAccounts: 7, nextMemberOffset: 7)
+            return try JSONEncoder().encode(response)
         case .searchCachedPosts:
             let offset: Int
             if case .number(let value)? = request.args["offset"] { offset = Int(value) } else { offset = 0 }
             searchOffsets.append(offset)
-            let page = Array(posts.dropFirst(offset).prefix(80))
-            return try JSONEncoder().encode(SearchResponse(posts: page, readIds: [], nextOffset: offset + page.count < posts.count ? offset + page.count : nil))
+            let page: [Post] = Array(posts.dropFirst(offset).prefix(80))
+            let end = offset + page.count
+            let nextOffset: Int? = end < posts.count ? end : nil
+            let response = SearchResponse(posts: page, readIds: [], nextOffset: nextOffset)
+            return try JSONEncoder().encode(response)
         case .setRead, .hidePost: return Data("null".utf8)
         case .resumeState: return Data("null".utf8)
         default: throw AppServiceError(code:"fixture_unexpected_operation", message:"The fixture does not implement this operation.")

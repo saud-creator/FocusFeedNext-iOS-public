@@ -49,6 +49,11 @@ be used to assert physical acceptance without the associated device report.
   Swift-overlay search-path issue (the compiler saw only C assertion macros).
   The next batch includes the platform's Developer/usr/lib Swift-module path.
   Passing type checking is distinct from linked tests and a device archive.
+- Run `41648249854` passed 460 Foundation assertions and 100 simulated
+  interruption cycles, the app/bridge preflight, and the core/desktop/privacy
+  jobs. XCTest overlay resolution passed; a heterogeneous test fixture exceeded
+  Swift's expression type-checking budget. The following checkpoint splits
+  that fixture into explicitly typed values without changing its test content.
 - Full UIKit compilation, linked Swift/bridge/UI tests and the Xcode archive:
   pending a successful macOS workflow. The previous failed run produced no IPA.
 - Signed upgrade, live-provider recovery and measured device performance:
