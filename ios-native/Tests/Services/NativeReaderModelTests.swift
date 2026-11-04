@@ -4,6 +4,13 @@ import UIKit
 
 /// Local fixture tests only: no provider request or persistent account state.
 @MainActor final class NativeReaderModelTests: XCTestCase {
+    func testPageOpenOverridesFallBackWithoutUsingAnotherPagesSetting() {
+        let preferences = ReaderPreferences(entries: [["pages.openBehavior", "refresh"], ["pages.openBehavior.following", "off"], ["pages.openBehavior.profile", "reset"], ["pages.openBehavior.accounts", ""]])
+        XCTAssertEqual(preferences.openBehavior(for: "following"), .off)
+        XCTAssertEqual(preferences.openBehavior(for: "profile"), .reset)
+        XCTAssertEqual(preferences.openBehavior(for: "accounts"), .refresh, "An empty override inherits the general policy.")
+        XCTAssertEqual(preferences.openBehavior(for: "groups"), .refresh)
+    }
     func testPreferenceImportRejectsNonFiniteAndUnknownValuesBeforePreview() throws {
         let current = ReaderPreferences()
         for entries in [[["reading.size", "NaN"]], [["reading.size", "infinity"]], [["auth_token", "not-a-real-token"]], [["reading.size", "100"], ["reading.size", "110"]], [["monitoring.intervalMinutes", "5.5"]], [["video.autoplay", "anything"]], [["navigation.tabs", "[\"following\",\"following\",\"bookmarks\",\"accounts\"]"]]] {
@@ -71,7 +78,7 @@ import UIKit
         XCTAssertEqual(page.totalCached, 400); XCTAssertNil(page.nextCursor)
     }
     func testContrastPreferenceChangesSemanticTextAndAcceptsPortableShortHex() throws {
-        let background = try XCTUnwrap(ReaderTheme.color("#abcdef"))
+        let background = try XCTUnwrap(ReaderTheme.color("#aabbcc"))
         XCTAssertEqual(ReaderTheme.color("#abc"), background, "Accepted portable short colors must render, not silently fall back.")
         var low = ReaderPreferences(entries: [["appearance.surface", "#f0f0f0"], ["appearance.textContrast", "0"]])
         let lowRatio = ReaderTheme.contrastRatio(ReaderTheme.text(low), ReaderTheme.surface(low), traits: UITraitCollection(userInterfaceStyle: .light))

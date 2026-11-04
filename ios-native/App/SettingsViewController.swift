@@ -169,7 +169,9 @@ final class SettingsDetailViewController: ReaderScreen, UITableViewDataSource, U
             return [choice("video.autoplay", "autoplay", ["off", "wifi", "any"]), choice("video.quality", "quality", ["auto", "best", "1080", "720", "480", "360"]), number("video.defaultSpeed", "speed", [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4]), toggle("video.loop", "loop"), toggle("video.gifAutoplay", "gifAutoplay"), toggle("video.clickToggle", "tapPlay"), toggle("video.offscreenCleanup", "offscreenCleanup")]
         case "performance":
             return [choice("performance.mode", "performance", ["balanced", "fast", "ultra", "battery"]), toggle("appearance.haptics", "haptics"), toggle("startup.preloadBookmarks", "preloadBookmarks"), toggle("startup.preloadFollowing", "preloadFollowing"), toggle("monitoring.autoCheck", "autoCheck"), number("monitoring.intervalMinutes", "monitorInterval", [1, 2, 5, 10, 15, 30, 60])]
-        case "account": return [toggle("actions.allowUnfollow", "allowAccountActions"), toggle("actions.advanced", "advancedActions")]
+        // The current native provider has no mute/block operations. Retain
+        // actions.advanced in storage without offering an ineffective switch.
+        case "account": return [toggle("actions.allowUnfollow", "allowAccountActions")]
         default: return []
         }
     }
@@ -202,7 +204,9 @@ final class SettingsDetailViewController: ReaderScreen, UITableViewDataSource, U
             switch field.kind {
             case .toggle:
                 let toggle = UISwitch(); toggle.isOn = draft.preferences.bool(field.key); toggle.accessibilityLabel = L10n.text(field.title)
-                toggle.addAction(UIAction { [weak self, weak toggle] _ in guard let self, let toggle else { return }; changed(field.key, toggle.isOn ? "true" : "false") }, for: .valueChanged); cell.accessoryView = toggle
+                if field.key == "video.offscreenCleanup" { toggle.isOn = true; toggle.isEnabled = false; cell.detailTextLabel?.text = L10n.text("nativeCleanup"); cell.selectionStyle = .none }
+                else { toggle.addAction(UIAction { [weak self, weak toggle] _ in guard let self, let toggle else { return }; changed(field.key, toggle.isOn ? "true" : "false") }, for: .valueChanged) }
+                cell.accessoryView = toggle
             case .choices(let choices):
                 let current = draft.preferences.string(field.key); cell.detailTextLabel?.text = choices.first(where: { $0.0 == current })?.1 ?? current
                 cell.accessoryType = .disclosureIndicator
@@ -227,7 +231,7 @@ final class SettingsDetailViewController: ReaderScreen, UITableViewDataSource, U
         if indexPath.section == 0 {
             guard category != "navigation" else { return }; let field = fields[indexPath.row]
             switch field.kind {
-            case .toggle: changed(field.key, draft.preferences.bool(field.key) ? "false" : "true")
+            case .toggle: if field.key != "video.offscreenCleanup" { changed(field.key, draft.preferences.bool(field.key) ? "false" : "true") }
             case .choices(let choices): choose(field, choices: choices)
             case .number(let values): choose(field, choices: values.map { ($0.rounded() == $0 ? String(Int($0)) : String($0), formatted($0, key: field.key)) })
             case .color:

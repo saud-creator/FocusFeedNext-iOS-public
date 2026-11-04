@@ -176,6 +176,9 @@ import AVKit
         defer { ownedProviderIDs[requestOwner]?.remove(id); if ownedProviderIDs[requestOwner]?.isEmpty == true { ownedProviderIDs.removeValue(forKey: requestOwner) } }
         let values = try JSONDecoder().decode([String: NativeJSONValue].self, from: Self.encoded(variables))
         let write = ["Follow", "Unfollow", "DeleteBookmark"].contains(operation)
+        if !write, !authentication, !background {
+            try NativeReadingRestoreScope.budget?.consume()
+        }
         let context = requestContexts[requestOwner]
         let deadline = context?.deadlineMillis ?? UInt64(Date().timeIntervalSince1970 * 1000) + (write || authentication ? 75_000 : 30_000)
         let request = NativeProviderRequest(operation: operation, variables: values, authToken: session.authToken, ct0: session.ct0, context: NativeRequestContext(id: id, generation: transportGeneration, priority: write || authentication ? 0 : background ? 3 : Int(context?.priority ?? 1), deadline: deadline, authentication: authentication))
@@ -444,6 +447,7 @@ import AVKit
         // preserves the source cursor, complete bookmark index and read state.
         for id in missing.prefix(80) {
             try Task.checkCancellation()
+            if NativeReadingRestoreScope.budget?.remaining == 0 { break }
             let body=try await provider("TweetResultByRestId",variables:["tweetId":id,"withCommunity":false,"includePromotedContent":false,"withVoice":false],owner:owner)
             _=try await run(.parsePostContent,["postId":id,"body":body],owner:owner)
         }
@@ -517,6 +521,7 @@ import AVKit
             if restart {groupRefreshPending[id]=Set(try await members(["groupId":id]))}
             for page in pages {
                 try Task.checkCancellation()
+                if NativeReadingRestoreScope.budget?.remaining == 0 { break }
                 let authorID=page["authorId"] as? String ?? ""
                 let first=groupRefreshPending[id]?.contains(authorID) == true
                 guard let source=page["source"] as? String,first || page["exhausted"] as? Bool != true else{continue}
@@ -533,6 +538,7 @@ import AVKit
         let missing=response["missingPostIds"] as? [String] ?? []
         for post in missing.prefix(80) {
             try Task.checkCancellation()
+            if NativeReadingRestoreScope.budget?.remaining == 0 { break }
             do {
                 let body=try await provider("TweetResultByRestId",variables:["tweetId":post,"withCommunity":false,"includePromotedContent":false,"withVoice":false],owner:owner)
                 _=try await run(.parsePostContent,["postId":post,"body":body],owner:owner)
@@ -629,6 +635,12 @@ import AVKit
         catch {throw AppServiceError(code:"media_unavailable",message:L10n.text("loadFailed"),retryable:true)}
     }
     func releasePlayer(owner:UUID){media.releasePlayer(owner:owner)}
+    func seekPlayer(player: AVPlayer, owner: UUID, position: Double) async throws {
+        try await media.seek(player: player, owner: owner, position: position)
+    }
+    func pausePlayer(player: AVPlayer, owner: UUID) {
+        media.pausePlayer(player: player, owner: owner)
+    }
     func recoverMediaHandle(_ handle:String)async throws->String {
         let source=try await mediaURL(for:handle)
         let repaired=try await media.recover(url:source.absoluteString,freshSource:true,automatic:false)

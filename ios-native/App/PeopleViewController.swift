@@ -15,19 +15,25 @@ final class PeopleViewController: ReaderScreen, UITableViewDataSource, UITableVi
         let refresh = UIRefreshControl(); refresh.addTarget(self, action: #selector(retry), for: .valueChanged); table.refreshControl = refresh
         let column = UIStackView(arrangedSubviews: [notice, table]); column.axis = .vertical; view.addSubview(column); column.pin(to: view, safe: true)
         NotificationCenter.default.addObserver(self, selector: #selector(progress), name: .readerFollowingChanged, object: context)
-        load(startIfNeeded: true)
+    }
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        let behavior = context.preferences.openBehavior(for: "accounts")
+        if behavior == .reset { search.searchBar.text = ""; table.setContentOffset(CGPoint(x: 0, y: -table.adjustedContentInset.top), animated: false) }
+        load(startIfNeeded: true, refresh: behavior != .off)
     }
     @objc private func progress() { load(startIfNeeded: false) }
     @objc private func retry() { Task { [weak self] in guard let self else { return }; do { let _: Bool = try await context.services.call(.startFollowingSync); load(startIfNeeded: false) } catch { notice.show(error.localizedDescription, retry: { [weak self] in self?.retry() }) } } }
-    private func load(startIfNeeded: Bool) {
+    private func load(startIfNeeded: Bool, refresh: Bool = false) {
         guard !refreshing else { return }; refreshing = true
         work = Task { [weak self] in
             guard let self else { return }; defer { refreshing = false; table.refreshControl?.endRefreshing() }
             do {
+                if refresh { let _: Bool = try await context.services.call(.startFollowingSync) }
                 snapshot = try await context.services.call(.followingSnapshot)
                 let pins: [Author] = try await context.services.call(.pinnedAccounts); pinned = Set(pins.map(\.id)); allowed = try await context.services.call(.unfollowAllowed)
                 updatePeople()
-                if let snapshot, !snapshot.complete, !snapshot.syncing, startIfNeeded, snapshot.state != "failed", snapshot.state != "cancelled" { let _: Bool = try await context.services.call(.startFollowingSync) }
+                if let snapshot, !snapshot.complete, !snapshot.syncing, startIfNeeded, !refresh, snapshot.state != "failed", snapshot.state != "cancelled" { let _: Bool = try await context.services.call(.startFollowingSync); self.snapshot = try await context.services.call(.followingSnapshot); updatePeople() }
                 if let error = snapshot?.lastError { notice.show(error, retry: { [weak self] in self?.retry() }) }
                 else if snapshot?.syncing == true { notice.show(L10n.text("followingProgress"), busy: true) }
                 else if snapshot?.complete == false { notice.show(L10n.text("followingIncomplete"), retry: { [weak self] in self?.retry() }) }

@@ -40,7 +40,9 @@ jobs:
       - run: cargo test --workspace --locked
       - name: Verify native package validation rules
         shell: bash
-        run: python ios-native/tools/test-native-verifier.py
+        run: |
+          python ios-native/tools/test-native-verifier.py
+          python ios-native/tools/test-native-test-export.py
   native:
     runs-on: macos-15-intel
     timeout-minutes: 90

@@ -96,6 +96,16 @@ struct ReaderPreferences {
     var entries: [[String]] { values.keys.sorted().map { [$0, values[$0] ?? ""] } }
     func string(_ key: String) -> String { values[key] ?? Self.defaults[key] ?? "" }
     func bool(_ key: String) -> Bool { string(key) == "true" }
+    var defaultFollowingFilters: FeedFilters {
+        var filters = FeedFilters()
+        filters.hideReposts = bool("content.hideReposts")
+        filters.unreadOnly = bool("content.unreadOnly")
+        return filters
+    }
+    func openBehavior(for page: String) -> ReaderPageOpenBehavior {
+        let own = values["pages.openBehavior.\(page)"] ?? ""
+        return ReaderPageOpenBehavior(rawValue: own) ?? ReaderPageOpenBehavior(rawValue: string("pages.openBehavior")) ?? .off
+    }
     func number(_ key: String) -> Double { Double(string(key)) ?? 0 }
     mutating func set(_ key: String, _ value: String) { values[key] = value }
     var tabs: [ReaderRoute] {
@@ -106,6 +116,7 @@ struct ReaderPreferences {
     mutating func setTabs(_ routes: [ReaderRoute]) { if let data = try? JSONEncoder().encode(routes.map(\.rawValue)), let value = String(data: data, encoding: .utf8) { set("navigation.tabs", value) } }
     var portableEntries: [[String]] { entries.filter { pair in !["actions.", "startup.", "window.", "updates."].contains { pair[0].hasPrefix($0) } } }
 }
+enum ReaderPageOpenBehavior: String { case off, refresh, reset }
 
 @MainActor enum ReaderTheme {
     static private(set) var currentPreferences = ReaderPreferences()

@@ -63,8 +63,8 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
         footer.arrangedSubviews.filter { $0 !== readLabel }.forEach { $0.removeFromSuperview() }
     }
     var representedPostID: String? { current?.id }
-    func configure(_ post: Post, read: Bool, bookmark: Bool, context: ReaderContext, delegate: PostCellDelegate) {
-        stop(); let same = current?.id == post.id; current = post; self.context = context; self.delegate = delegate; self.bookmark = bookmark; if !same { expanded = false }; highlightText = ""
+    func configure(_ post: Post, read: Bool, bookmark: Bool, highlight: String = "", context: ReaderContext, delegate: PostCellDelegate) {
+        stop(); let same = current?.id == post.id; current = post; self.context = context; self.delegate = delegate; self.bookmark = bookmark; if !same { expanded = false }; highlightText = highlight
         accessibilityIdentifier = "post.\(post.id)"
         updateAppearance(context.preferences)
         attribution.isHidden = !post.isRepost; attribution.text = post.repostedBy.map { "\(L10n.text("reposted")) \($0.label)" }
@@ -73,7 +73,6 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
         metadata.text = ReaderDates.label(post.createdAt, absolute: context.preferences.string("appearance.timestampStyle") == "absolute")
         avatar.backgroundColor = .tertiarySystemFill; avatar.fallbackInitials(post.author.label); avatar.load(post.author.avatarUrl, services: context.services, maxPixel: 120)
         readLabel.text = L10n.text(read ? "read" : "unread")
-        renderText()
         mediaStack.arrangedSubviews.forEach { $0.removeFromSuperview() }; videos.removeAll()
         for (index, item) in post.media.enumerated() {
             if item.kind == "image" {
@@ -113,22 +112,27 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
         let paragraph = NSMutableParagraphStyle(); paragraph.baseWritingDirection = .natural; paragraph.lineSpacing = context.preferences.string("density") == "compact" ? 1 : 3
         let attributed = NSMutableAttributedString(string: text, attributes: [.font: ReaderTheme.font(.body, preferences: context.preferences), .foregroundColor: ReaderTheme.text(context.preferences), .paragraphStyle: paragraph])
         let full = NSRange(text.startIndex..., in: text)
-        for (pattern, mention) in [("https?://[^\\s]+", false), ("(?<![A-Za-z0-9_])@[A-Za-z0-9_]{1,15}", true)] {
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
-            for match in regex.matches(in: text, range: full) {
-                let value = (text as NSString).substring(with: match.range)
-                if let url = URL(string: mention ? "ffn-profile://\(value.dropFirst())" : value) { attributed.addAttribute(.link, value: url, range: match.range) }
+        let haystack = text as NSString
+        for match in ReaderPostText.tokenMatcher?.matches(in: text, range: full) ?? [] {
+            let value = haystack.substring(with: match.range)
+            if let url = URL(string: value.hasPrefix("@") ? "ffn-profile://\(value.dropFirst())" : value) {
+                attributed.addAttribute(.link, value: url, range: match.range)
             }
         }
-        textView.attributedText = attributed; textView.linkTextAttributes = [.foregroundColor: ReaderTheme.accent(context.preferences), .underlineStyle: NSUnderlineStyle.single.rawValue]
-        if !highlightText.isEmpty, let value = textView.attributedText {
-            let highlighted = NSMutableAttributedString(attributedString: value); let haystack = text as NSString; var search = NSRange(location: 0, length: haystack.length)
-            while search.length > 0 { let match = haystack.range(of: highlightText, options: [.caseInsensitive, .diacriticInsensitive], range: search); if match.location == NSNotFound { break }; highlighted.addAttribute(.backgroundColor, value: UIColor.systemYellow.withAlphaComponent(0.28), range: match); let next = NSMaxRange(match); search = NSRange(location: next, length: haystack.length - next) }
-            textView.attributedText = highlighted
+        if !highlightText.isEmpty {
+            var search = full
+            while search.length > 0 {
+                let match = haystack.range(of: highlightText, options: [.caseInsensitive, .diacriticInsensitive], range: search)
+                if match.location == NSNotFound || match.length == 0 { break }
+                attributed.addAttribute(.backgroundColor, value: UIColor.systemYellow.withAlphaComponent(0.28), range: match)
+                let next = NSMaxRange(match)
+                search = NSRange(location: next, length: haystack.length - next)
+            }
         }
+        textView.attributedText = attributed
+        textView.linkTextAttributes = [.foregroundColor: ReaderTheme.accent(context.preferences), .underlineStyle: NSUnderlineStyle.single.rawValue]
         expand.isHidden = !collapse; expand.setTitle(L10n.text(expanded ? "showLess" : "showMore"), for: .normal)
     }
-    func highlight(_ value: String) { highlightText = value; renderText() }
     func updateAppearance(_ preferences: ReaderPreferences) {
         ReaderTheme.styleCard(contentView, preferences: preferences)
         stack.spacing = ReaderTheme.spacing(preferences)
@@ -174,11 +178,13 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
 }
 
 enum ReaderPostText {
+    static let tokenMatcher = try? NSRegularExpression(pattern: "https?://[^\\s]+|(?<![A-Za-z0-9_])@[A-Za-z0-9_]{1,15}")
+    private static let permalinkMatcher = try? NSRegularExpression(pattern: "https?://[^\\s]+", options: [.caseInsensitive])
     /// Hide only a complete token identifying this exact post. Whitespace is
     /// authored content: removing a permalink must not collapse paragraphs.
     static func removingSelfPermalink(from text: String, canonicalURL: URL?) -> String {
-        guard let canonicalURL, let ownIdentity = postIdentity(canonicalURL),
-              let matcher = try? NSRegularExpression(pattern: "https?://[^\\s]+", options: [.caseInsensitive]) else { return text }
+        guard text.range(of: "://") != nil, let canonicalURL, let ownIdentity = postIdentity(canonicalURL),
+              let matcher = permalinkMatcher else { return text }
         let result = NSMutableString(string: text)
         let punctuation = CharacterSet(charactersIn: ".,!?;:)}]")
         for match in matcher.matches(in: text, range: NSRange(text.startIndex..., in: text)).reversed() {
@@ -207,7 +213,7 @@ enum ReaderPostText {
         guard collapsed, text.count > limit else { return text }
         var boundary = text.index(text.startIndex, offsetBy: max(0, limit))
         let range = NSRange(text.startIndex..., in: text)
-        if let regex = try? NSRegularExpression(pattern: "https?://[^\\s]+|(?<![A-Za-z0-9_])@[A-Za-z0-9_]{1,15}") {
+        if let regex = tokenMatcher {
             for match in regex.matches(in: text, range: range) {
                 guard let matched = Range(match.range, in: text) else { continue }
                 if matched.lowerBound < boundary && matched.upperBound > boundary { boundary = matched.lowerBound; break }
@@ -269,7 +275,7 @@ final class PhotoTile: UIControl {
     deinit { repair?.cancel() }
 }
 
-final class InlinePlayerView: UIView {
+final class InlinePlayerView: UIView, UIGestureRecognizerDelegate {
     private let item: PostMedia
     private let context: ReaderContext
     private let playbackKey: String
@@ -279,6 +285,7 @@ final class InlinePlayerView: UIView {
     private var player: AVPlayer?
     private var task: Task<Void, Never>?
     private var taskID = UUID()
+    private var positionRestored = true
     private let notice = readerLabel(style: .caption1, color: .white)
     private var button: UIButton!
     private var selectedURL: String
@@ -288,12 +295,14 @@ final class InlinePlayerView: UIView {
     private var selectedLoop: Bool
     private var manuallyPaused = false
     private var endObserver: NSObjectProtocol?
+    private(set) weak var loopingItem: AVPlayerItem?
     private var itemObserver: NSKeyValueObservation?
     private var statusObserver: NSKeyValueObservation?
     private var failed = false
+    private var preparationFailed = false
     private var wantsPlayback = false
     var fullscreen: (() -> Void)?
-    var position: Double { let v = player?.currentTime().seconds ?? savedPosition; return v.isFinite ? v : savedPosition }
+    var position: Double { if !positionRestored { return savedPosition }; let v = player?.currentTime().seconds ?? savedPosition; return v.isFinite ? v : savedPosition }
     var isPlaying: Bool { (player?.rate ?? 0) > 0 }
     init(item: PostMedia, context: ReaderContext, playbackKey: String) {
         self.item = item; self.context = context; self.playbackKey = playbackKey; selectedURL = context.playbackState(playbackKey)?.selectedHandle ?? Self.initialURL(item, context: context); selectedSpeed = Float(context.playbackState(playbackKey)?.speed ?? context.preferences.number("video.defaultSpeed")); selectedMuted = context.playbackState(playbackKey)?.muted; selectedLoop = context.playbackState(playbackKey)?.loopPlayback ?? context.preferences.bool("video.loop"); savedPosition = context.position(playbackKey); manuallyPaused = context.isPaused(playbackKey); super.init(frame: .zero)
@@ -310,6 +319,7 @@ final class InlinePlayerView: UIView {
         let controls = UIStackView(arrangedSubviews: [button, settings, full]); controls.spacing = 12; controls.backgroundColor = UIColor.black.withAlphaComponent(0.55); controls.translatesAutoresizingMaskIntoConstraints = false; addSubview(controls)
         NSLayoutConstraint.activate([controls.leadingAnchor.constraint(equalTo: leadingAnchor), controls.trailingAnchor.constraint(equalTo: trailingAnchor), controls.bottomAnchor.constraint(equalTo: bottomAnchor), controls.heightAnchor.constraint(greaterThanOrEqualToConstant: 44), settings.widthAnchor.constraint(greaterThanOrEqualToConstant: 44), full.widthAnchor.constraint(greaterThanOrEqualToConstant: 44)])
         notice.translatesAutoresizingMaskIntoConstraints = false; notice.numberOfLines = 0; notice.backgroundColor = UIColor.black.withAlphaComponent(0.55); addSubview(notice); NSLayoutConstraint.activate([notice.topAnchor.constraint(equalTo: topAnchor, constant: 8), notice.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12), notice.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12)])
+        let tap = UITapGestureRecognizer(target: self, action: #selector(toggleFromSurface)); tap.delegate = self; tap.cancelsTouchesInView = false; addGestureRecognizer(tap)
     }
     required init?(coder: NSCoder) { fatalError("Use init") }
     private static func initialURL(_ item: PostMedia, context: ReaderContext) -> String {
@@ -346,40 +356,62 @@ final class InlinePlayerView: UIView {
         context.rememberMedia(playbackKey, position: position, speed: Double(selectedSpeed), muted: selectedMuted, loopPlayback: selectedLoop, selectedHandle: selectedURL)
     }
     private func togglePlayback() {
-        if !failed, player?.currentItem?.status != .failed, isPlaying {
-            manuallyPaused = true; wantsPlayback = false; context.rememberMedia(playbackKey, paused: true); player?.pause(); button.setTitle(L10n.text("playVideo"), for: .normal)
+        let playingOrPreparing = isPlaying || player?.timeControlStatus == .waitingToPlayAtSpecifiedRate
+            || (task != nil && wantsPlayback)
+        if !failed, player?.currentItem?.status != .failed, playingOrPreparing {
+            manuallyPaused = true
+            wantsPlayback = false
+            context.rememberMedia(playbackKey, paused: true)
+            if task != nil { stop() }
+            else if let player { context.services.pausePlayer(player: player, owner: owner) }
+            button.setTitle(L10n.text("playVideo"), for: .normal)
         } else { manuallyPaused = false; context.rememberMedia(playbackKey, paused: false); play() }
+    }
+    @objc func toggleFromSurface() { if context.preferences.bool("video.clickToggle") { togglePlayback() } }
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        var target = touch.view
+        while let view = target, view !== self { if view is UIControl { return false }; target = view.superview }
+        return context.preferences.bool("video.clickToggle")
     }
     func play(automatically: Bool = false, startPlaying: Bool = true) {
         if player == nil { restorePlaybackState() }
         guard !automatically || (!manuallyPaused && (item.kind != "gif" || context.preferences.bool("video.gifAutoplay"))) else { return }
         let needsRepair = failed || player?.currentItem?.status == .failed
         guard !automatically || !needsRepair else { return }
-        if !needsRepair, let player, player.currentItem != nil { if startPlaying { player.playImmediately(atRate: selectedSpeed) }; return }
         guard task == nil else { return }
         wantsPlayback = startPlaying
+        if !needsRepair, let player, player.currentItem != nil { if startPlaying { player.playImmediately(atRate: selectedSpeed) }; return }
         if needsRepair { stop() }
+        preparationFailed = false
         notice.text = L10n.text("loading"); button.isEnabled = false
         let id = UUID(); taskID = id
+        let generation = context.services.accountGeneration
         task = Task { [weak self] in
             guard let self else { return }
-            defer { if taskID == id { task = nil; button.isEnabled = true } }
+            defer {
+                if taskID == id { task = nil; button.isEnabled = true }
+            }
             do {
-                if needsRepair { selectedURL = try await context.services.recoverMediaHandle(selectedURL); try Task.checkCancellation() }
-                let next = try await context.services.makePlayer(url: selectedURL, owner: owner); try Task.checkCancellation(); player = next; playerLayer.player = next; notice.text = nil; next.isMuted = selectedMuted ?? automatically
-                failed = false; observe(next)
-                if savedPosition > 0 { await next.seek(to: CMTime(seconds: savedPosition, preferredTimescale: 600)) }
-                try Task.checkCancellation()
-                if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
-                endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: next.currentItem, queue: .main) { [weak self, weak next] _ in
-                    Task { @MainActor [weak self, weak next] in
-                        guard let self, let next, self.player === next, !self.manuallyPaused, self.selectedLoop else { return }
-                        next.seek(to: .zero); next.playImmediately(atRate: self.selectedSpeed)
-                    }
+                if needsRepair {
+                    let renewed = try await context.services.recoverMediaHandle(selectedURL)
+                    try Task.checkCancellation(); guard taskID == id, generation == context.services.accountGeneration else { return }
+                    selectedURL = renewed
                 }
+                let next = try await context.services.makePlayer(url: selectedURL, owner: owner)
+                try Task.checkCancellation(); guard taskID == id, generation == context.services.accountGeneration else { return }
+                positionRestored = savedPosition <= 0
+                player = next; playerLayer.player = next; notice.text = nil; next.isMuted = selectedMuted ?? automatically
+                failed = false; observe(next)
+                if savedPosition > 0 {
+                    try await context.services.seekPlayer(player:next,owner:owner,position:savedPosition)
+                }
+                try Task.checkCancellation()
+                guard taskID == id, player === next, generation == context.services.accountGeneration else { return }
+                positionRestored = true
+                bindEndObserver(next.currentItem, player: next)
                 if startPlaying { next.playImmediately(atRate: selectedSpeed) }; button.setTitle(L10n.text(startPlaying ? "pause" : "playVideo"), for: .normal)
             }
-            catch { if !(error is CancellationError), taskID == id { failed = true; notice.text = error.localizedDescription; button.setTitle(L10n.text("retry"), for: .normal); button.accessibilityLabel = L10n.text("retry") } }
+            catch { if !(error is CancellationError), taskID == id, generation == context.services.accountGeneration { preparationFailed = true; failed = true; notice.text = error.localizedDescription; button.setTitle(L10n.text("retry"), for: .normal); button.accessibilityLabel = L10n.text("retry") } }
         }
     }
     func resumeIfInterrupted() {
@@ -394,8 +426,42 @@ final class InlinePlayerView: UIView {
             Task { @MainActor [weak self, weak observed] in
                 guard let self, let observed, self.player === observed else { return }
                 self.observeStatus(observed.currentItem, player: observed)
+                self.bindEndObserver(observed.currentItem, player: observed)
             }
         }
+    }
+    private func bindEndObserver(_ item: AVPlayerItem?, player: AVPlayer) {
+        if let item, loopingItem === item, endObserver != nil { return }
+        if let endObserver { NotificationCenter.default.removeObserver(endObserver); self.endObserver = nil }
+        loopingItem = nil
+        guard let item, positionRestored, !preparationFailed else { return }
+        loopingItem = item
+        let generation = context.services.accountGeneration
+        let loadID = taskID
+        endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self, weak player, weak item] _ in
+            Task { @MainActor [weak self, weak player, weak item] in
+                guard let self, let player, let item,
+                      self.canLoop(player:player, item:item, generation:generation, loadID:loadID) else { return }
+                do {
+                    try await self.context.services.seekPlayer(player:player, owner:self.owner, position:0)
+                    guard self.canLoop(player:player, item:item, generation:generation, loadID:loadID) else { return }
+                    player.playImmediately(atRate:self.selectedSpeed)
+                } catch {
+                    guard !(error is CancellationError),
+                          self.canLoop(player:player, item:item, generation:generation, loadID:loadID) else { return }
+                    self.preparationFailed = true
+                    self.failed = true
+                    self.notice.text = L10n.text("videoFailed")
+                    self.button.setTitle(L10n.text("retry"), for: .normal)
+                    self.button.accessibilityLabel = L10n.text("retry")
+                }
+            }
+        }
+    }
+    private func canLoop(player: AVPlayer, item: AVPlayerItem, generation: UInt64, loadID: UUID) -> Bool {
+        self.player === player && player.currentItem === item && taskID == loadID
+            && context.services.accountGeneration == generation && wantsPlayback && !manuallyPaused
+            && selectedLoop && !failed && context.runtime?.foreground != false
     }
     private func observeStatus(_ item: AVPlayerItem?, player observed: AVPlayer) {
         statusObserver?.invalidate(); statusObserver = nil
@@ -405,12 +471,14 @@ final class InlinePlayerView: UIView {
                 guard let self, let observed, let item, self.player === observed, observed.currentItem === item else { return }
                 switch item.status {
                 case .failed: self.failed = true; self.notice.text = L10n.text("videoFailed"); self.button.setTitle(L10n.text("retry"), for: .normal); self.button.accessibilityLabel = L10n.text("retry"); self.button.isEnabled = true
-                case .readyToPlay: self.failed = false; self.notice.text = nil; self.button.setTitle(L10n.text(self.isPlaying ? "pause" : "playVideo"), for: .normal); self.button.accessibilityLabel = L10n.text(self.isPlaying ? "pause" : "playVideo")
+                case .readyToPlay:
+                    guard !self.preparationFailed else { return }
+                    self.failed = false; self.notice.text = nil; self.button.setTitle(L10n.text(self.isPlaying ? "pause" : "playVideo"), for: .normal); self.button.accessibilityLabel = L10n.text(self.isPlaying ? "pause" : "playVideo")
                 default: self.notice.text = L10n.text("loading")
                 }
             }
         }
     }
-    func stop() { if player?.currentItem?.status == .failed { failed = true }; if player != nil || task != nil { rememberPlaybackState(); savedPosition = position }; taskID = UUID(); task?.cancel(); task = nil; itemObserver?.invalidate(); itemObserver = nil; statusObserver?.invalidate(); statusObserver = nil; player?.pause(); playerLayer.player = nil; player = nil; if let endObserver { NotificationCenter.default.removeObserver(endObserver); self.endObserver = nil }; button.isEnabled = true; context.services.releasePlayer(owner: owner) }
+    func stop() { if player?.currentItem?.status == .failed { failed = true }; if player != nil || task != nil { rememberPlaybackState(); savedPosition = position }; taskID = UUID(); task?.cancel(); task = nil; positionRestored = true; itemObserver?.invalidate(); itemObserver = nil; statusObserver?.invalidate(); statusObserver = nil; player?.pause(); playerLayer.player = nil; player = nil; loopingItem = nil; if let endObserver { NotificationCenter.default.removeObserver(endObserver); self.endObserver = nil }; button.isEnabled = true; context.services.releasePlayer(owner: owner) }
     deinit { task?.cancel(); itemObserver?.invalidate(); statusObserver?.invalidate(); if let endObserver { NotificationCenter.default.removeObserver(endObserver) } }
 }

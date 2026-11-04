@@ -78,6 +78,7 @@ struct NativeMediaArgs: Decodable {
         let previous = controller; let reply = completion; let owner = presentationID
         let result = (previous as? NativeVideoController)?.dismissalResult() ?? ["index": 0, "position": 0, "playing": false]
         presentationID = nil; completion = nil; controller = nil
+        (previous as? NativeVideoController)?.prepareForDismissal()
         if let owner = owner { service?.releasePlayer(owner: owner) }
         previous?.dismiss(animated: false)
         reply?(result)
@@ -91,11 +92,13 @@ struct NativeMediaArgs: Decodable {
     }
 }
 
-@MainActor private final class NativeVideoController: AVPlayerViewController {
+@MainActor final class NativeVideoController: AVPlayerViewController {
     private var source: String
     private let service: NativeMediaService
     private let args: NativeMediaArgs
     private let owner: UUID
+    private let isApplicationActive: @MainActor () -> Bool
+    private var presentationActive = true
     private let retry = UIButton(type: .system)
     private let closeButton = UIButton(type: .system)
     private let options = UIButton(type: .system)
@@ -107,6 +110,14 @@ struct NativeMediaArgs: Decodable {
         let muted: Bool
     }
     private var brokerSnapshot: PlaybackSnapshot?
+    private var pendingSnapshot: PlaybackSnapshot?
+    private var closingSnapshot: PlaybackSnapshot?
+    private var endBindingID = UUID()
+    private(set) weak var loopingItem: AVPlayerItem?
+    private weak var loopingPlayer: AVPlayer?
+    private var loopLoadID: UUID?
+    private var loopPauseRevision: UInt64?
+    private var rateObservation: NSKeyValueObservation?
     private var endObserver: NSObjectProtocol?
     private var readyObservation: NSKeyValueObservation?
     private var itemObservation: NSKeyValueObservation?
@@ -116,8 +127,10 @@ struct NativeMediaArgs: Decodable {
     private var brokerHasRestarted = false
     private var selectedQualityLabel: String?
     var finished: (([String: Any]) -> Void)?
-    init(source: String, service: NativeMediaService, args: NativeMediaArgs, owner: UUID) {
+    init(source: String, service: NativeMediaService, args: NativeMediaArgs, owner: UUID,
+         isApplicationActive: @escaping @MainActor () -> Bool = { UIApplication.shared.applicationState == .active }) {
         self.source = source; self.service = service; self.args = args; self.owner = owner
+        self.isApplicationActive = isApplicationActive
         playbackRate = Float(args.speed ?? 1); looping = args.loop ?? true
         selectedQualityLabel = args.items[args.index].variants?.first(where: { $0.url == source })?.label
         super.init(nibName: nil, bundle: nil)
@@ -171,8 +184,7 @@ struct NativeMediaArgs: Decodable {
         let quality = UIMenu(title: arabic ? "الجودة" : "Quality", children: variants.map { variant in
             UIAction(title: variant.label, state: variant.label == selectedQualityLabel ? .on : .off) { [weak self] _ in
                 guard let self else { return }
-                self.selectedQualityLabel = variant.label
-                self.source = variant.url; self.load(fresh:false, repairRegistration:self.brokerHasRestarted); self.updateOptions()
+                self.selectQuality(variant)
             }
         })
         let loop = UIAction(title: arabic ? "تكرار" : "Loop", state: looping ? .on : .off) { [weak self] _ in
@@ -181,9 +193,19 @@ struct NativeMediaArgs: Decodable {
         let children: [UIMenuElement] = variants.isEmpty ? [speed, loop] : [quality, speed, loop]
         options.menu = UIMenu(children: children)
     }
+    func selectQuality(_ variant: NativeMediaVariant) {
+        guard presentationActive else { return }
+        selectedQualityLabel = variant.label
+        source = variant.url; load(fresh:false, repairRegistration:brokerHasRestarted); updateOptions()
+    }
     private func playbackSnapshot() -> PlaybackSnapshot {
+        if let closingSnapshot { return closingSnapshot }
+        if let pendingSnapshot {
+            return PlaybackSnapshot(position:pendingSnapshot.position,playing:pendingSnapshot.playing,
+                muted:player?.isMuted ?? pendingSnapshot.muted)
+        }
         let time = player?.currentTime().seconds ?? args.position ?? 0
-        return PlaybackSnapshot(position:time.isFinite ? time : 0,
+        return PlaybackSnapshot(position:time.isFinite ? time : args.position ?? 0,
             playing:player.map { $0.rate > 0 || $0.timeControlStatus == .waitingToPlayAtSpecifiedRate } ?? (args.playing ?? true),
             muted:player?.isMuted ?? args.muted ?? false)
     }
@@ -191,75 +213,126 @@ struct NativeMediaArgs: Decodable {
         brokerHasRestarted = true
         brokerSnapshot = playbackSnapshot()
         loadingID = UUID(); loading?.cancel(); loading = nil
-        readyObservation = nil; itemObservation = nil
+        readyObservation = nil; itemObservation = nil; rateObservation = nil; clearEndObserver()
     }
     func resumeAfterBrokerRestart() {
-        guard service.isForeground, let snapshot = brokerSnapshot else { return }
+        guard presentationActive, service.isForeground, let snapshot = brokerSnapshot else { return }
         brokerSnapshot = nil
         load(fresh:false, automatic:true, restored:snapshot)
     }
     private func load(fresh: Bool, automatic: Bool = false, restored: PlaybackSnapshot? = nil, repairRegistration: Bool = false) {
-        loading?.cancel(); retry.isHidden = true; view.accessibilityIdentifier = "native-video-loading"
+        guard presentationActive else { return }
         let snapshot = restored ?? playbackSnapshot()
+        pendingSnapshot = snapshot
+        loading?.cancel(); clearEndObserver(); rateObservation = nil
+        player?.pause()
+        retry.isHidden = true; view.accessibilityIdentifier = "native-video-loading"
         let id = UUID(); loadingID = id
         loading = Task { @MainActor [weak self] in
             guard let self = self else { return }
             defer { if self.loadingID == id { self.loading = nil } }
             do {
                 let url = fresh || automatic || repairRegistration ? try await self.service.recover(url:self.source, freshSource:fresh, automatic:automatic).absoluteString : self.source
-                try Task.checkCancellation(); guard loadingID == id else { return }
+                try Task.checkCancellation(); guard self.presentationActive, loadingID == id else { return }
                 let player = try await self.service.makePlayer(url: url, owner: self.owner)
-                try Task.checkCancellation(); guard loadingID == id else { return }
+                try Task.checkCancellation(); guard self.presentationActive, loadingID == id else { return }
                 self.source = url
                 self.player = player; player.isMuted = snapshot.muted
                 service.setFailureHandler(owner:owner) { [weak self] _ in
                     self?.retry.isHidden = false; self?.view.accessibilityIdentifier = "native-video-failed"
                 }
                 if snapshot.position > 0 { try await self.service.seek(player:player, owner:self.owner, position:snapshot.position) }
-                try Task.checkCancellation(); guard loadingID == id else { return }
-                if let observer = self.endObserver { NotificationCenter.default.removeObserver(observer) }
-                self.endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: player.currentItem, queue: .main) { [weak self] _ in
-                    Task { @MainActor in
-                        guard let self = self, self.looping, UIApplication.shared.applicationState == .active else { return }
-                        self.player?.seek(to: .zero); self.player?.playImmediately(atRate: self.playbackRate)
+                try Task.checkCancellation(); guard self.presentationActive, loadingID == id else { return }
+                guard self.player === player else { return }
+                self.pendingSnapshot = nil
+                self.rateObservation = player.observe(\.rate, options:[.new]) { [weak self, weak player] _, _ in
+                    Task { @MainActor [weak self, weak player] in
+                        guard let self, let player, self.presentationActive, self.loadingID == id,
+                              self.player === player, player.rate > 0 else { return }
+                        self.bindEndObserver(player:player,item:player.currentItem,loadID:id)
                     }
                 }
                 self.itemObservation = player.observe(\.currentItem, options: [.initial, .new]) { [weak self] player, _ in
                     Task { @MainActor in
-                        guard let self = self, self.player === player else { return }
+                        guard let self = self, self.presentationActive, self.loadingID == id, self.player === player else { return }
+                        self.bindEndObserver(player:player,item:player.currentItem,loadID:id)
                         self.readyObservation = player.currentItem?.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
                             Task { @MainActor in
-                                guard let self = self, self.player?.currentItem === item else { return }
+                                guard let self = self, self.presentationActive, self.loadingID == id, self.player?.currentItem === item else { return }
                                 self.view.accessibilityIdentifier = item.status == .readyToPlay ? "native-video-ready" : item.status == .failed ? "native-video-failed" : "native-video-loading"
                             }
                         }
                     }
                 }
                 self.updateOptions()
-                if snapshot.playing && UIApplication.shared.applicationState == .active { player.playImmediately(atRate: self.playbackRate) }
+                if snapshot.playing && self.isApplicationActive() { player.playImmediately(atRate: self.playbackRate) }
             } catch {
-                guard !Task.isCancelled, loadingID == id else { return }
+                guard !Task.isCancelled, self.presentationActive, loadingID == id else { return }
                 self.retry.isHidden = false; self.view.accessibilityIdentifier = "native-video-failed"
             }
         }
     }
-    @objc private func retryVideo() { load(fresh: true) }
-    @objc private func close() { dismiss(animated: true) }
-    func dismissalResult() -> [String: Any] {
-        let time = player?.currentTime().seconds ?? args.position ?? 0
-        return ["index": args.index, "position": time.isFinite ? time : 0,
-                "playing": wasPlaying || (player?.rate ?? 0) > 0 || player?.timeControlStatus == .waitingToPlayAtSpecifiedRate,
-                "speed": Double(playbackRate), "muted": player?.isMuted ?? args.muted ?? false,
-                "loop": looping, "source": source]
+    private func clearEndObserver() {
+        endBindingID = UUID(); loopingItem = nil; loopingPlayer = nil; loopLoadID = nil; loopPauseRevision = nil
+        if let observer = endObserver { NotificationCenter.default.removeObserver(observer); endObserver = nil }
     }
-    override func viewWillDisappear(_ animated: Bool) { wasPlaying = (player?.rate ?? 0) > 0 || player?.timeControlStatus == .waitingToPlayAtSpecifiedRate; super.viewWillDisappear(animated) }
+    private func bindEndObserver(player: AVPlayer, item: AVPlayerItem?, loadID: UUID) {
+        guard presentationActive, loadingID == loadID, self.player === player, let item,
+              player.currentItem === item else { clearEndObserver(); return }
+        let pauseRevision = service.playbackPauseRevision
+        if endObserver != nil, loopingPlayer === player, loopingItem === item,
+           loopLoadID == loadID, loopPauseRevision == pauseRevision { return }
+        clearEndObserver()
+        loopingItem = item; loopingPlayer = player; loopLoadID = loadID; loopPauseRevision = pauseRevision
+        let binding = endBindingID
+        endObserver = NotificationCenter.default.addObserver(forName:.AVPlayerItemDidPlayToEndTime,object:item,queue:.main) { [weak self, weak player, weak item] _ in
+            Task { @MainActor [weak self, weak player, weak item] in
+                guard let self, let player, let item,
+                      self.canLoop(player:player,item:item,loadID:loadID,binding:binding,pauseRevision:pauseRevision) else { return }
+                do {
+                    try await self.service.seek(player:player,owner:self.owner,position:0)
+                    try Task.checkCancellation()
+                    guard self.canLoop(player:player,item:item,loadID:loadID,binding:binding,pauseRevision:pauseRevision) else { return }
+                    player.playImmediately(atRate:self.playbackRate)
+                } catch {
+                    guard self.presentationActive, self.loadingID == loadID, self.player === player,
+                          player.currentItem === item, self.endBindingID == binding else { return }
+                    self.retry.isHidden = false; self.view.accessibilityIdentifier = "native-video-failed"
+                }
+            }
+        }
+    }
+    private func canLoop(player: AVPlayer, item: AVPlayerItem, loadID: UUID, binding: UUID, pauseRevision: UInt64) -> Bool {
+        presentationActive && !isBeingDismissed && loadingID == loadID && endBindingID == binding &&
+        self.player === player && player.currentItem === item && loopingItem === item && looping &&
+        service.isForeground && isApplicationActive() && service.playbackPauseRevision == pauseRevision
+    }
+    @objc private func retryVideo() { load(fresh: true) }
+    @objc private func close() { prepareForDismissal(); dismiss(animated:true) }
+    func prepareForDismissal() {
+        guard presentationActive else { return }
+        closingSnapshot = playbackSnapshot(); presentationActive = false
+        loadingID = UUID(); loading?.cancel(); loading = nil
+        readyObservation = nil; itemObservation = nil; rateObservation = nil; clearEndObserver()
+        player?.pause()
+    }
+    func dismissalResult() -> [String: Any] {
+        let snapshot = playbackSnapshot()
+        return ["index":args.index,"position":snapshot.position,
+                "playing":closingSnapshot?.playing ?? (wasPlaying || snapshot.playing),
+                "speed":Double(playbackRate),"muted":snapshot.muted,"loop":looping,"source":source]
+    }
+    override func viewWillDisappear(_ animated: Bool) {
+        wasPlaying = playbackSnapshot().playing
+        if isBeingDismissed || presentingViewController == nil { prepareForDismissal() }
+        super.viewWillDisappear(animated)
+    }
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         guard isBeingDismissed || presentingViewController == nil else { return }
-        loading?.cancel(); let result = dismissalResult()
-        service.releasePlayer(owner: owner)
-        let reply = finished; finished = nil
-        reply?(result)
+        prepareForDismissal(); let result = dismissalResult()
+        service.releasePlayer(owner:owner)
+        let reply = finished; finished = nil; reply?(result)
     }
     deinit { loading?.cancel(); if let observer = endObserver { NotificationCenter.default.removeObserver(observer) } }
 }

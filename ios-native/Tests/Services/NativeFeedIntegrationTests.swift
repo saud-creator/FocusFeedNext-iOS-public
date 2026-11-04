@@ -39,8 +39,11 @@ import AVFoundation
         controller.replacePosts(service.posts)
         var firstVisible: TimeInterval?
         for _ in 0..<80 {
-            controller.view.layoutIfNeeded(); await Task.yield()
-            if controller.collection.visibleCells.contains(where: { !$0.frame.intersection(controller.collection.bounds).isEmpty }) { firstVisible = ProcessInfo.processInfo.systemUptime; break }
+            controller.view.layoutIfNeeded()
+            if controller.collection.visibleCells.contains(where: { !$0.frame.intersection(controller.collection.bounds).isEmpty }) {
+                firstVisible = ProcessInfo.processInfo.systemUptime
+                break
+            }
             try await Task.sleep(nanoseconds: 1_000_000)
         }
         let visible = try XCTUnwrap(firstVisible, "Returned posts must become visible, not remain skeletons.")
@@ -48,6 +51,68 @@ import AVFoundation
         XCTContext.runActivity(named: "Controlled returned-data to visible native content: \(milliseconds) ms") { _ in }
         XCTAssertLessThanOrEqual(milliseconds, 250, "Keep the agreed response-to-content boundary; shell/provider time is separate.")
         XCTAssertTrue(controller.collection.visibleCells.contains { $0.accessibilityIdentifier?.hasPrefix("post.") == true })
+    }
+    func testSavedFollowingDefaultsFilterContentWithoutOverridingExplicitEditsOrFocus() async throws {
+        let service = try FeedFixtureServices(); let context = ReaderContext(services: service)
+        context.preferences.set("content.hideReposts", "true"); context.preferences.set("content.unreadOnly", "true"); context.preferences.set("video.autoplay", "off")
+        var posts = service.posts; posts[0].isRepost = true
+        let following = FeedViewController(context: context); following.automaticallyLoads = false
+        try host(following); following.replacePosts(posts, readIDs: [posts[1].id]); try await settle(following)
+        XCTAssertFalse(following.posts.contains { $0.id == posts[0].id || $0.id == posts[1].id })
+        following.filters.hideReposts = false; following.filters.unreadOnly = false; following.apply()
+        context.changed(); try await settle(following)
+        XCTAssertEqual(following.posts.count, posts.count, "A later preference/runtime publish must not undo explicit filter choices.")
+        context.preferences.set("content.hideReposts", "false"); context.preferences.set("content.unreadOnly", "false")
+        let focus = FeedViewController(context: context, route: .focus)
+        XCTAssertTrue(focus.filters.hideReposts); XCTAssertTrue(focus.filters.unreadOnly)
+        XCTAssertEqual(ProfileViewController(context: context, username: "reader").pagePreferenceKey, "profile")
+    }
+    func testPeoplePageRefreshOverrideAndTabHapticPreferenceHaveRealEffects() async throws {
+        let service = try FeedFixtureServices(); let context = ReaderContext(services: service)
+        context.preferences.set("pages.openBehavior", "off"); context.preferences.set("pages.openBehavior.accounts", "refresh")
+        let people = PeopleViewController(context: context); try host(people); try await settle(people)
+        XCTAssertEqual(service.followingSyncRequests, 1, "An explicit People refresh override starts a traversal even for a complete snapshot.")
+        var selections = 0
+        let tabs = NativeTabs(context: context, selectionFeedback: { selections += 1 })
+        context.preferences.set("appearance.haptics", "false"); tabs.tabBarController(tabs, didSelect: people)
+        XCTAssertEqual(selections, 0)
+        context.preferences.set("appearance.haptics", "true"); tabs.tabBarController(tabs, didSelect: people)
+        XCTAssertEqual(selections, 1)
+    }
+    func testDeepWindowRetapLoadsActualBeginningAndReturnsToStablePostAfterRefresh() async throws {
+        let service = try FeedFixtureServices(count: 500); service.paginatedCache = true
+        let context = ReaderContext(services: service); context.preferences.set("video.autoplay", "off")
+        let controller = FeedViewController(context: context, route: .bookmarks)
+        try host(controller); try await settle(controller)
+        var deep = TimelineRepository.State(); deep.posts = Array(service.posts[160..<460]); deep.windowStart = 160; deep.nextCachedOffset = 460
+        context.timelines.retainWorkingSet("bookmarks", deep); NotificationCenter.default.post(name: .readerContentChanged, object: context); try await settle(controller)
+        let anchor = try XCTUnwrap(controller.firstAnchor())
+        controller.returnToTop(); try await settle(controller)
+        XCTAssertEqual(controller.state.windowStart, 0)
+        XCTAssertEqual(controller.posts.first?.id, service.posts.first?.id, "Re-tap must reach the complete feed's beginning, not the first retained row.")
+        var newer = service.posts[0]; newer.id = "999"; service.newerPosts = [newer]
+        controller.refreshTapped(); try await settle(controller)
+        XCTAssertEqual(controller.posts.first?.id, "999")
+        let returnAction = try XCTUnwrap(controller.notice.retry, "Return must remain available after a refresh changes row positions.")
+        returnAction(); try await settle(controller)
+        let restored = try XCTUnwrap(controller.posts.firstIndex { $0.id == anchor.0 })
+        let attributes = try XCTUnwrap(controller.collection.layoutAttributesForItem(at: IndexPath(item: restored, section: 0)))
+        XCTAssertEqual(controller.collection.contentOffset.y - attributes.frame.minY, anchor.1, accuracy: 3, "Return restores the same post and intra-item place, not a stale CGPoint.")
+        XCTAssertLessThanOrEqual(controller.state.posts.count, 300)
+    }
+    func testLaunchResumeSharesThreeReadBudgetWithInitialPageAndManualPagingIsUnrestricted() async throws {
+        let service = try FeedFixtureServices(count: 500); service.providerPaging = true
+        let account = try XCTUnwrap(service.posts.first?.author)
+        service.resumeMarker = ResumeState(enabled: true, route: "bookmarks", postID: "9999999", offset: 0, accountID: account.id)
+        let context = ReaderContext(services: service); context.preferences.set("video.autoplay", "off")
+        context.session = SessionSnapshot(state: "connected", reason: "ok", checking: false, account: account, checkedAt: nil, lastSuccessAt: nil, latencyMs: nil, hasCredentials: true, detail: nil)
+        let controller = FeedViewController(context: context, route: .bookmarks)
+        try host(controller); try await settle(controller, attempts: 40)
+        XCTAssertEqual(service.providerOffsets.count, 3, "Initial loading and saved-marker search share one three-request allowance.")
+        XCTAssertFalse(controller.posts.isEmpty)
+        XCTAssertEqual(controller.notice.label.text, L10n.text("resumeUnavailable"))
+        controller.load(refresh: false); try await settle(controller)
+        XCTAssertEqual(service.providerOffsets.count, 4, "A user's next paging action runs outside automatic restoration's allowance.")
     }
     func testArabicLargeTextCellsRemainSeparatedAfterDelayedImageAndResize() async throws {
         L10n.language = "ar"
@@ -304,6 +369,13 @@ import AVFoundation
     var failRefresh = false
     var groupCacheOffsets: [Int] = []
     var searchOffsets: [Int] = []
+    var cachedOffsets: [Int] = []
+    var paginatedCache = false
+    var providerPaging = false
+    var providerOffsets: [Int] = []
+    var newerPosts: [Post] = []
+    var resumeMarker: ResumeState?
+    var followingSyncRequests = 0
     init(count: Int = 8) throws {
         let author: [String: Any] = ["id":"45", "username":"fixture_reader", "displayName":"قارئ الاختبار", "verified":false]
         let metrics: [String: Any] = ["replies":0, "reposts":0, "likes":0, "quotes":0, "views":0, "bookmarks":0]
@@ -332,8 +404,33 @@ import AVFoundation
         switch request.operation {
         case .refreshFeed, .loadFeedPage:
             if failRefresh { throw AppServiceError(code:"fixture_failure", message:"Controlled fixture refresh failure", retryable:true) }
+            if providerPaging {
+                try NativeReadingRestoreScope.budget?.consume()
+                let offset: Int
+                if case .string(let cursor)? = request.args["cursor"] { offset = Int(cursor) ?? 0 } else { offset = 0 }
+                providerOffsets.append(offset)
+                let page = Array(posts.dropFirst(offset).prefix(80)); let next = offset + page.count
+                let cursor: String? = next < posts.count ? String(next) : nil
+                let response = FeedResponse(posts: page, fromCache: false, provider: "fixture", lastSync: nil, readIds: [], totalCached: posts.count, nextCursor: cursor)
+                return try JSONEncoder().encode(response)
+            }
+            if paginatedCache {
+                let values = newerPosts + posts; let page = Array(values.prefix(80))
+                let response = FeedResponse(posts: page, fromCache: false, provider: "fixture", lastSync: nil, readIds: [], totalCached: values.count, nextCursor: nil, nextOffset: page.count < values.count ? page.count : nil)
+                return try JSONEncoder().encode(response)
+            }
             return try JSONEncoder().encode(FeedResponse(posts:posts, fromCache:false, provider:"fixture", lastSync:nil, readIds:[], totalCached:posts.count, nextCursor:nil))
-        case .cachedFeed: return try JSONEncoder().encode(FeedResponse(posts:posts, fromCache:true, provider:"fixture", lastSync:nil, readIds:[], totalCached:posts.count, nextCursor:nil))
+        case .cachedFeed:
+            let offset: Int
+            if case .number(let value)? = request.args["offset"] { offset = Int(value) } else { offset = 0 }
+            cachedOffsets.append(offset)
+            if providerPaging { return try JSONEncoder().encode(FeedResponse(posts: [], fromCache: true, provider: "fixture", lastSync: nil, readIds: [], totalCached: 0, nextCursor: nil)) }
+            if paginatedCache {
+                let values = newerPosts + posts; let page = Array(values.dropFirst(offset).prefix(80)); let next = offset + page.count
+                let response = FeedResponse(posts: page, fromCache: true, provider: "fixture", lastSync: nil, readIds: [], totalCached: values.count, nextCursor: nil, nextOffset: next < values.count ? next : nil)
+                return try JSONEncoder().encode(response)
+            }
+            return try JSONEncoder().encode(FeedResponse(posts:posts, fromCache:true, provider:"fixture", lastSync:nil, readIds:[], totalCached:posts.count, nextCursor:nil))
         case .groupFeed:
             let offset: Int
             if case .number(let value)? = request.args["offset"] { offset = Int(value) } else { offset = 0 }
@@ -353,7 +450,11 @@ import AVFoundation
             let response = SearchResponse(posts: page, readIds: [], nextOffset: nextOffset)
             return try JSONEncoder().encode(response)
         case .setRead, .hidePost: return Data("null".utf8)
-        case .resumeState: return Data("null".utf8)
+        case .resumeState: return try JSONEncoder().encode(resumeMarker)
+        case .followingSnapshot: return try JSONEncoder().encode(FollowingSnapshot(accounts: [], complete: true, syncing: false, state: "complete", lastError: nil, lastProgressAt: nil))
+        case .pinnedAccounts: return try JSONEncoder().encode([Author]())
+        case .unfollowAllowed: return Data("true".utf8)
+        case .startFollowingSync: followingSyncRequests += 1; return Data("true".utf8)
         default: throw AppServiceError(code:"fixture_unexpected_operation", message:"The fixture does not implement this operation.")
         }
     }

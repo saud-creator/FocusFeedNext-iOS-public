@@ -43,7 +43,12 @@ import UIKit
 @MainActor final class NativeTabs: UITabBarController, UITabBarControllerDelegate {
     let context: ReaderContext
     private var signature = ""
-    init(context: ReaderContext) { self.context = context; super.init(nibName: nil, bundle: nil) }
+    private let selectionFeedback: @MainActor () -> Void
+    init(context: ReaderContext, selectionFeedback: @escaping @MainActor () -> Void = { UISelectionFeedbackGenerator().selectionChanged() }) {
+        self.context = context
+        self.selectionFeedback = selectionFeedback
+        super.init(nibName: nil, bundle: nil)
+    }
     required init?(coder: NSCoder) { fatalError("Use context") }
     override func viewDidLoad() { super.viewDidLoad(); delegate = self; updateConfiguration() }
     func updateConfiguration() {
@@ -67,6 +72,7 @@ import UIKit
         }
         return true
     }
+    func tabBarController(_ tabBarController: UITabBarController, didSelect viewController: UIViewController) { if context.preferences.bool("appearance.haptics") { selectionFeedback() } }
 }
 
 @MainActor func screen(for route: ReaderRoute, context: ReaderContext) -> UIViewController {

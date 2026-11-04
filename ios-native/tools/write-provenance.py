@@ -34,9 +34,9 @@ def source_inputs(root=ROOT):
     files = {}
     # Include the shared Rust modules imported using #[path], not only crates/.
     folders = ('ios-native/App', 'ios-native/NativeServices', 'ios-native/Integration',
-               'ios-native/Tests', 'ios-native/tools', 'ios-native/Resources/Assets.xcassets',
+               'ios-native/Tests', 'ios-native/tools', 'ios-native/Configuration', 'ios-native/Resources/Assets.xcassets',
                'crates', 'source/src-tauri/src', 'source/src-tauri/plugins/ios-reader/src')
-    extensions = {'.swift', '.rs', '.toml', '.json', '.py', '.sh', '.png', '.h', '.modulemap'}
+    extensions = {'.swift', '.rs', '.toml', '.json', '.py', '.sh', '.png', '.h', '.modulemap', '.plist', '.entitlements'}
     for folder in folders:
         for path in sorted((root / folder).rglob('*')):
             if path.is_file() and path.suffix in extensions and '__pycache__' not in path.parts:

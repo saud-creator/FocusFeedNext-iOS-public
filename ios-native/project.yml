@@ -12,6 +12,8 @@ settings:
     TARGETED_DEVICE_FAMILY: '1,2'
     ENABLE_BITCODE: NO
     CODE_SIGNING_ALLOWED: NO
+    'CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]': YES
+    'CODE_SIGN_IDENTITY[sdk=iphonesimulator*]': '-'
     SWIFT_INCLUDE_PATHS: '$(inherited) $(SRCROOT)/Generated'
     HEADER_SEARCH_PATHS: '$(inherited) $(SRCROOT)/Generated'
     OTHER_SWIFT_FLAGS: '$(inherited) -Xcc -fmodule-map-file=$(SRCROOT)/Generated/FocusFeedNativeFFI.modulemap'
@@ -32,6 +34,7 @@ targets:
       base:
         INFOPLIST_FILE: Configuration/Info.plist
         GENERATE_INFOPLIST_FILE: NO
+        'CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]': Configuration/Simulator.entitlements
         PRODUCT_BUNDLE_IDENTIFIER: com.focusfeed.next
         PRODUCT_NAME: FocusFeedNext
         PRODUCT_MODULE_NAME: FocusFeedNextNative

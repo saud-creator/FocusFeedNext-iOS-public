@@ -46,6 +46,8 @@ struct AppRequest: Codable {
     func imageData(url: String, maxPixelDimension: Int) async throws -> Data
     func prefetchImageData(url: String, maxPixelDimension: Int) async throws -> Data
     func makePlayer(url: String, owner: UUID) async throws -> AVPlayer
+    func seekPlayer(player: AVPlayer, owner: UUID, position: Double) async throws
+    func pausePlayer(player: AVPlayer, owner: UUID)
     func releasePlayer(owner: UUID)
     func presentMedia(_ request: MediaPresentation, from: UIViewController) async throws -> MediaPresentationResult
     func recoverMedia() async throws
@@ -53,6 +55,12 @@ struct AppRequest: Codable {
 }
 
 extension AppServices {
+    func pausePlayer(player: AVPlayer, owner: UUID) { player.pause() }
+    /// A lightweight adapter must explicitly support owned/bounded seeks.
+    /// Production supplies the native service's cancellable active-time path.
+    func seekPlayer(player: AVPlayer, owner: UUID, position: Double) async throws {
+        throw AppServiceError(code:"unsupported_player_seek",message:L10n.text("loadFailed"))
+    }
     /// Lightweight adapters may share their image loader. Production overrides
     /// this with a speculative download that never starts media recovery.
     func prefetchImageData(url: String, maxPixelDimension: Int) async throws -> Data { try await imageData(url:url, maxPixelDimension:maxPixelDimension) }

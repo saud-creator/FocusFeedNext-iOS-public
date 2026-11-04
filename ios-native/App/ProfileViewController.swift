@@ -13,11 +13,17 @@ final class ProfileViewController: FeedViewController {
     override func viewDidLoad() {
         title = "@\(username)"
         identity.axis = .vertical; identity.spacing = 12; identity.isLayoutMarginsRelativeArrangement = true; identity.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 16, leading: 12, bottom: 12, trailing: 12); profileHeader = identity
-        super.viewDidLoad(); renderIdentity(); fetchDetails(refresh: true)
+        super.viewDidLoad(); renderIdentity()
     }
     private func fetchDetails(refresh: Bool = false) {
         detailsTask?.cancel(); profileNotice.show(L10n.text("loading"), busy: true)
-        detailsTask = Task { [weak self] in guard let self else { return }; do { author = try await context.services.profile(username, refresh: refresh); title = author?.label; renderIdentity(); profileNotice.show(nil) } catch { profileNotice.show(error.localizedDescription, retry: { [weak self] in self?.fetchDetails(refresh: true) }) } }
+        detailsTask = Task { [weak self] in await self?.readDetails(refresh: refresh) }
+    }
+    override func loadPageDetails() async { if author == nil || context.preferences.openBehavior(for: "profile") != .off { await readDetails(refresh: true) } }
+    private func readDetails(refresh: Bool) async {
+        do { author = try await context.services.profile(username, refresh: refresh); title = author?.label; renderIdentity(); profileNotice.show(nil) }
+        catch NativeReadingRestoreError.limitReached { profileNotice.show(L10n.text("resumeUnavailable")) }
+        catch { if !(error is CancellationError) { profileNotice.show(error.localizedDescription, retry: { [weak self] in self?.fetchDetails(refresh: true) }) } }
     }
     private func renderIdentity() {
         identity.arrangedSubviews.forEach { $0.removeFromSuperview() }

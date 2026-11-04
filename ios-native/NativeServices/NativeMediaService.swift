@@ -13,7 +13,7 @@ enum NativeMediaFailure: Error, Equatable {
 @MainActor final class NativeMediaService {
     private let validateBrokerURL: (URL) async throws -> Void
     private let repair: (URL, Bool) async throws -> URL
-    private let playerFactory: (URL) -> AVPlayer
+    private let playerFactory: @MainActor (URL) -> AVPlayer
     private var ownership = MediaOwnership(accountEpoch: 0, brokerEpoch: 0)
     private var cache: [String: CachedImage] = [:]
     private var order: [String] = []
@@ -54,7 +54,7 @@ enum NativeMediaFailure: Error, Equatable {
 
     init(validateBrokerURL: @escaping (URL) async throws -> Void,
          repair: @escaping (URL, Bool) async throws -> URL,
-         playerFactory: @escaping (URL) -> AVPlayer = { AVPlayer(playerItem:AVPlayerItem(asset:AVURLAsset(url:$0))) }) {
+         playerFactory: @escaping @MainActor (URL) -> AVPlayer = { AVPlayer(playerItem:AVPlayerItem(asset:AVURLAsset(url:$0))) }) {
         self.validateBrokerURL = validateBrokerURL; self.repair = repair; self.playerFactory = playerFactory
         let center = NotificationCenter.default
         audioObservers.append(center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
@@ -144,15 +144,28 @@ enum NativeMediaFailure: Error, Equatable {
                 player.seek(to:CMTime(seconds:position, preferredTimescale:600), toleranceBefore:.zero, toleranceAfter:.zero) { finished in
                     complete(finished ? .success(()) : .failure(NativeMediaFailure.unavailable))
                 }
-            }, cancel: { item.cancelPendingSeeks() })
+            }, cancel: {
+                // AVPlayerItem cancels every seek on the item. A delayed
+                // cancellation for a superseded operation must not stop the
+                // new request that now owns this same item.
+                if self.current?.player.currentItem === item,
+                   let currentDeadline = self.seekDeadlines[owner],
+                   currentDeadline !== deadline { return }
+                item.cancelPendingSeeks()
+            })
         }
         try Task.checkCancellation()
         guard captured == ownership, current?.owner == owner, current?.player === player,
               player.currentItem === item else { throw NativeMediaFailure.staleOwnership }
     }
     func setFailureHandler(owner: UUID, handler: @escaping (NativeMediaFailure) -> Void) { failureHandlers[owner] = handler }
+    func pausePlayer(player: AVPlayer, owner: UUID) {
+        guard current?.owner == owner, current?.player === player else { return }
+        pauseAll()
+    }
     func pauseAll() { pauseRevision &+= 1; current?.player.pause(); deactivateAudio() }
     var isForeground: Bool { runtime.foreground }
+    var playbackPauseRevision: UInt64 { pauseRevision }
     func recoverVisiblePlayerIfNeeded() {
         guard runtime.foreground, let current, let item = current.player.currentItem else { return }
         if item.status == .failed { recoverPlayer(owner: current.owner, failure: .unavailable) }
@@ -311,9 +324,12 @@ enum NativeMediaFailure: Error, Equatable {
         }
         _ = stallBudget.update(now: now, active: true)
         // Playback-time observers stop firing during a stall; use an active-only clock.
-        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self, weak player = active.player, weak item = active.player.currentItem] _ in
           Task { @MainActor in
-            guard let self = self, let current = self.current, current.owner == active.owner else { return }
+            guard let self, let player, let item, let current = self.current,
+                  current.owner == active.owner, current.player === player,
+                  player.currentItem === item, self.runtime.foreground,
+                  player.timeControlStatus == .waitingToPlayAtSpecifiedRate else { return }
             let seconds = current.player.currentTime().seconds
             let now = ProcessInfo.processInfo.systemUptime
             if seconds.isFinite && abs(seconds - self.lastProgress) > 0.05 {
