@@ -29,7 +29,7 @@ def main():
         elif isinstance(value, list):
             for item in value:
                 visit(item)
-        elif isinstance(value, str) and ('Snapshot update:' in value or 'Controlled returned-data' in value):
+        elif isinstance(value, str) and any(marker in value for marker in ('Snapshot update:', 'Controlled returned-data', 'First-page p95:')):
             print(value)
 
     visit(activities)

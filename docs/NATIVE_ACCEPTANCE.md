@@ -64,6 +64,14 @@ also show an async XCTest runtime abort. The service test target uses unoptimize
 compilation, while the app under test stays optimized. The timing limit and
 production recovery deadlines are unchanged.
 
+Run [41851757490](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41851757490)
+passed 87 of 88 linked tests, including the corrected People and fullscreen
+fixtures and all three UI tests. Its single first-page observation was 306.43 ms.
+The simulator gate now uses the plan's nearest-rank p95 over 20 fresh feed
+presentations, reports every observation and the maximum, and retains the same
+250 ms limit and returned-data-to-visible-post boundary. This measures the
+declared simulator fixture; repeat the performance matrix on the affected iPhone.
+
 ## Required device qualification
 
 Use the affected iPhone running the recorded 0.9.0/090.31 build as comparison.

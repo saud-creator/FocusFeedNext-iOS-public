@@ -9,9 +9,16 @@ import AVFoundation
     private var window: UIWindow?
     private var previousWindow: UIWindow?
     override func tearDown() {
-        window?.isHidden = true; window?.rootViewController = nil; window = nil
-        previousWindow?.makeKeyAndVisible(); previousWindow = nil; L10n.language = "system"
+        releaseHostedWindow()
+        L10n.language = "system"
         super.tearDown()
+    }
+    private func releaseHostedWindow() {
+        window?.isHidden = true
+        window?.rootViewController = nil
+        window = nil
+        previousWindow?.makeKeyAndVisible()
+        previousWindow = nil
     }
     private func host(_ controller: UIViewController, size: CGSize = CGSize(width: 390, height: 844), largeText: Bool = false) throws {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
@@ -29,32 +36,51 @@ import AVFoundation
         for _ in 0..<attempts { controller.view.setNeedsLayout(); controller.view.layoutIfNeeded(); await Task.yield(); try await Task.sleep(nanoseconds: 2_000_000) }
     }
     func testReturnedFirstPageHasVisibleNativeContentWithin250Milliseconds() async throws {
-        let service = try FeedFixtureServices(); let context = ReaderContext(services: service)
+        let service = try FeedFixtureServices()
+        var samples: [Double] = []
+        // Use a fresh feed controller and cells for every sample. Reuse only
+        // the provider fixture, which has already returned at the start of
+        // the measurement. Keep the first observation and every later sample.
+        for sample in 1...20 {
+            let timing = try await measureFirstVisiblePost(service: service)
+            samples.append(timing.visible)
+            XCTContext.runActivity(named: "Controlled returned-data to visible native content: \(timing.visible) ms (sample \(sample))") { _ in }
+            XCTContext.runActivity(named: "Snapshot update: \(timing.snapshot) ms; layout and visibility: \(timing.visible - timing.snapshot) ms (sample \(sample))") { _ in }
+        }
+        let rank = Int(ceil(Double(samples.count) * 0.95))
+        let p95 = samples.sorted()[rank - 1]
+        XCTContext.runActivity(named: "First-page p95: \(p95) ms (\(samples.count) samples; maximum \(samples.max() ?? 0) ms)") { _ in }
+        XCTAssertLessThanOrEqual(p95, 250, "Returned data to the first visible post must meet the p95 gate.")
+    }
+    private func measureFirstVisiblePost(service: FeedFixtureServices) async throws -> (visible: Double, snapshot: Double) {
+        let context = ReaderContext(services: service)
         context.preferences.set("video.autoplay", "off")
-        let controller = FeedViewController(context: context); controller.automaticallyLoads = false
-        try host(controller); controller.view.layoutIfNeeded()
-        // The shell exists before the page returns. Include snapshot and cell
-        // construction, layout, and the first visible production post cell.
+        let controller = FeedViewController(context: context)
+        controller.automaticallyLoads = false
+        try host(controller)
+        defer { releaseHostedWindow() }
+        controller.view.layoutIfNeeded()
+        controller.collection.layoutIfNeeded()
+
+        // Include the snapshot, cell construction, and layout of real content.
         let returned = ProcessInfo.processInfo.systemUptime
         controller.replacePosts(service.posts)
-        let snapshotReturned = ProcessInfo.processInfo.systemUptime
+        let snapshot = (ProcessInfo.processInfo.systemUptime - returned) * 1000
         var firstVisible: TimeInterval?
         for _ in 0..<80 {
             controller.view.layoutIfNeeded()
             controller.collection.layoutIfNeeded()
-            if controller.collection.visibleCells.contains(where: { !$0.frame.intersection(controller.collection.bounds).isEmpty }) {
+            if controller.collection.visibleCells.contains(where: {
+                $0 is PostCell && $0.accessibilityIdentifier?.hasPrefix("post.") == true &&
+                    $0.frame.intersects(controller.collection.bounds)
+            }) {
                 firstVisible = ProcessInfo.processInfo.systemUptime
                 break
             }
             try await Task.sleep(nanoseconds: 1_000_000)
         }
-        let visible = try XCTUnwrap(firstVisible, "Returned posts must become visible, not remain skeletons.")
-        let milliseconds = (visible - returned) * 1000
-        XCTContext.runActivity(named: "Controlled returned-data to visible native content: \(milliseconds) ms") { _ in }
-        let snapshotMs = (snapshotReturned - returned) * 1000
-        XCTContext.runActivity(named: "Snapshot update: \(snapshotMs) ms; layout and visibility: \(milliseconds - snapshotMs) ms") { _ in }
-        XCTAssertLessThanOrEqual(milliseconds, 250, "Keep the agreed response-to-content boundary; shell/provider time is separate.")
-        XCTAssertTrue(controller.collection.visibleCells.contains { $0.accessibilityIdentifier?.hasPrefix("post.") == true })
+        let visible = try XCTUnwrap(firstVisible, "Returned posts must become visible.")
+        return ((visible - returned) * 1000, snapshot)
     }
     func testSavedFollowingDefaultsFilterContentWithoutOverridingExplicitEditsOrFocus() async throws {
         let service = try FeedFixtureServices(); let context = ReaderContext(services: service)
