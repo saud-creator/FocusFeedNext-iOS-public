@@ -28,10 +28,10 @@ targets:
         excludes: ['*.h', '*.modulemap']
       - path: Resources
         buildPhase: resources
-    info:
-      path: Configuration/Info.plist
     settings:
       base:
+        INFOPLIST_FILE: Configuration/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
         PRODUCT_BUNDLE_IDENTIFIER: com.focusfeed.next
         PRODUCT_NAME: FocusFeedNext
         PRODUCT_MODULE_NAME: FocusFeedNextNative

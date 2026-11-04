@@ -8,7 +8,12 @@ command -v xcodegen >/dev/null || { echo 'Install XcodeGen before building.' >&2
 bash ios-native/tools/build-core.sh
 python3 ios-native/tools/write-provenance.py
 cd ios-native
+plist_hash=$(shasum -a 256 Configuration/Info.plist)
 xcodegen generate --spec project.yml
+if [[ "$(shasum -a 256 Configuration/Info.plist)" != "$plist_hash" ]]; then
+  echo 'Project generation changed the authoritative native scene/transport plist.' >&2
+  exit 1
+fi
 if [[ "$mode" == check ]]; then
   destination=$(python3 tools/select-simulator.py)
   test_result=".build/Tests-$(date +%s).xcresult"
