@@ -36,12 +36,13 @@ for target in Services UI; do
     -module-name "FocusFeedNext${target}Preflight" -sdk "$sdk" -target "$preflight_target" \
     -I "$module_dir" -I ios-native/Generated -I "$test_swift_modules" -F "$test_frameworks" \
     -Xcc "-fmodule-map-file=$modulemap" "ios-native/Tests/$target/"*.swift
-  # Release optimization has exposed ownership-verifier failures that syntax
-  # and type checking cannot detect. Exercise those passes before the slower
-  # Rust device/simulator builds; the linked test stage remains authoritative.
-  xcrun swiftc -emit-sil -O -whole-module-optimization -parse-as-library -swift-version 5 \
-    -module-name "FocusFeedNext${target}Preflight" -sdk "$sdk" -target "$preflight_target" \
-    -I "$module_dir" -I ios-native/Generated -I "$test_swift_modules" -F "$test_frameworks" \
-    -Xcc "-fmodule-map-file=$modulemap" "ios-native/Tests/$target/"*.swift \
-    -o "$module_dir/${target}-optimized.sil"
+  # Service fixtures use -Onone to avoid crashes in the async XCTest harness.
+  # The app and the UI-test target still use Release optimization.
+  if [[ "$target" == UI ]]; then
+    xcrun swiftc -emit-sil -O -whole-module-optimization -parse-as-library -swift-version 5 \
+      -module-name "FocusFeedNext${target}Preflight" -sdk "$sdk" -target "$preflight_target" \
+      -I "$module_dir" -I ios-native/Generated -I "$test_swift_modules" -F "$test_frameworks" \
+      -Xcc "-fmodule-map-file=$modulemap" "ios-native/Tests/$target/"*.swift \
+      -o "$module_dir/${target}-optimized.sil"
+  fi
 done

@@ -57,6 +57,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.focusfeed.next.tests
+        # Swift 6.3 has crashed in optimized async XCTest harness code.
+        # The application target still compiles with Release optimization.
+        SWIFT_OPTIMIZATION_LEVEL: '-Onone'
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: '$(BUILT_PRODUCTS_DIR)/FocusFeedNext.app/FocusFeedNext'
         BUNDLE_LOADER: '$(TEST_HOST)'

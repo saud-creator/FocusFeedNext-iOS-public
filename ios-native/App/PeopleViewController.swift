@@ -52,6 +52,9 @@ final class PeopleViewController: ReaderScreen, UICollectionViewDelegate, UISear
         dataSource = UICollectionViewDiffableDataSource<Int, PersonItemIdentity>(collectionView: collection) { collection, indexPath, item in
             collection.dequeueConfiguredReusableCell(using: registration, for: indexPath, item: item)
         }
+        var initial = NSDiffableDataSourceSnapshot<Int, PersonItemIdentity>()
+        initial.appendSections([0])
+        dataSource.applySnapshotUsingReloadData(initial)
         let refresh = UIRefreshControl(); refresh.addTarget(self, action: #selector(retry), for: .valueChanged); collection.refreshControl = refresh
         let column = UIStackView(arrangedSubviews: [notice, collection]); column.axis = .vertical; view.addSubview(column); column.pin(to: view, safe: true)
         NotificationCenter.default.addObserver(self, selector: #selector(progress), name: .readerFollowingChanged, object: context)

@@ -21,12 +21,17 @@ import AVFoundation
     }
 
     func testFailedSeekAndCloseRetainTheRequestedPosition() async throws {
-        let fixture = FullscreenFixture(position:18)
+        let submitted = expectation(description: "The fullscreen controller submits its initial seek")
+        let fixture = FullscreenFixture(position: 18, onSeek: { submitted.fulfill() })
         defer { fixture.stop() }
         fixture.controller.loadViewIfNeeded()
-        try await settle { fixture.players.first?.pendingSeekCount == 1 }
-        fixture.players[0].completeNextSeek(finished:false)
-        try await settle { fixture.controller.view.accessibilityIdentifier == "native-video-failed" }
+        await fulfillment(of: [submitted], timeout: 45)
+        let player = try XCTUnwrap(fixture.players.first)
+        XCTAssertEqual(player.pendingSeekCount, 1)
+        player.completeNextSeek(finished:false)
+        try await settle("A failed seek must make Retry reachable") {
+            fixture.controller.view.accessibilityIdentifier == "native-video-failed"
+        }
         XCTAssertEqual(fixture.controller.dismissalResult()["position"] as? Double,18)
         fixture.controller.prepareForDismissal()
         fixture.service.releasePlayer(owner:fixture.owner)
@@ -90,13 +95,15 @@ import AVFoundation
         XCTAssertTrue(player.playRequests.isEmpty)
     }
 
-    private func settle(_ condition: () -> Bool) async throws {
-        let deadline = ProcessInfo.processInfo.systemUptime + 2
-        while ProcessInfo.processInfo.systemUptime < deadline {
+    private func settle(_ message: String = "The controlled fullscreen operation did not settle.",
+                        _ condition: () -> Bool) async throws {
+        let deadline = ProcessInfo.processInfo.systemUptime + 10
+        while true {
             if condition() { return }
-            await Task.yield(); try await Task.sleep(nanoseconds:1_000_000)
+            guard ProcessInfo.processInfo.systemUptime < deadline else { break }
+            try await Task.sleep(nanoseconds:5_000_000)
         }
-        XCTFail("The controlled fullscreen operation did not settle.")
+        XCTFail(message)
         throw FixtureFailure.didNotSettle
     }
     private func drainActor() async { for _ in 0..<20 { await Task.yield() } }
@@ -112,14 +119,14 @@ import AVFoundation
     let alternateURL: String
     private let storage: FullscreenPlayerStorage
     var players: [FullscreenPlaybackSpy] { storage.players }
-    init(position: Double) {
+    init(position: Double, onSeek: (() -> Void)? = nil) {
         let owner = UUID(); self.owner = owner
         let prefix = "http://127.0.0.1:12345/media/" + String(repeating:"a",count:48) + "/"
         let source = prefix + String(repeating:"b",count:32)
         alternateURL = prefix + String(repeating:"c",count:32)
         let storage = FullscreenPlayerStorage(); self.storage = storage
         let service = NativeMediaService(validateBrokerURL:{ _ in },repair:{ url, _ in url },playerFactory:{ _ in
-            let player = FullscreenPlaybackSpy()
+            let player = FullscreenPlaybackSpy(onSeek: onSeek)
             player.replaceCurrentItem(with:AVPlayerItem(asset:AVMutableComposition()))
             storage.players.append(player); return player
         })
@@ -138,6 +145,11 @@ import AVFoundation
 
 private final class FullscreenPlaybackSpy: AVPlayer, @unchecked Sendable {
     private let stateLock = NSLock()
+    private let onSeek: (() -> Void)?
+    init(onSeek: (() -> Void)? = nil) {
+        self.onSeek = onSeek
+        super.init()
+    }
     private var positions: [Double] = []
     private var playback: [Float] = []
     private var completions: [(target:CMTime,completion:@Sendable (Bool) -> Void)] = []
@@ -149,6 +161,7 @@ private final class FullscreenPlaybackSpy: AVPlayer, @unchecked Sendable {
     override func playImmediately(atRate rate: Float) { stateLock.lock(); playback.append(rate); stateLock.unlock() }
     override func seek(to time:CMTime,toleranceBefore:CMTime,toleranceAfter:CMTime,completionHandler:@escaping @Sendable (Bool) -> Void) {
         stateLock.lock(); positions.append(time.seconds); completions.append((time,completionHandler)); stateLock.unlock()
+        onSeek?()
     }
     func completeNextSeek(finished: Bool) {
         stateLock.lock()

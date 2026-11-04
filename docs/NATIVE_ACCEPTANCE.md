@@ -54,7 +54,15 @@ native action controls across post revisions.
 The next source checkpoint adds a reusable diffable People collection,
 coalesced following-progress updates, opaque media overlays for Reduce
 Transparency/high contrast, and stronger custom text under Increase Contrast.
-These changes still require their own linked test run.
+Run [41844964641](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41844964641)
+passed the first-page timing fixture at 187.98 ms, all three UI tests and the
+media transparency and contrast checks. The People fixtures uncovered a missing
+initial section while the first account load was pending. A fullscreen seek
+fixture also timed out. The next run tests an initial empty People section and
+waits for the controlled seek callback and Retry states separately. Crash reports
+also show an async XCTest runtime abort. The service test target uses unoptimized
+compilation, while the app under test stays optimized. The timing limit and
+production recovery deadlines are unchanged.
 
 ## Required device qualification
 
