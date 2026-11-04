@@ -10,10 +10,18 @@ on:
         description: 'Read an existing native test result (skip builds)'
         required: false
         type: string
+      native_runner:
+        description: 'Mac runner for native validation'
+        required: false
+        type: choice
+        default: macos-15-intel
+        options:
+          - macos-15-intel
+          - macos-15
 permissions:
   contents: read
 concurrency:
-  group: native-ios-${{ github.event.pull_request.head.ref || github.ref_name }}
+  group: native-ios-${{ github.event.pull_request.head.ref || github.ref_name }}${{ inputs.native_runner == 'macos-15' && '-arm' || '' }}
   cancel-in-progress: true
 jobs:
   desktop:
@@ -51,7 +59,7 @@ jobs:
           python ios-native/tools/test-native-verifier.py
           python ios-native/tools/test-native-test-export.py
   native:
-    runs-on: macos-15-intel
+    runs-on: ${{ inputs.native_runner == 'macos-15' && 'macos-15' || 'macos-15-intel' }}
     timeout-minutes: 90
     needs: [core, desktop]
     steps:
