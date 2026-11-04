@@ -106,10 +106,15 @@ final class WelcomeViewController: ReaderScreen {
         let scroll = UIScrollView(); view.addSubview(scroll); scroll.pin(to: view, safe: true)
         let stack = UIStackView(); stack.axis = .vertical; stack.spacing = 24; stack.translatesAutoresizingMaskIntoConstraints = false; scroll.addSubview(stack)
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 24), stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -24), stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 42), stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -24), stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -48)])
-        stack.addArrangedSubview(readerLabel(L10n.text("welcome"), style: .largeTitle)); stack.addArrangedSubview(readerLabel(L10n.text("welcomeBody"), style: .title3))
+        let heading = readerLabel(L10n.text("welcome"), style: .largeTitle)
+        heading.accessibilityTraits.insert(.header)
+        stack.addArrangedSubview(heading)
         signIn = readerButton(L10n.text("signIn"), symbol: "person.crop.circle.badge.checkmark") { [weak self] in self?.connect() }; signIn.accessibilityIdentifier = "welcome.signIn"; stack.addArrangedSubview(signIn)
         stack.addArrangedSubview(notice)
-        stack.addArrangedSubview(readerButton(L10n.text("settings"), symbol: "gearshape") { [weak self] in guard let self else { return }; navigationController?.pushViewController(SettingsViewController(context: context), animated: true) })
+        let settings = readerButton(L10n.text("settings"), symbol: "gearshape") { [weak self] in guard let self else { return }; navigationController?.pushViewController(SettingsViewController(context: context), animated: true) }
+        settings.accessibilityIdentifier = "welcome.settings"
+        stack.addArrangedSubview(settings)
+        stack.addArrangedSubview(readerLabel(L10n.text("welcomeBody"), style: .title3))
         stack.addArrangedSubview(readerLabel(L10n.text("privacyWelcome"), style: .footnote, color: .secondaryLabel))
     }
     private func connect() {

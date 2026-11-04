@@ -5,6 +5,7 @@ import XCTest
 final class ReaderNativeUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
     private func launch(language: String = "en", largeText: Bool = false) -> XCUIApplication {
+        XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments += ["-AppleLanguages", "(\(language))", "-AppleLocale", language == "ar" ? "ar_SA" : "en_US"]
         if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
@@ -23,13 +24,17 @@ final class ReaderNativeUITests: XCTestCase {
     func testSettingsNavigationAndPreferenceDraftCancel() throws {
         let app = launch()
         XCTAssertTrue(app.buttons["welcome.signIn"].waitForExistence(timeout: 20))
-        let settings = app.buttons["Settings"]
+        let settings = app.buttons["welcome.settings"]
         XCTAssertTrue(settings.isHittable); settings.tap()
         let appearance = app.cells["settings.appearance"]
         XCTAssertTrue(appearance.waitForExistence(timeout: 5)); appearance.tap()
         let density = app.cells["setting.density"]
         XCTAssertTrue(density.waitForExistence(timeout: 5)); density.tap()
-        app.buttons["Compact"].tap()
+        let compact = app.descendants(matching: .any).matching(identifier: "setting.choice.density.compact").firstMatch
+        XCTAssertTrue(waitUntilHittable(compact), "Density options must be selectable in the grouped list.")
+        XCTAssertGreaterThanOrEqual(compact.frame.height, 44)
+        compact.tap()
+        XCTAssertTrue(density.staticTexts["Compact"].waitForExistence(timeout: 5), "The choice must update the shared draft.")
         app.navigationBars.buttons.element(boundBy: 0).tap()
         app.navigationBars.buttons["Close"].tap()
         let discard = app.alerts.buttons["Discard changes"]
@@ -41,19 +46,30 @@ final class ReaderNativeUITests: XCTestCase {
     }
     func testArabicAccessibilityTextKeepsPrimaryActionsReachable() throws {
         let app = launch(language: "ar", largeText: true)
+        defer { XCUIDevice.shared.orientation = .portrait }
         let signIn = app.buttons["welcome.signIn"]
-        XCTAssertTrue(signIn.waitForExistence(timeout: 20)); XCTAssertTrue(signIn.isHittable)
+        XCTAssertTrue(signIn.waitForExistence(timeout: 20), "The Arabic welcome screen must load.")
+        XCTAssertTrue(waitUntilHittable(signIn), "Sign-in must be visible when the welcome screen opens.")
         XCTAssertGreaterThanOrEqual(signIn.frame.height, 44)
-        XCTAssertTrue(app.buttons["الإعدادات"].isHittable)
-        app.buttons["الإعدادات"].tap()
-        XCTAssertTrue(app.cells["settings.account"].waitForExistence(timeout: 5))
-        app.cells["settings.account"].tap()
-        XCTAssertTrue(app.staticTexts["تسجيل الدخول إلى X"].waitForExistence(timeout: 5))
+        capture("native-arabic-accessibility-welcome")
+
+        let settings = app.buttons["welcome.settings"]
+        if !settings.isHittable { app.scrollViews.firstMatch.swipeUp() }
+        XCTAssertTrue(waitUntilHittable(settings), "Settings must be reachable at the largest text size.")
+        XCTAssertGreaterThanOrEqual(settings.frame.height, 44)
+        settings.tap()
+        let account = app.cells["settings.account"]
+        XCTAssertTrue(waitUntilHittable(account)); account.tap()
+        let signInRow = app.staticTexts["تسجيل الدخول إلى X"]
+        XCTAssertTrue(signInRow.waitForExistence(timeout: 5))
         capture("native-arabic-accessibility-portrait")
         XCUIDevice.shared.orientation = .landscapeLeft
-        XCTAssertTrue(app.navigationBars.buttons["حفظ"].isHittable)
+        XCTAssertTrue(waitUntilHittable(app.navigationBars.buttons["حفظ"]), "Save must remain reachable after rotation.")
         capture("native-arabic-accessibility-landscape")
-        XCUIDevice.shared.orientation = .portrait
+    }
+    private func waitUntilHittable(_ element: XCUIElement) -> Bool {
+        let condition = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true AND hittable == true"), object: element)
+        return XCTWaiter.wait(for: [condition], timeout: 6) == .completed
     }
     private func capture(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())

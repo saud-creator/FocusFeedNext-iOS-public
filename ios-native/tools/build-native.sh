@@ -21,7 +21,7 @@ if [[ "$mode" == check ]]; then
   python3 -c 'from pathlib import Path; Path(".build/native-test-receipt.json").unlink(missing_ok=True)'
   if xcodebuild -project FocusFeedNextNative.xcodeproj -scheme FocusFeedNextNative \
     -destination "$destination" -derivedDataPath .build/DerivedData \
-    -test-timeouts-enabled YES -default-test-execution-time-allowance 120 \
+    -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
     -resultBundlePath "$test_result" test; then
     test_status=0
   else

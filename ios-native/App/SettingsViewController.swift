@@ -257,10 +257,10 @@ final class SettingsDetailViewController: ReaderScreen, UITableViewDataSource, U
     }
     private func changed(_ key: String, _ value: String) { draft.preferences.set(key, value); ReaderTheme.apply(draft.preferences, to: navigationController ?? self); table.reloadData() }
     private func choose(_ field: SettingDefinition, choices: [(String, String)]) {
-        let alert = UIAlertController(title: L10n.text(field.title), message: nil, preferredStyle: .actionSheet)
-        for (value, title) in choices { alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in self?.changed(field.key, value) }) }
-        if case .color = field.kind { alert.addAction(UIAlertAction(title: L10n.text("system"), style: .default) { [weak self] _ in self?.changed(field.key, "") }) }
-        alert.addAction(UIAlertAction(title: L10n.text("cancel"), style: .cancel)); alert.popoverPresentationController?.sourceView = table; alert.popoverPresentationController?.sourceRect = table.bounds; present(alert, animated: true)
+        let picker = SettingsChoiceViewController(context: context, draft: draft, field: field, choices: choices) { [weak self] value in
+            self?.changed(field.key, value)
+        }
+        navigationController?.pushViewController(picker, animated: true)
     }
     private func formatted(_ value: Double, key: String) -> String {
         if value == 0 && ["content.readDelayMs", "content.autoRefreshMinutes"].contains(key) { return L10n.text("disabled") }
@@ -274,6 +274,49 @@ final class SettingsDetailViewController: ReaderScreen, UITableViewDataSource, U
     private func sourceCommit() -> String {
         guard let url = Bundle.main.url(forResource: "BuildProvenance", withExtension: "json"), let data = try? Data(contentsOf: url), let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return L10n.text("unavailable") }
         return value["sourceCommit"] as? String ?? L10n.text("unavailable")
+    }
+}
+
+private final class SettingsChoiceViewController: ReaderScreen, UITableViewDataSource, UITableViewDelegate {
+    private let table = UITableView(frame: .zero, style: .insetGrouped)
+    private let draft: SettingsDraft
+    private let field: SettingDefinition
+    private let choices: [(String, String)]
+    private let select: (String) -> Void
+
+    init(context: ReaderContext, draft: SettingsDraft, field: SettingDefinition, choices: [(String, String)], select: @escaping (String) -> Void) {
+        self.draft = draft; self.field = field; self.choices = choices; self.select = select
+        super.init(context: context)
+    }
+    required init?(coder: NSCoder) { fatalError("Use settings draft") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = L10n.text(field.title)
+        table.dataSource = self; table.delegate = self
+        table.rowHeight = UITableView.automaticDimension; table.estimatedRowHeight = 60
+        view.addSubview(table); table.pin(to: view, safe: true)
+    }
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        ReaderTheme.apply(draft.preferences, to: self)
+    }
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { choices.count }
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let (value, title) = choices[indexPath.row]
+        let cell = ReaderTableCell(style: .default, reuseIdentifier: nil)
+        cell.textLabel?.text = title
+        cell.accessibilityIdentifier = "setting.choice.\(field.key).\(value)"
+        cell.accessibilityTraits.insert(.button)
+        if value == draft.preferences.string(field.key) {
+            cell.accessoryType = .checkmark
+            cell.accessibilityTraits.insert(.selected)
+        }
+        return cell
+    }
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        select(choices[indexPath.row].0)
+        navigationController?.popViewController(animated: true)
     }
 }
 
