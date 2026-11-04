@@ -116,6 +116,7 @@ private final class LoginController: UIViewController, UIAdaptivePresentationCon
     private let journal = ConnectionJournal()
     private var identityJobs: [String: IdentityTransport] = [:]
     private let httpBridge = ProviderHTTPBridge()
+    let readingRestoreGate = NativeProviderReadGate()
     private var httpParents: [String: RequestArgs] = [:]
     private var httpJobs: [String: (String, ProviderHTTPTransport)] = [:]
     private let world = WKContentWorld.world(name: "FocusFeedPrivateTransport")
@@ -903,18 +904,24 @@ private final class LoginController: UIViewController, UIAdaptivePresentationCon
             guard let selection = LoginCookies.select(cookies), selection.token == args.authToken else { done(ConnectionFault.value("authentication_expired","cookies",id:parent,retryable:false)); return }
             let timeout = Double(args.context.deadline) / 1000 - Date().timeIntervalSince1970
             guard timeout > 0 else { done(ConnectionFault.value("timeout",stage,id:parent)); return }
-            let job = ProviderHTTPTransport(url:url,method:method,headers:headers,body:body,cookies:selection.cookies,csrf:selection.csrf,timeout:timeout)
-            self.httpJobs[key] = (parent,job)
-            self.journal.record("request",stage:stage,detail:["engine":"native","operation":args.operation,"resource":url.host == "abs.twimg.com" ? "metadata" : url.path == "/home" ? "home" : "api"])
-            job.start { result, changed in
-                self.httpJobs.removeValue(forKey:key)
-                guard reply.pending, self.httpParents[parent] != nil, self.activeToken == args.authToken else { done(ConnectionFault.value("cancelled",stage,id:parent,retryable:false)); return }
-                var detail = result["fault"] as? [String:Any] ?? [:]
-                detail["engine"] = "native"; detail["operation"] = args.operation; detail["elapsedMs"] = result["httpMs"]
-                self.journal.record(result["fault"] == nil ? "response" : "failure",stage:stage,status:result["status"] as? Int,detail:detail)
-                self.installHTTPCookies(changed, token:args.authToken, pending:{ reply.pending && self.httpParents[parent] != nil }) { valid in
-                    done(valid ? result : ConnectionFault.value("authentication_expired","cookies",id:parent,retryable:false))
+            do {
+                try self.readingRestoreGate.dispatch(parentID:parent,url:url,method:method) {
+                    let job = ProviderHTTPTransport(url:url,method:method,headers:headers,body:body,cookies:selection.cookies,csrf:selection.csrf,timeout:timeout)
+                    self.httpJobs[key] = (parent,job)
+                    self.journal.record("request",stage:stage,detail:["engine":"native","operation":args.operation,"resource":url.host == "abs.twimg.com" ? "metadata" : url.path == "/home" ? "home" : "api"])
+                    job.start { result, changed in
+                        self.httpJobs.removeValue(forKey:key)
+                        guard reply.pending, self.httpParents[parent] != nil, self.activeToken == args.authToken else { done(ConnectionFault.value("cancelled",stage,id:parent,retryable:false)); return }
+                        var detail = result["fault"] as? [String:Any] ?? [:]
+                        detail["engine"] = "native"; detail["operation"] = args.operation; detail["elapsedMs"] = result["httpMs"]
+                        self.journal.record(result["fault"] == nil ? "response" : "failure",stage:stage,status:result["status"] as? Int,detail:detail)
+                        self.installHTTPCookies(changed, token:args.authToken, pending:{ reply.pending && self.httpParents[parent] != nil }) { valid in
+                            done(valid ? result : ConnectionFault.value("authentication_expired","cookies",id:parent,retryable:false))
+                        }
+                    }
                 }
+            } catch {
+                done(ConnectionFault.value("reading_resume_limit",stage,id:parent,retryable:false))
             }
         }
     }

@@ -10,9 +10,10 @@ mkdir -p ios-native/Generated
 target/debug/focusfeed-bindgen generate target/debug/libfocusfeed_ffi.dylib \
   --language swift --out-dir ios-native/Generated
 sdk=$(xcrun --sdk iphonesimulator --show-sdk-path)
+preflight_target="$(uname -m)-apple-ios16.0-simulator"
 modulemap="$repo/ios-native/Generated/FocusFeedNativeFFI.modulemap"
 xcrun swiftc -typecheck -continue-building-after-errors -parse-as-library -swift-version 5 \
-  -module-name FocusFeedNextNative -sdk "$sdk" -target arm64-apple-ios16.0-simulator \
+  -module-name FocusFeedNextNative -sdk "$sdk" -target "$preflight_target" \
   -I ios-native/Generated -Xcc "-fmodule-map-file=$modulemap" \
   ios-native/Generated/*.swift ios-native/App/*.swift \
   ios-native/Integration/*.swift ios-native/NativeServices/*.swift
@@ -24,7 +25,7 @@ module_dir="$repo/ios-native/.build/Typecheck"
 mkdir -p "$module_dir"
 xcrun swiftc -emit-module -enable-testing -parse-as-library -swift-version 5 \
   -module-name FocusFeedNextNative -emit-module-path "$module_dir/FocusFeedNextNative.swiftmodule" \
-  -sdk "$sdk" -target arm64-apple-ios16.0-simulator \
+  -sdk "$sdk" -target "$preflight_target" \
   -I ios-native/Generated -Xcc "-fmodule-map-file=$modulemap" \
   ios-native/Generated/*.swift ios-native/App/*.swift \
   ios-native/Integration/*.swift ios-native/NativeServices/*.swift
@@ -32,7 +33,15 @@ test_frameworks="$(xcode-select -p)/Platforms/iPhoneSimulator.platform/Developer
 test_swift_modules="$(xcode-select -p)/Platforms/iPhoneSimulator.platform/Developer/usr/lib"
 for target in Services UI; do
   xcrun swiftc -typecheck -continue-building-after-errors -parse-as-library -swift-version 5 \
-    -module-name "FocusFeedNext${target}Preflight" -sdk "$sdk" -target arm64-apple-ios16.0-simulator \
+    -module-name "FocusFeedNext${target}Preflight" -sdk "$sdk" -target "$preflight_target" \
     -I "$module_dir" -I ios-native/Generated -I "$test_swift_modules" -F "$test_frameworks" \
     -Xcc "-fmodule-map-file=$modulemap" "ios-native/Tests/$target/"*.swift
+  # Release optimization has exposed ownership-verifier failures that syntax
+  # and type checking cannot detect. Exercise those passes before the slower
+  # Rust device/simulator builds; the linked test stage remains authoritative.
+  xcrun swiftc -emit-sil -O -whole-module-optimization -parse-as-library -swift-version 5 \
+    -module-name "FocusFeedNext${target}Preflight" -sdk "$sdk" -target "$preflight_target" \
+    -I "$module_dir" -I ios-native/Generated -I "$test_swift_modules" -F "$test_frameworks" \
+    -Xcc "-fmodule-map-file=$modulemap" "ios-native/Tests/$target/"*.swift \
+    -o "$module_dir/${target}-optimized.sil"
 done

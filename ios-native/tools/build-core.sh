@@ -4,10 +4,13 @@ repo=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$repo"
 export IPHONEOS_DEPLOYMENT_TARGET=16.0
 rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
-cargo build --locked --release -p focusfeed-ffi --features bindgen
+# The host library is used only to inspect the UniFFI schema. Match the cached
+# compiler preflight build instead of linking an unused optimized host binary.
+# Every delivered device/simulator slice below still uses Release optimization.
+cargo build --locked -p focusfeed-ffi --features bindgen
 mkdir -p ios-native/Generated ios-native/Frameworks ios-native/.build/Headers ios-native/.build/simulator
-cargo run --locked --release -p focusfeed-ffi --features bindgen --bin focusfeed-bindgen -- \
-  generate target/release/libfocusfeed_ffi.dylib --language swift \
+target/debug/focusfeed-bindgen \
+  generate target/debug/libfocusfeed_ffi.dylib --language swift \
   --out-dir ios-native/Generated
 cp ios-native/Generated/*.h ios-native/.build/Headers/
 cp ios-native/Generated/*.modulemap ios-native/.build/Headers/module.modulemap

@@ -285,6 +285,73 @@ import AVFoundation
         XCTAssertLessThanOrEqual(controller.posts.count, 300)
         XCTAssertEqual(Set(controller.posts.map(\.id)).count, controller.posts.count)
     }
+    func testDeepSearchRetapReturnsToFirstResultAndStablePlaceAfterRefresh() async throws {
+        let service = try FeedFixtureServices(count: 500); let context = ReaderContext(services: service)
+        context.preferences.set("video.autoplay", "off")
+        let controller = SearchViewController(context: context)
+        try await loadDeepSearch(controller)
+        let anchor = try XCTUnwrap(controller.firstAnchor())
+        XCTAssertNotEqual(controller.posts.first?.id, service.posts.first?.id)
+        controller.returnToTop(); try await settle(controller)
+        XCTAssertEqual(controller.posts.first?.id, service.posts.first?.id, "Search re-tap must reach the complete result set's beginning.")
+        var newer = service.posts[0]; newer.id = "999"; service.newerPosts = [newer]
+        controller.refreshTapped(); try await settle(controller)
+        XCTAssertEqual(controller.posts.first?.id, "999")
+        let returnAction = try XCTUnwrap(controller.notice.retry)
+        returnAction(); try await settle(controller)
+        let index = try XCTUnwrap(controller.posts.firstIndex { $0.id == anchor.0 })
+        let attributes = try XCTUnwrap(controller.collection.layoutAttributesForItem(at: IndexPath(item: index, section: 0)))
+        XCTAssertEqual(controller.collection.contentOffset.y - attributes.frame.minY, anchor.1, accuracy: 3)
+        XCTAssertLessThanOrEqual(controller.posts.count, 300)
+    }
+    func testDelayedSearchReturnCannotReplaceAnEditedQuery() async throws {
+        let service = try FeedFixtureServices(count: 500); let context = ReaderContext(services: service)
+        context.preferences.set("video.autoplay", "off")
+        let controller = SearchViewController(context: context)
+        try await loadDeepSearch(controller)
+        controller.returnToTop(); try await settle(controller)
+        service.holdNextSearch = true
+        defer { service.completeHeldSearch() }
+        try XCTUnwrap(controller.notice.retry)(); try await awaitHeldSearch(service, controller: controller)
+        service.emptySearchQueries.insert("replacement")
+        let search = try XCTUnwrap(controller.navigationItem.searchController)
+        search.searchBar.text = "replacement"; controller.updateSearchResults(for: search)
+        try await Task.sleep(nanoseconds: 230_000_000); try await settle(controller)
+        service.completeHeldSearch(); try await settle(controller)
+        XCTAssertEqual(controller.highlightedText, "replacement")
+        XCTAssertTrue(controller.posts.isEmpty, "A late return response must not replace the new query's results.")
+        XCTAssertNotEqual(controller.notice.label.text, L10n.text("returnPlace"))
+    }
+    func testDelayedSearchReturnCannotRepopulateADisconnectedAccount() async throws {
+        let service = try FeedFixtureServices(count: 500); let context = ReaderContext(services: service)
+        context.preferences.set("video.autoplay", "off")
+        let controller = SearchViewController(context: context)
+        try await loadDeepSearch(controller)
+        controller.returnToTop(); try await settle(controller)
+        service.holdNextSearch = true
+        defer { service.completeHeldSearch() }
+        try XCTUnwrap(controller.notice.retry)(); try await awaitHeldSearch(service, controller: controller)
+        service.accountGeneration &+= 1; context.changed()
+        service.completeHeldSearch(); try await settle(controller)
+        XCTAssertTrue(controller.posts.isEmpty)
+        XCTAssertEqual(controller.navigationItem.searchController?.searchBar.text, "")
+        XCTAssertNotEqual(controller.notice.label.text, L10n.text("returnPlace"))
+    }
+    private func loadDeepSearch(_ controller: SearchViewController) async throws {
+        try host(controller)
+        let search = try XCTUnwrap(controller.navigationItem.searchController)
+        search.searchBar.text = "fixture"; controller.updateSearchResults(for: search)
+        try await Task.sleep(nanoseconds: 230_000_000); try await settle(controller)
+        for _ in 0..<4 {
+            controller.collectionView(controller.collection, willDisplay: UICollectionViewCell(frame: .zero), forItemAt: IndexPath(item: max(0, controller.posts.count - 1), section: 0))
+            try await settle(controller)
+        }
+    }
+    private func awaitHeldSearch(_ service: FeedFixtureServices, controller: UIViewController) async throws {
+        let deadline = ProcessInfo.processInfo.systemUptime + 2
+        while service.pendingSearch == nil, ProcessInfo.processInfo.systemUptime < deadline { try await settle(controller, attempts: 1) }
+        _ = try XCTUnwrap(service.pendingSearch, "The controlled return request must be in flight before changing its identity.")
+    }
     func testResumeDestinationsSeparateSharedFeedsAndExcludeSearchAndComments() throws {
         let service = try FeedFixtureServices(); let context = ReaderContext(services:service)
         XCTAssertEqual(FeedViewController(context:context, route:.following).resumeDestination, "following")
@@ -369,7 +436,7 @@ import AVFoundation
 }
 
 @MainActor private final class FeedFixtureServices: AppServices {
-    let accountGeneration: UInt64 = 1
+    var accountGeneration: UInt64 = 1
     let events = AsyncStream<AppEvent> { _ in }
     let posts: [Post]
     private let fixtureImage: UIImage
@@ -387,6 +454,9 @@ import AVFoundation
     var failRefresh = false
     var groupCacheOffsets: [Int] = []
     var searchOffsets: [Int] = []
+    var holdNextSearch = false
+    var pendingSearch: CheckedContinuation<Void, Never>?
+    var emptySearchQueries: Set<String> = []
     var cachedOffsets: [Int] = []
     var paginatedCache = false
     var providerPaging = false
@@ -468,9 +538,18 @@ import AVFoundation
             let offset: Int
             if case .number(let value)? = request.args["offset"] { offset = Int(value) } else { offset = 0 }
             searchOffsets.append(offset)
-            let page: [Post] = Array(posts.dropFirst(offset).prefix(80))
+            if holdNextSearch {
+                holdNextSearch = false
+                // Deliberately deliver after task cancellation to exercise the
+                // production query/account guards, as a late bridge can do.
+                await withCheckedContinuation { pendingSearch = $0 }
+            }
+            let query: String
+            if case .string(let value)? = request.args["query"] { query = value } else { query = "" }
+            let values = emptySearchQueries.contains(query) ? [] : newerPosts + posts
+            let page: [Post] = Array(values.dropFirst(offset).prefix(80))
             let end = offset + page.count
-            let nextOffset: Int? = end < posts.count ? end : nil
+            let nextOffset: Int? = end < values.count ? end : nil
             let response = SearchResponse(posts: page, readIds: [], nextOffset: nextOffset)
             return try JSONEncoder().encode(response)
         case .setRead, .hidePost: return Data("null".utf8)
@@ -482,6 +561,7 @@ import AVFoundation
         default: throw AppServiceError(code:"fixture_unexpected_operation", message:"The fixture does not implement this operation.")
         }
     }
+    func completeHeldSearch() { let completion = pendingSearch; pendingSearch = nil; completion?.resume() }
     func cancel(requestID: UUID) {}
     func signIn(presenting: UIViewController) async throws -> SessionSnapshot { throw AppServiceError(code:"fixture", message:"Fixture tests never sign in.") }
     func mediaURL(for handle: String) async throws -> URL { throw AppServiceError(code:"fixture", message:"Fixture media never uses a network URL.") }

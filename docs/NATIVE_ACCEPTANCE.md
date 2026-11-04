@@ -22,6 +22,24 @@ The reference installation for upgrade acceptance is 0.9.0 build 31
 | Unsigned device archive | Requires passing linked simulator tests, a matching result receipt and package verification. |
 | Signed upgrade, live provider and physical performance | Require the device qualification below. |
 
+Run [41792587556](https://github.com/saud-creator/FocusFeedNext-iOS-public/actions/runs/41792587556)
+stopped in Release compilation: Swift's ownership verifier failed while optimizing
+the reading-resume ceiling test. It did not execute the updated timing fixture
+or produce a new IPA. The continuation makes that task-local test explicitly
+asynchronous and adds optimized Swift preflight before Rust slice compilation.
+The 250 ms threshold and Release test configuration remain in place.
+
+The continuation also enforces reading resume's three-read cap at native HTTP
+dispatch, including retries inside the retained provider engine. Cached-body,
+profile and List-member reads share that allowance; bootstrap resources and
+manual navigation are outside it. These changes require their own successful
+linked test run before archive qualification.
+
+Simulator screenshots from run `41787969454` were exported and visually reviewed
+for the welcome screen, grouped appearance settings, Arabic accessibility text,
+and rotation. They establish those fixture layouts only, not signed-device,
+VoiceOver, live-provider or performance acceptance.
+
 ## Required device qualification
 
 Use the affected iPhone running the recorded 0.9.0/090.31 build as comparison.

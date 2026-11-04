@@ -176,14 +176,14 @@ import AVKit
         defer { ownedProviderIDs[requestOwner]?.remove(id); if ownedProviderIDs[requestOwner]?.isEmpty == true { ownedProviderIDs.removeValue(forKey: requestOwner) } }
         let values = try JSONDecoder().decode([String: NativeJSONValue].self, from: Self.encoded(variables))
         let write = ["Follow", "Unfollow", "DeleteBookmark"].contains(operation)
-        if !write, !authentication, !background {
-            try NativeReadingRestoreScope.budget?.consume()
-        }
         let context = requestContexts[requestOwner]
+        let restoresPage = context.map { [AppOperation.cachedFeed,.refreshFeed,.loadFeedPage,.groupFeed,.refreshGroupFeed,.userProfile].contains($0.operation) } ?? false
+        let restoreBudget = !write && !authentication && !background && restoresPage ? NativeReadingRestoreScope.budget : nil
+        if restoreBudget?.remaining == 0 { throw NativeReadingRestoreError.limitReached }
         let deadline = context?.deadlineMillis ?? UInt64(Date().timeIntervalSince1970 * 1000) + (write || authentication ? 75_000 : 30_000)
         let request = NativeProviderRequest(operation: operation, variables: values, authToken: session.authToken, ct0: session.ct0, context: NativeRequestContext(id: id, generation: transportGeneration, priority: write || authentication ? 0 : background ? 3 : Int(context?.priority ?? 1), deadline: deadline, authentication: authentication))
         let response: NativeProviderResponse
-        do { response = try await host.request(request) }
+        do { response = try await host.request(request, readingRestoreBudget:restoreBudget) }
         catch let error as NativeServiceError {
             throw AppServiceError(code:error.code,message:ConnectionFault.loginMessage(error.code,arabic:L10n.arabic),retryable:error.retryable)
         }

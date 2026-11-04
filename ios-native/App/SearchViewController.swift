@@ -9,6 +9,8 @@ final class SearchViewController: FeedViewController, UISearchResultsUpdating {
     private var query = ""
     private var loading = false
     private var requestRevision: UInt64 = 0
+    private var queryRevision: UInt64 = 0
+    private var navigatingWindow = false
     private var author = ""
     private var since: Date?
     private var windowStart = 0
@@ -59,12 +61,21 @@ final class SearchViewController: FeedViewController, UISearchResultsUpdating {
         localReadOverrides[id] = read
         if read { if !readIDs.contains(id) { readIDs.append(id) } } else { readIDs.removeAll { $0 == id } }
     }
+    override func accountDidChange() {
+        searchTask?.cancel(); rehydrating?.cancel(); work?.cancel()
+        requestRevision &+= 1; queryRevision &+= 1; loading = false; navigatingWindow = false
+        loaded = []; readIDs = []; localReadOverrides = [:]; query = ""; highlightedText = ""
+        offset = nil; windowStart = 0; retainedCount = 0; needsRehydration = false
+        search.searchBar.text = ""; replacePosts([]); notice.show(L10n.text("searchScope"))
+    }
     override func postDidHide(_ id: String) {
         if loaded.contains(where: {$0.id == id}) {offset=offset.map {max(0,$0-1)}}
         loaded.removeAll {$0.id == id};readIDs.removeAll {$0 == id};localReadOverrides.removeValue(forKey:id)
     }
     func updateSearchResults(for searchController: UISearchController) {
-        searchTask?.cancel(); let next = String((searchController.searchBar.text ?? "").prefix(256)).trimmingCharacters(in: .whitespacesAndNewlines)
+        invalidateReturnPlace(); searchTask?.cancel(); rehydrating?.cancel(); work?.cancel()
+        requestRevision &+= 1; queryRevision &+= 1; loading = false; navigatingWindow = false
+        let next = String((searchController.searchBar.text ?? "").prefix(256)).trimmingCharacters(in: .whitespacesAndNewlines)
         searchTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 200_000_000)
             guard !Task.isCancelled, let self else { return }; requestRevision &+= 1; loading = false; query = next; highlightedText = next; loaded = []; readIDs = []; offset = 0; windowStart = 0
@@ -72,22 +83,26 @@ final class SearchViewController: FeedViewController, UISearchResultsUpdating {
         }
     }
     private func loadSearch() async {
-        guard let offset, !query.isEmpty, !loading else { return }; loading = true; let expected = query; let revision = requestRevision; defer { if requestRevision == revision { loading = false } }
+        guard let offset, !query.isEmpty, !loading, !navigatingWindow else { return }; loading = true; let expected = query; let revision = requestRevision; let generation = context.services.accountGeneration; defer { if requestRevision == revision { loading = false } }
         do {
             let result: SearchResponse = try await context.services.call(.searchCachedPosts, ["query": .string(expected), "offset": .number(Double(offset))])
-            guard !Task.isCancelled, expected == query, requestRevision == revision else { return }; let ids = Set(loaded.map(\.id)); loaded += result.posts.filter { !ids.contains($0.id) }; readIDs = Array(Set(readIDs).union(state.readIDs).union(result.readIds)); self.offset = result.nextOffset == offset ? nil : result.nextOffset
+            guard !Task.isCancelled, expected == query, requestRevision == revision, generation == context.services.accountGeneration else { return }; let ids = Set(loaded.map(\.id)); loaded += result.posts.filter { !ids.contains($0.id) }; readIDs = Array(Set(readIDs).union(state.readIDs).union(result.readIds)); self.offset = result.nextOffset == offset ? nil : result.nextOffset
             for (id, read) in localReadOverrides { if read { if !readIDs.contains(id) { readIDs.append(id) } } else { readIDs.removeAll { $0 == id } } }
             if loaded.count > 300 { windowStart += loaded.count - 300; loaded = Array(loaded.suffix(300)); let retained = Set(loaded.map(\.id)); readIDs.removeAll { !retained.contains($0) } }
             if localReadOverrides.count > 300 { let retained = Set(loaded.map(\.id)); localReadOverrides = localReadOverrides.filter { retained.contains($0.key) } }
             replacePosts(loaded, readIDs: readIDs); status.text = L10n.text("searchScope"); showSearchState()
-        } catch { notice.show(error.localizedDescription, retry: { [weak self] in Task { await self?.loadSearch() } }) }
+        } catch { if !(error is CancellationError), requestRevision == revision, generation == context.services.accountGeneration { notice.show(error.localizedDescription, retry: { [weak self] in Task { await self?.loadSearch() } }) } }
     }
-    override func refreshTapped() { requestRevision &+= 1; loading = false; loaded = []; readIDs = []; offset = 0; windowStart = 0; Task { await loadSearch() } }
+    override func refreshTapped() {
+        if navigatingWindow { invalidateReturnPlace() }
+        searchTask?.cancel(); rehydrating?.cancel(); requestRevision &+= 1; loading = false; navigatingWindow = false
+        loaded = []; readIDs = []; offset = 0; windowStart = 0; Task { await loadSearch() }
+    }
     override func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) { super.collectionView(collectionView, willDisplay: cell, forItemAt: indexPath); if indexPath.item >= posts.count - 5 { Task { await loadSearch() } } }
     /// The result window is bounded, but earlier matching posts remain reachable.
     /// The same stable search offset reloads them without a remote X request.
     override func loadEarlierIfNeeded() {
-        guard !query.isEmpty, windowStart > 0, !loading, collection.contentOffset.y < 120 else { return }
+        guard !query.isEmpty, windowStart > 0, !loading, !navigatingWindow, collection.contentOffset.y < 120 else { return }
         loading = true
         let start = max(0, windowStart - 80); let expected = query; let revision = requestRevision; let anchor = firstAnchor()
         work = Task { [weak self] in
@@ -114,14 +129,68 @@ final class SearchViewController: FeedViewController, UISearchResultsUpdating {
             }
         }
     }
+    override var returnWindowStart: Int { windowStart }
+    override func makeReturnNavigation(anchor: (String, CGFloat)) -> ReaderReturnNavigation? {
+        guard !query.isEmpty else { return nil }
+        searchTask?.cancel(); rehydrating?.cancel()
+        requestRevision &+= 1; loading = false
+        let expected = query; let identity = queryRevision; let generation = context.services.accountGeneration
+        let index = loaded.firstIndex { $0.id == anchor.0 } ?? 0
+        let start = windowStart + max(0, index - 20)
+        return ReaderReturnNavigation(isCurrent: { [weak self] in
+            self?.query == expected && self?.queryRevision == identity && self?.context.services.accountGeneration == generation
+        }, openBeginning: { [weak self] in
+            guard let self else { throw CancellationError() }
+            try await self.loadReturnWindow(start: 0, anchorID: nil, query: expected, identity: identity, generation: generation)
+        }, restoreWindow: { [weak self] in
+            guard let self else { throw CancellationError() }
+            try await self.loadReturnWindow(start: start, anchorID: anchor.0, query: expected, identity: identity, generation: generation)
+        })
+    }
+    /// A return marker holds only query/window identity. Rehydrate its cached
+    /// rows on demand, including a shifted anchor after cached content changes.
+    private func loadReturnWindow(start: Int, anchorID: String?, query expected: String, identity: UInt64, generation: UInt64) async throws {
+        guard query == expected, queryRevision == identity, context.services.accountGeneration == generation else { throw CancellationError() }
+        requestRevision &+= 1; let revision = requestRevision
+        navigatingWindow = true; loading = false
+        defer { if requestRevision == revision { navigatingWindow = false } }
+        var pageOffset = start; var beginning = start; var retriedBeginning = start == 0
+        var incoming: [Post] = []; var incomingReadIDs: Set<String> = []; var next: Int?
+        let deadline = ProcessInfo.processInfo.systemUptime + 30
+        repeat {
+            let response: SearchResponse = try await context.services.call(.searchCachedPosts, ["query": .string(expected), "offset": .number(Double(pageOffset))])
+            try Task.checkCancellation()
+            guard query == expected, queryRevision == identity, requestRevision == revision, context.services.accountGeneration == generation else { throw CancellationError() }
+            let known = Set(incoming.map(\.id)); incoming += response.posts.filter { !known.contains($0.id) }
+            incomingReadIDs.formUnion(response.readIds)
+            if incoming.count > 300 { let remove = incoming.count - 300; incoming.removeFirst(remove); beginning += remove }
+            next = response.nextOffset.flatMap { $0 > pageOffset ? $0 : nil }
+            if anchorID == nil || incoming.contains(where: { $0.id == anchorID }) { break }
+            if let next { pageOffset = next }
+            else if !retriedBeginning {
+                // Removals can move an anchor before its old numeric offset.
+                retriedBeginning = true; pageOffset = 0; beginning = 0; incoming = []; incomingReadIDs = []
+            } else { break }
+        } while ProcessInfo.processInfo.systemUptime < deadline
+        try Task.checkCancellation()
+        guard query == expected, queryRevision == identity, requestRevision == revision, context.services.accountGeneration == generation else { throw CancellationError() }
+        loaded = incoming; windowStart = beginning; offset = next
+        let retained = Set(loaded.map(\.id)); readIDs = Array(incomingReadIDs.intersection(retained))
+        for (id, read) in localReadOverrides {
+            if read, retained.contains(id), !readIDs.contains(id) { readIDs.append(id) }
+            else if !read { readIDs.removeAll { $0 == id } }
+        }
+        replacePosts(loaded, readIDs: readIDs); status.text = L10n.text("searchScope")
+    }
     @objc private func searchFilters() {
         let editor = SearchFiltersViewController(context: context, author: author, since: since, filters: filters) { [weak self] author, since, filters in
-            guard let self else { return }; self.author = author; self.since = since; self.filters = filters
+            guard let self else { return }; invalidateReturnPlace(); work?.cancel(); requestRevision &+= 1; queryRevision &+= 1; loading = false; navigatingWindow = false; self.author = author; self.since = since; self.filters = filters
             postPredicate = { post in (author.isEmpty || post.author.username.caseInsensitiveCompare(author) == .orderedSame) && (since == nil || ReaderDates.parse(post.createdAt).map { $0 >= since! } == true) }; apply(); showSearchState()
         }
         let nav = UINavigationController(rootViewController: editor); nav.sheetPresentationController?.detents = [.large()]; present(nav, animated: true)
     }
     private func showSearchState() {
+        if showReturnPlaceIfAvailable() { return }
         guard !query.isEmpty else { notice.show(L10n.text("searchScope")); return }
         if posts.isEmpty, offset != nil {
             notice.show(L10n.text("searchMore"), retry: { [weak self] in Task { await self?.loadSearch() } }, actionTitle: L10n.text("loadMore"))

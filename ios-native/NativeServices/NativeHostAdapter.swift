@@ -76,16 +76,19 @@ extension NativeHostService {
         let args = beforeGeneration.map { "{\"beforeGeneration\":\($0)}" } ?? "{}"
         _ = try? await call(command: "cancelReads", argumentsJSON: args)
     }
-    @MainActor func request(_ request: NativeProviderRequest) async throws -> NativeProviderResponse {
+    @MainActor func request(_ request: NativeProviderRequest, readingRestoreBudget: NativeProviderReadBudget? = nil) async throws -> NativeProviderResponse {
         var current = request
         var transportRetried = false
         let write = ["Follow", "Unfollow", "DeleteBookmark"].contains(request.operation)
+        let binding = readingRestoreGate.bind(write || request.context.authentication ? nil : readingRestoreBudget, parentID: request.context.id)
+        defer { readingRestoreGate.release(parentID: request.context.id, bindingID: binding) }
         while true {
             try Task.checkCancellation()
             let encoded = try JSONEncoder().encode(current)
             guard let args = String(data: encoded, encoding: .utf8) else { throw NativeServiceError.unavailable }
             do { return try await decoded("request", arguments: args) }
             catch let error as NativeServiceError {
+                if error.code == "reading_resume_limit" { throw NativeReadingRestoreError.limitReached }
                 if error.code == "background_paused", current.context.authentication, !write {
                     let _: EmptyNativeResponse = try await decoded("waitForLoginActive")
                     let context = current.context

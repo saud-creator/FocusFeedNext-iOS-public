@@ -7,8 +7,16 @@ private struct FeedItemIdentity: Hashable {
 private struct FeedReturnMarker {
     let id: UUID
     let accountGeneration: UInt64
-    let metadata: TimelineRepository.State
     let anchor: (String, CGFloat)
+    let navigation: ReaderReturnNavigation?
+}
+
+/// A session-only window description. Implementations capture cursors/offsets,
+/// never another hydrated post array. Search supplies its own cached window.
+@MainActor struct ReaderReturnNavigation {
+    let isCurrent: () -> Bool
+    let openBeginning: () async throws -> Void
+    let restoreWindow: () async throws -> Void
 }
 
 @MainActor final class TimelineRepository {
@@ -225,7 +233,7 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
         if policy.capacity == 0 || memory != lastMemoryRevision || imagePrefetch.count > policy.capacity { cancelImagePrefetch() }
         lastMemoryRevision = memory
         if memoryChanged { trimHydratedForMemoryPressure() }
-        if accountGeneration != context.services.accountGeneration { cancelReturnMarker(); cancelImagePrefetch(); accountGeneration = context.services.accountGeneration; state = TimelineRepository.State(); posts = []; context.timelines.reset(); initiallyLoaded = false; if activeReading && automaticallyLoads { initiallyLoaded = true; loadInitial() }; return }
+        if accountGeneration != context.services.accountGeneration { invalidateReturnPlace(); cancelImagePrefetch(); accountGeneration = context.services.accountGeneration; state = TimelineRepository.State(); posts = []; context.timelines.reset(); initiallyLoaded = false; accountDidChange(); if activeReading && automaticallyLoads { initiallyLoaded = true; loadInitial() }; return }
         if context.runtime?.foreground == false { collection.visibleCells.compactMap { $0 as? PostCell }.forEach { $0.stop() } }
         scheduleRefresh()
         switch context.recovery {
@@ -317,7 +325,7 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
         } else if posts.isEmpty { notice.show(L10n.text("empty") + "\n" + L10n.text("emptyHint")) }
         else { notice.show(nil) }
         if !state.groupFailures.isEmpty { notice.show(L10n.text("partialList"), retry: { [weak self] in self?.load(refresh: true) }) }
-        if let marker = returnMarker, returnTimer != nil { showReturnAction(marker) }
+        _ = showReturnPlaceIfAvailable()
         if let last = state.lastSync { status.text = "\(L10n.text("updated")) \(ReaderDates.label(last))" } else { status.text = state.fromCache ? L10n.text("cached") : nil }
         // Commit the snapshot after updating the surrounding layout.
         if items != previous || !updated.isEmpty {
@@ -384,29 +392,52 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
         guard automaticallyLoads, minutes > 0, context.runtime?.foreground != false, viewIfLoaded?.window != nil else { return }
         refreshTimer = Timer.scheduledTimer(withTimeInterval: max(60, minutes * 60), repeats: true) { [weak self] _ in Task { @MainActor in self?.load(refresh: true) } }
     }
-    func returnToTop() {
-        guard let anchor = firstAnchor(), state.windowStart > 0 || collection.contentOffset.y > 50 else { return }
-        cancelReturnMarker()
+    func accountDidChange() {}
+    var returnWindowStart: Int { state.windowStart }
+    func makeReturnNavigation(anchor: (String, CGFloat)) -> ReaderReturnNavigation? {
+        guard automaticallyLoads else { return nil }
         var metadata = state
-        // Keep lightweight source/cursor information around the actual post,
-        // never a second hydrated array or an offset into a changing row list.
-        if let index = state.posts.firstIndex(where: { $0.id == anchor.0 }) { metadata.windowStart += max(0, index - 20) }
+        if let index = metadata.posts.firstIndex(where: { $0.id == anchor.0 }) { metadata.windowStart += max(0, index - 20) }
         metadata.posts = []
-        let marker = FeedReturnMarker(id: UUID(), accountGeneration: context.services.accountGeneration, metadata: metadata, anchor: anchor)
+        let generation = context.services.accountGeneration
+        return ReaderReturnNavigation(isCurrent: { [weak self] in self?.context.services.accountGeneration == generation }, openBeginning: { [weak self] in
+            guard let self else { throw CancellationError() }
+            var top = self.state; top.posts = []; top.windowStart = 0; top.nextCachedOffset = nil
+            self.context.timelines.restoreMetadata(self.source, top)
+            self.state = try await self.context.timelines.load(self.source, refresh: false, cached: true)
+        }, restoreWindow: { [weak self] in
+            guard let self else { throw CancellationError() }
+            self.context.timelines.restoreMetadata(self.source, metadata)
+            self.state = try await self.context.timelines.load(self.source, refresh: false, cached: true)
+            let deadline = Date().addingTimeInterval(30)
+            while !self.state.posts.contains(where: { $0.id == anchor.0 }), !self.state.exhausted, Date() < deadline {
+                try Task.checkCancellation()
+                let previous = (self.state.windowStart, self.state.cursor, self.state.nextCachedOffset, self.state.posts.last?.id)
+                self.state = try await self.context.timelines.load(self.source, refresh: false)
+                if previous == (self.state.windowStart, self.state.cursor, self.state.nextCachedOffset, self.state.posts.last?.id) { break }
+            }
+        })
+    }
+    func returnToTop() {
+        guard let anchor = firstAnchor(), returnWindowStart > 0 || collection.contentOffset.y > 50 else { return }
+        cancelReturnMarker()
+        let needsBeginning = returnWindowStart > 0
+        let navigation = makeReturnNavigation(anchor: anchor)
+        let marker = FeedReturnMarker(id: UUID(), accountGeneration: context.services.accountGeneration, anchor: anchor, navigation: navigation)
         returnMarker = marker
         let revision = returnNavigationRevision
-        if automaticallyLoads, state.windowStart > 0 {
+        if needsBeginning, let navigation {
             work?.cancel(); busy = true
-            var top = state; top.posts = []; top.windowStart = 0; top.nextCachedOffset = nil
-            context.timelines.restoreMetadata(source, top)
             work = Task { [weak self] in
                 guard let self else { return }; defer { if self.returnNavigationRevision == revision { self.busy = false } }
                 do {
-                    let first = try await self.context.timelines.load(self.source, refresh: false, cached: true)
-                    guard self.returnMarker?.id == marker.id, marker.accountGeneration == self.context.services.accountGeneration else { return }
-                    self.state = first; self.apply(); self.collection.setContentOffset(CGPoint(x: 0, y: -self.collection.adjustedContentInset.top), animated: false)
+                    try await navigation.openBeginning()
+                    guard self.returnMarker?.id == marker.id, marker.accountGeneration == self.context.services.accountGeneration, navigation.isCurrent() else { return }
+                    self.apply(); self.collection.setContentOffset(CGPoint(x: 0, y: -self.collection.adjustedContentInset.top), animated: false)
                     self.offerReturn(marker)
-                } catch { if self.returnMarker?.id == marker.id { self.failure(error) } }
+                } catch {
+                    if self.returnMarker?.id == marker.id { self.returnNavigationFailed(error, retry: { [weak self] in self?.returnToTop() }) }
+                }
             }
         } else {
             collection.setContentOffset(CGPoint(x: 0, y: -collection.adjustedContentInset.top), animated: !UIAccessibility.isReduceMotionEnabled)
@@ -414,7 +445,7 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
         }
     }
     private func offerReturn(_ marker: FeedReturnMarker) {
-        guard returnMarker?.id == marker.id else { return }
+        guard returnMarker?.id == marker.id, marker.navigation?.isCurrent() != false else { return }
         showReturnAction(marker)
         returnTimer?.cancel()
         returnTimer = Task { [weak self] in
@@ -425,34 +456,42 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
         }
     }
     private func showReturnAction(_ marker: FeedReturnMarker) { notice.show(L10n.text("returnPlace"), retry: { [weak self] in self?.restoreReturn(marker.id) }, actionTitle: L10n.text("returnPlace")) }
+    @discardableResult func showReturnPlaceIfAvailable() -> Bool {
+        guard let marker = returnMarker, returnTimer != nil, marker.accountGeneration == context.services.accountGeneration, marker.navigation?.isCurrent() != false else { return false }
+        showReturnAction(marker); return true
+    }
     private func restoreReturn(_ id: UUID) {
-        guard let marker = returnMarker, marker.id == id, marker.accountGeneration == context.services.accountGeneration else { return }
+        guard let marker = returnMarker, marker.id == id, marker.accountGeneration == context.services.accountGeneration, marker.navigation?.isCurrent() != false else { return }
         returnTimer?.cancel(); returnTimer = nil
         work?.cancel(); busy = true
         returnNavigationRevision &+= 1; let revision = returnNavigationRevision
         work = Task { [weak self] in
             guard let self else { return }; defer { if self.returnNavigationRevision == revision { self.busy = false } }
             do {
-                if self.automaticallyLoads {
-                    self.context.timelines.restoreMetadata(self.source, marker.metadata)
-                    self.state = try await self.context.timelines.load(self.source, refresh: false, cached: true)
-                    let deadline = Date().addingTimeInterval(30)
-                    while !self.state.posts.contains(where: { $0.id == marker.anchor.0 }), !self.state.exhausted, Date() < deadline {
-                        try Task.checkCancellation()
-                        let previous = (self.state.windowStart, self.state.cursor, self.state.nextCachedOffset, self.state.posts.last?.id)
-                        self.state = try await self.context.timelines.load(self.source, refresh: false)
-                        if previous == (self.state.windowStart, self.state.cursor, self.state.nextCachedOffset, self.state.posts.last?.id) { break }
-                    }
-                }
-                guard self.returnMarker?.id == marker.id, marker.accountGeneration == self.context.services.accountGeneration else { return }
+                try await marker.navigation?.restoreWindow()
+                guard self.returnMarker?.id == marker.id, marker.accountGeneration == self.context.services.accountGeneration, marker.navigation?.isCurrent() != false else { return }
                 self.apply()
                 if self.posts.contains(where: { $0.id == marker.anchor.0 }) { self.restore(marker.anchor); self.notice.show(nil) }
                 else { self.notice.show(L10n.text("resumeUnavailable")) }
                 self.returnMarker = nil
-            } catch { if self.returnMarker?.id == marker.id { self.failure(error) } }
+            } catch {
+                if self.returnMarker?.id == marker.id { self.returnNavigationFailed(error, retry: { [weak self] in self?.restoreReturn(marker.id) }) }
+            }
         }
     }
+    private func returnNavigationFailed(_ error: Error, retry: @escaping () -> Void) {
+        guard !(error is CancellationError) else { return }
+        notice.show(error.localizedDescription, retry: retry); status.text = L10n.text("attention")
+    }
     private func cancelReturnMarker() { returnNavigationRevision &+= 1; returnTimer?.cancel(); returnTimer = nil; returnMarker = nil }
+    func invalidateReturnPlace() {
+        let hadMarker = returnMarker != nil
+        cancelReturnMarker()
+        if hadMarker {
+            work?.cancel(); work = nil; busy = false
+            if notice.label.text == L10n.text("returnPlace") { notice.show(nil) }
+        }
+    }
     func firstAnchor() -> (String, CGFloat)? {
         guard let index = collection.indexPathsForVisibleItems.sorted().first, let post = posts[safe: index.item], let attributes = collection.layoutAttributesForItem(at: index) else { return nil }; return (post.id, collection.contentOffset.y - attributes.frame.minY)
     }
