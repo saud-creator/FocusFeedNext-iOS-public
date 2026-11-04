@@ -156,9 +156,12 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
             // The speculative budget is only one or two disposable requests.
             cancelImagePrefetch()
             cell.configure(post, read: state.readIDs.contains(id), bookmark: route == .bookmarks && !includesReplies, highlight: highlightedText, context: context, delegate: self)
-            if collection.indexPathsForVisibleItems.contains(indexPath) {
+            // Fresh cells get willDisplay. A reconfigured visible cell is
+            // already attached; querying visible index paths here can reenter layout.
+            if cell.window != nil {
                 DispatchQueue.main.async { [weak cell, weak self] in
-                    guard let self, let cell, self.viewIfLoaded?.window != nil, cell.representedPostID == id else { return }
+                    guard let self, let cell, self.viewIfLoaded?.window != nil, cell.representedPostID == id,
+                          cell.frame.intersects(self.collection.bounds) else { return }
                     cell.visible(read: self.state.readIDs.contains(id))
                 }
             }
@@ -309,6 +312,14 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
         postIndices = nextIndices
         appliedReadIDs = nextReadIDs
         appliedHighlight = highlightedText
+        if posts.isEmpty, !state.exhausted {
+            notice.show(L10n.text("empty") + "\n" + L10n.text("emptyHint"), retry: { [weak self] in self?.load(refresh: false) }, actionTitle: L10n.text("loadMore"))
+        } else if posts.isEmpty { notice.show(L10n.text("empty") + "\n" + L10n.text("emptyHint")) }
+        else { notice.show(nil) }
+        if !state.groupFailures.isEmpty { notice.show(L10n.text("partialList"), retry: { [weak self] in self?.load(refresh: true) }) }
+        if let marker = returnMarker, returnTimer != nil { showReturnAction(marker) }
+        if let last = state.lastSync { status.text = "\(L10n.text("updated")) \(ReaderDates.label(last))" } else { status.text = state.fromCache ? L10n.text("cached") : nil }
+        // Commit the snapshot after updating the surrounding layout.
         if items != previous || !updated.isEmpty {
             var snapshot = NSDiffableDataSourceSnapshot<Int, FeedItemIdentity>()
             snapshot.appendSections([0])
@@ -320,13 +331,6 @@ class FeedViewController: ReaderScreen, UICollectionViewDelegate, UICollectionVi
                 dataSource.apply(snapshot, animatingDifferences: false)
             }
         }
-        if posts.isEmpty, !state.exhausted {
-            notice.show(L10n.text("empty") + "\n" + L10n.text("emptyHint"), retry: { [weak self] in self?.load(refresh: false) }, actionTitle: L10n.text("loadMore"))
-        } else if posts.isEmpty { notice.show(L10n.text("empty") + "\n" + L10n.text("emptyHint")) }
-        else { notice.show(nil) }
-        if !state.groupFailures.isEmpty { notice.show(L10n.text("partialList"), retry: { [weak self] in self?.load(refresh: true) }) }
-        if let marker = returnMarker, returnTimer != nil { showReturnAction(marker) }
-        if let last = state.lastSync { status.text = "\(L10n.text("updated")) \(ReaderDates.label(last))" } else { status.text = state.fromCache ? L10n.text("cached") : nil }
     }
     private func failure(_ error: Error) { guard !(error is CancellationError) else { return }; notice.show(error.localizedDescription, retry: { [weak self] in self?.load(refresh: true) }); status.text = L10n.text("attention") }
     func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {

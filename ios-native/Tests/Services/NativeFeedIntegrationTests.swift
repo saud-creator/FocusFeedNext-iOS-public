@@ -37,9 +37,11 @@ import AVFoundation
         // construction, layout, and the first visible production post cell.
         let returned = ProcessInfo.processInfo.systemUptime
         controller.replacePosts(service.posts)
+        let snapshotReturned = ProcessInfo.processInfo.systemUptime
         var firstVisible: TimeInterval?
         for _ in 0..<80 {
             controller.view.layoutIfNeeded()
+            controller.collection.layoutIfNeeded()
             if controller.collection.visibleCells.contains(where: { !$0.frame.intersection(controller.collection.bounds).isEmpty }) {
                 firstVisible = ProcessInfo.processInfo.systemUptime
                 break
@@ -49,6 +51,8 @@ import AVFoundation
         let visible = try XCTUnwrap(firstVisible, "Returned posts must become visible, not remain skeletons.")
         let milliseconds = (visible - returned) * 1000
         XCTContext.runActivity(named: "Controlled returned-data to visible native content: \(milliseconds) ms") { _ in }
+        let snapshotMs = (snapshotReturned - returned) * 1000
+        XCTContext.runActivity(named: "Snapshot update: \(snapshotMs) ms; layout and visibility: \(milliseconds - snapshotMs) ms") { _ in }
         XCTAssertLessThanOrEqual(milliseconds, 250, "Keep the agreed response-to-content boundary; shell/provider time is separate.")
         XCTAssertTrue(controller.collection.visibleCells.contains { $0.accessibilityIdentifier?.hasPrefix("post.") == true })
     }
@@ -368,6 +372,7 @@ import AVFoundation
     let accountGeneration: UInt64 = 1
     let events = AsyncStream<AppEvent> { _ in }
     let posts: [Post]
+    private let fixtureImage: UIImage
     var delayImages = false
     var malformedImages = false
     var failImages = false
@@ -412,6 +417,12 @@ import AVFoundation
         }
         let fixtureData = try JSONSerialization.data(withJSONObject: values)
         posts = try JSONDecoder().decode([Post].self, from: fixtureData)
+        // The fake returns an already-decoded bitmap. Production decoding runs
+        // off the main actor, so fake rendering must not occupy the UI thread.
+        fixtureImage = UIGraphicsImageRenderer(size: CGSize(width: 640, height: 360)).image { context in
+            UIColor.systemIndigo.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 640, height: 360))
+        }
     }
     func perform(_ request: AppRequest) async throws -> Data {
         switch request.operation {
@@ -483,10 +494,7 @@ import AVFoundation
         if malformedImages {
             return try NativeMediaService.downsample(Data("Controlled invalid image data".utf8), maximum: maxPixelDimension).image
         }
-        return UIGraphicsImageRenderer(size: CGSize(width:640, height:360)).image { context in
-            UIColor.systemIndigo.setFill()
-            context.fill(CGRect(x:0, y:0, width:640, height:360))
-        }
+        return fixtureImage
     }
     func prefetchImage(url: String, maxPixelDimension: Int) async throws {
         prefetchRequests[url, default:0] += 1

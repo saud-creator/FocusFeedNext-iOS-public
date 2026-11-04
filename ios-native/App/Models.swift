@@ -170,15 +170,30 @@ enum ReaderRoute: String, Codable, CaseIterable {
     var title: String { L10n.text(rawValue) }
 }
 enum ReaderDates {
-    static func parse(_ value: String) -> Date? {
+    private static let parserLock = NSLock()
+    private static let seconds = ISO8601DateFormatter()
+    private static let fractional: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+        return formatter
+    }()
+    @MainActor private static let relative: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
+
+    static func parse(_ value: String) -> Date? {
+        parserLock.lock(); defer { parserLock.unlock() }
+        return value.contains(".")
+            ? fractional.date(from: value) ?? seconds.date(from: value)
+            : seconds.date(from: value) ?? fractional.date(from: value)
     }
-    static func label(_ value: String, absolute: Bool = false) -> String {
+    @MainActor static func label(_ value: String, absolute: Bool = false) -> String {
         guard let date = parse(value) else { return value }
-        if absolute { return date.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(L10n.locale)) }
-        let f = RelativeDateTimeFormatter(); f.locale = L10n.locale; f.unitsStyle = .abbreviated
-        return f.localizedString(for: date, relativeTo: Date())
+        let locale = L10n.locale
+        if absolute { return date.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale)) }
+        if relative.locale != locale { relative.locale = locale }
+        return relative.localizedString(for: date, relativeTo: Date())
     }
 }

@@ -171,7 +171,11 @@ enum ReaderPageOpenBehavior: String { case off, refresh, reset }
         view.layer.shadowOpacity = intensity == "none" ? 0 : intensity == "strong" ? 0.22 : 0.09
         view.layer.shadowRadius = intensity == "strong" ? 10 : 4
         view.layer.shadowOffset = CGSize(width: 0, height: intensity == "strong" ? 4 : 2)
-        view.layer.shadowPath = UIBezierPath(roundedRect: view.bounds, cornerRadius: view.layer.cornerRadius).cgPath
+        updateCardShadowPath(view)
+    }
+    static func updateCardShadowPath(_ view: UIView) {
+        view.layer.shadowPath = view.layer.shadowOpacity == 0 || view.bounds.isEmpty
+            ? nil : UIBezierPath(roundedRect: view.bounds, cornerRadius: view.layer.cornerRadius).cgPath
     }
     static func apply(_ preferences: ReaderPreferences, to controller: UIViewController) {
         currentPreferences = preferences

@@ -31,6 +31,7 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
     private var highlightText = ""
     private var videos: [InlinePlayerView] = []
     private var dwell: Task<Void, Never>?
+    private var shadowBounds = CGRect.null
     weak var delegate: PostCellDelegate?
     var markRead: (() -> Void)?
     override init(frame: CGRect) {
@@ -135,6 +136,7 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
     }
     func updateAppearance(_ preferences: ReaderPreferences) {
         ReaderTheme.styleCard(contentView, preferences: preferences)
+        shadowBounds = contentView.bounds
         stack.spacing = ReaderTheme.spacing(preferences)
         contentView.directionalLayoutMargins = NSDirectionalEdgeInsets(top: preferences.string("density") == "compact" ? 8 : 12, leading: 12, bottom: preferences.string("density") == "compact" ? 8 : 12, trailing: 12)
         quote.backgroundColor = ReaderTheme.elevated(preferences); quote.layer.borderWidth = 1 / max(1, traitCollection.displayScale); quote.layer.borderColor = ReaderTheme.border(preferences).resolvedColor(with: traitCollection).cgColor
@@ -143,7 +145,18 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
         metadata.textColor = ReaderTheme.text(preferences, secondary: true); readLabel.textColor = ReaderTheme.text(preferences, secondary: true)
         renderText()
     }
-    override func layoutSubviews() { super.layoutSubviews(); if let context { ReaderTheme.styleCard(contentView, preferences: context.preferences) } }
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard contentView.bounds != shadowBounds else { return }
+        shadowBounds = contentView.bounds
+        ReaderTheme.updateCardShadowPath(contentView)
+    }
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        guard traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection),
+              let context else { return }
+        updateAppearance(context.preferences)
+    }
     @objc private func openAuthor() { if let username = current?.author.username { delegate?.postCellOpenProfile(username) } }
     @objc private func toggleExpand() {
         expanded.toggle(); renderText()
