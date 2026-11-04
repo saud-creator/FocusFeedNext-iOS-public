@@ -166,7 +166,12 @@ import AVFoundation
     func testInlineMediaOverlaysFollowRuntimeTransparencyAndContrastTraitChanges() async throws {
         let service = try FeedFixtureServices(); let context = ReaderContext(services: service)
         context.preferences.set("video.autoplay", "off")
-        var runtime = NativeRuntimeSnapshot(); context.runtime = runtime
+        var runtime = ReaderRuntimeSnapshot(
+            foreground: true, wifi: false, expensive: false, constrained: false,
+            lowPower: false, thermal: "nominal", reduceMotion: false,
+            reduceTransparency: false, contentSizeScale: 1, memoryRevision: 0
+        )
+        context.runtime = runtime
         let controller = FeedViewController(context: context); controller.automaticallyLoads = false
         try host(controller)
         let shell = try XCTUnwrap(controller.parent)
