@@ -27,10 +27,10 @@ extension Notification.Name {
         runtime = try? await services.call(.runtimeSnapshot)
         if session?.hasCredentials == true { capabilities = try? await services.call(.providerCapabilities) }
         eventsTask?.cancel()
+        let events = services.events
         eventsTask = Task { [weak self] in
-            guard let self else { return }
-            for await event in services.events {
-                if Task.isCancelled { return }
+            for await event in events {
+                guard let self, !Task.isCancelled else { return }
                 switch event {
                 case .session(let snapshot):
                     let generation = services.accountGeneration
