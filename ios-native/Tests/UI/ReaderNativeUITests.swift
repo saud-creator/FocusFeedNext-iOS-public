@@ -3,6 +3,9 @@ import XCTest
 /// Runs the real native welcome/settings path. These tests do not provide
 /// fabricated provider content or establish live sign-in/media acceptance.
 final class ReaderNativeUITests: XCTestCase {
+    // Intel CI can spend more than 20 seconds cold-starting the host app.
+    private let coldLaunchTimeout: TimeInterval = 50
+
     override func setUpWithError() throws { continueAfterFailure = false }
     private func launch(language: String = "en", largeText: Bool = false) -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
@@ -14,7 +17,7 @@ final class ReaderNativeUITests: XCTestCase {
     func testWelcomeHasNativeControlsAndNoReaderTabsBeforeSignIn() throws {
         let app = launch()
         let signIn = app.buttons["welcome.signIn"]
-        XCTAssertTrue(signIn.waitForExistence(timeout: 20), "A fresh test installation must settle into the welcome state.")
+        XCTAssertTrue(signIn.waitForExistence(timeout: coldLaunchTimeout), "A fresh test installation must settle into the welcome state.")
         XCTAssertTrue(signIn.isHittable)
         XCTAssertGreaterThanOrEqual(signIn.frame.height, 44)
         XCTAssertEqual(app.tabBars.count, 0)
@@ -23,7 +26,7 @@ final class ReaderNativeUITests: XCTestCase {
     }
     func testSettingsNavigationAndPreferenceDraftCancel() throws {
         let app = launch()
-        XCTAssertTrue(app.buttons["welcome.signIn"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["welcome.signIn"].waitForExistence(timeout: coldLaunchTimeout))
         let settings = app.buttons["welcome.settings"]
         XCTAssertTrue(settings.isHittable); settings.tap()
         let appearance = app.cells["settings.appearance"]
@@ -48,7 +51,7 @@ final class ReaderNativeUITests: XCTestCase {
         let app = launch(language: "ar", largeText: true)
         defer { XCUIDevice.shared.orientation = .portrait }
         let signIn = app.buttons["welcome.signIn"]
-        XCTAssertTrue(signIn.waitForExistence(timeout: 20), "The Arabic welcome screen must load.")
+        XCTAssertTrue(signIn.waitForExistence(timeout: coldLaunchTimeout), "The Arabic welcome screen must load.")
         XCTAssertTrue(waitUntilHittable(signIn), "Sign-in must be visible when the welcome screen opens.")
         XCTAssertGreaterThanOrEqual(signIn.frame.height, 44)
         capture("native-arabic-accessibility-welcome")
@@ -64,6 +67,13 @@ final class ReaderNativeUITests: XCTestCase {
         XCTAssertTrue(signInRow.waitForExistence(timeout: 5))
         capture("native-arabic-accessibility-portrait")
         XCUIDevice.shared.orientation = .landscapeLeft
+        let window = app.windows.firstMatch
+        let landscape = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            guard window.exists else { return false }
+            let frame = window.frame
+            return frame.width > frame.height
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [landscape], timeout: 8), .completed, "The app must rotate to landscape.")
         XCTAssertTrue(waitUntilHittable(app.navigationBars.buttons["حفظ"]), "Save must remain reachable after rotation.")
         capture("native-arabic-accessibility-landscape")
     }
