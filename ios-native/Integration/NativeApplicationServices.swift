@@ -50,6 +50,7 @@ import AVKit
     private var followingError: String?
     private var groupRefreshPending: [String: Set<String>] = [:]
     private var brokerEpoch: UInt64 = 1
+    private var brokerRestart: (account: UInt64, epoch: UInt64, task: Task<Void, Error>)?
     private struct MediaLocator {
         enum Owner { case post(String), author(String), article(String) }
         let owner: Owner
@@ -603,6 +604,14 @@ import AVKit
         return url
     }
     func loadImage(url: String, maxPixelDimension: Int) async throws -> UIImage {
+        try await media.continueAfterBrokerRotation({
+            try await loadVisibleImage(handle: url, maxPixelDimension: maxPixelDimension)
+        }, retry: {
+            let source = try await mediaURL(for: url)
+            return try await media.image(url: source.absoluteString, maxPixelDimension: maxPixelDimension)
+        })
+    }
+    private func loadVisibleImage(handle url: String, maxPixelDimension: Int) async throws -> UIImage {
         let source = try await mediaURL(for:url)
         do { return try await media.image(url:source.absoluteString,maxPixelDimension:maxPixelDimension) }
         catch is CancellationError { throw CancellationError() }
@@ -629,7 +638,11 @@ import AVKit
         _ = try await media.image(url:source.absoluteString,maxPixelDimension:maxPixelDimension,priority:URLSessionTask.lowPriority)
     }
     func makePlayer(url:String,owner:UUID)async throws->AVPlayer {
-        do {return try await media.makePlayer(url:mediaURL(for:url).absoluteString,owner:owner)}
+        let create: () async throws -> AVPlayer = {
+            let source = try await self.mediaURL(for: url)
+            return try await self.media.makePlayer(url: source.absoluteString, owner: owner)
+        }
+        do { return try await media.continueAfterBrokerRotation(create, retry: create) }
         catch is CancellationError {throw CancellationError()}
         catch let error as AppServiceError {throw error}
         catch {throw AppServiceError(code:"media_unavailable",message:L10n.text("loadFailed"),retryable:true)}
@@ -641,13 +654,21 @@ import AVKit
     func pausePlayer(player: AVPlayer, owner: UUID) {
         media.pausePlayer(player: player, owner: owner)
     }
+    func setPlayerBrokerRestartHandler(owner: UUID, _ handler: @escaping () -> Void) {
+        media.setPlayerBrokerRestartHandler(owner: owner, handler)
+    }
     func recoverMediaHandle(_ handle:String)async throws->String {
-        let source=try await mediaURL(for:handle)
-        let repaired=try await media.recover(url:source.absoluteString,freshSource:true,automatic:false)
-        guard let replacement=resolvedHandles[repaired.absoluteString] else {
-            throw AppServiceError(code:"expired_media",message:L10n.text("loadFailed"))
-        }
-        return replacement
+        try await media.continueAfterBrokerRotation({
+            let source = try await mediaURL(for: handle)
+            let repaired = try await media.recover(url: source.absoluteString, freshSource: true)
+            guard let replacement = resolvedHandles[repaired.absoluteString] else {
+                throw AppServiceError(code: "expired_media", message: L10n.text("loadFailed"))
+            }
+            return replacement
+        }, retry: {
+            _ = try await mediaURL(for: handle)
+            return handle
+        })
     }
     func presentMedia(_ request:MediaPresentation,from:UIViewController)async throws->MediaPresentationResult {
         var items:[[String:Any]]=[]
@@ -675,6 +696,8 @@ import AVKit
             loopPlayback:value["loop"] as? Bool ?? request.loopPlayback,selectedHandle:selectedHandle)
     }
     private func repair(_ url:URL,fresh:Bool)async throws->URL {
+        let account = accountGeneration
+        let epoch = brokerEpoch
         guard let handle=resolvedHandles[url.absoluteString],let locator=handleOwners[handle]else{throw AppServiceError(code:"expired_media",message:L10n.text("retry"))}
         do {_=try await run(.validateMediaUrl,["url":url.absoluteString])}
         catch is CancellationError {throw CancellationError()}
@@ -691,9 +714,10 @@ import AVKit
             throw AppServiceError(code:status == 429 ? "rate_limited" : "media_unavailable",message:L10n.text(status == 429 ? "rateLimited" : "loadFailed"))
         }
         if kind == "local_listener" {
-            let restarted = try object(await run(.restartMedia))
-            brokerEpoch = (restarted["epoch"] as? NSNumber)?.uint64Value ?? brokerEpoch + 1
-            media.invalidate(accountEpoch:accountGeneration,brokerEpoch:brokerEpoch)
+            try await restartMediaBroker(account: account, epoch: epoch)
+            // The old repair owns no work in the new broker. The visible
+            // caller or presenter resolves its handle in the new ownership.
+            throw CancellationError()
         }
         let next = try await renew(locator:locator,fresh:fresh || kind == "upstream_http" && [403,410].contains(status ?? 0))
         return try await mediaURL(for:next)
@@ -723,14 +747,45 @@ import AVKit
         guard let next=value as? String,next.hasPrefix("ffmedia:") else{throw AppServiceError(code:"expired_media",message:L10n.text("retry"))}
         return next
     }
+    private func restartMediaBroker(account: UInt64, epoch: UInt64) async throws {
+        try Task.checkCancellation()
+        guard account == accountGeneration else { throw CancellationError() }
+        guard epoch == brokerEpoch else { return }
+        if let pending = brokerRestart, pending.account == account, pending.epoch == epoch {
+            return try await pending.task.value
+        }
+        // This task owns the restart independently of the failed transfer that
+        // requested it. Concurrent failures at the same epoch share one reset.
+        let task = Task<Void, Error> { @MainActor [weak self] in
+            guard let self else { throw CancellationError() }
+            defer {
+                if brokerRestart?.account == account, brokerRestart?.epoch == epoch {
+                    brokerRestart = nil
+                }
+            }
+            guard account == accountGeneration, epoch == brokerEpoch else { throw CancellationError() }
+            let restarted = try object(await run(.restartMedia))
+            guard account == accountGeneration else { throw CancellationError() }
+            brokerEpoch = (restarted["epoch"] as? NSNumber)?.uint64Value ?? brokerEpoch + 1
+            media.invalidate(accountEpoch: account, brokerEpoch: brokerEpoch)
+            continuation.yield(.mediaRecoveryOpportunity)
+        }
+        brokerRestart = (account, epoch, task)
+        try await task.value
+    }
     func recoverMedia()async throws {
+        let account = accountGeneration
+        let epoch = brokerEpoch
         continuation.yield(.recovery("reconnecting"))
-        let health=try object(await run(.mediaHealth))
-        if health["available"] as? Bool != true {let next=try object(await run(.restartMedia));brokerEpoch=(next["epoch"] as? NSNumber)?.uint64Value ?? brokerEpoch+1;media.invalidate(accountEpoch:accountGeneration,brokerEpoch:brokerEpoch)}
-        host.recoverVisibleMedia()
-        // A healthy local listener is not proof that a CDN asset decoded.
-        // Visible cells own their loading/ready/error state after reconfiguration.
-        continuation.yield(.mediaRecoveryOpportunity);continuation.yield(.recovery(""))
+        let health = try object(await run(.mediaHealth))
+        guard account == accountGeneration else { throw CancellationError() }
+        if health["available"] as? Bool != true {
+            try await restartMediaBroker(account: account, epoch: epoch)
+        } else {
+            host.recoverVisibleMedia()
+            continuation.yield(.mediaRecoveryOpportunity)
+        }
+        continuation.yield(.recovery(""))
     }
     private func runtimeChanged(_ snapshot:NativeRuntimeSnapshot) {
         continuation.yield(.runtimeChanged)

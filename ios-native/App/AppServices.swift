@@ -48,6 +48,7 @@ struct AppRequest: Codable {
     func makePlayer(url: String, owner: UUID) async throws -> AVPlayer
     func seekPlayer(player: AVPlayer, owner: UUID, position: Double) async throws
     func pausePlayer(player: AVPlayer, owner: UUID)
+    func setPlayerBrokerRestartHandler(owner: UUID, _ handler: @escaping () -> Void)
     func releasePlayer(owner: UUID)
     func presentMedia(_ request: MediaPresentation, from: UIViewController) async throws -> MediaPresentationResult
     func recoverMedia() async throws
@@ -56,6 +57,7 @@ struct AppRequest: Codable {
 
 extension AppServices {
     func pausePlayer(player: AVPlayer, owner: UUID) { player.pause() }
+    func setPlayerBrokerRestartHandler(owner: UUID, _ handler: @escaping () -> Void) {}
     /// A lightweight adapter must explicitly support owned/bounded seeks.
     /// Production supplies the native service's cancellable active-time path.
     func seekPlayer(player: AVPlayer, owner: UUID, position: Double) async throws {

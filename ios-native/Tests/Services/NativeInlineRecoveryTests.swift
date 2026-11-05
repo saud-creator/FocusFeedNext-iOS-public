@@ -139,6 +139,71 @@ import AVFoundation
         XCTAssertTrue(services.ownedPlayer === original)
         view.stop()
     }
+
+    func testPausedInlineVideoKeepsItsPlayheadAndSettingsAcrossBrokerRestart() async throws {
+        let services = InlineFailureServices(); services.allowPlayerCreation = true
+        let context = ReaderContext(services: services)
+        context.preferences.set("video.clickToggle", "true")
+        context.preferences.set("video.autoplay", "any")
+        context.runtime = ReaderRuntimeSnapshot(foreground:true, wifi:true, expensive:false, constrained:false, lowPower:false, thermal:"nominal", reduceMotion:false, reduceTransparency:false, contentSizeScale:1, memoryRevision:0)
+        let key = "1:paused:0"
+        context.rememberMedia(key, paused:true, position:3, speed:1.5, muted:true, loopPlayback:false, selectedHandle:"ffmedia:quality720")
+        let item = PostMedia(kind:"video", url:"ffmedia:default", previewUrl:nil, width:640, height:360, alt:nil, durationMs:nil, variants:[])
+        let view = InlinePlayerView(item:item, context:context, playbackKey:key)
+        defer { view.stop() }
+        view.play(startPlaying:false)
+        try await settleUntil { view.loopingItem != nil }
+        let original = try XCTUnwrap(services.players.first)
+        original.movePlayhead(to:18.5)
+
+        services.restartBroker()
+        XCTAssertNil(original.currentItem)
+        XCTAssertEqual(view.position, 18.5, "The playhead must be saved before the old item is cleared.")
+        let paused = view.mediaPresentation()
+        XCTAssertFalse(paused.playing)
+        XCTAssertEqual(paused.items[0].url, "ffmedia:quality720")
+        XCTAssertEqual(paused.speed, 1.5)
+        XCTAssertTrue(paused.muted)
+        XCTAssertFalse(paused.loopPlayback)
+
+        view.resumeIfInterrupted()
+        view.play(automatically:true)
+        try await settle()
+        XCTAssertEqual(services.players.count, 1, "Autoplay must respect the pause through a broker restart.")
+        XCTAssertTrue(original.playRequests.isEmpty)
+
+        view.toggleFromSurface()
+        try await settleUntil { services.players.last?.playRequests.count == 1 }
+        let replacement = try XCTUnwrap(services.players.last)
+        XCTAssertFalse(original === replacement)
+        XCTAssertEqual(services.attempts, ["ffmedia:quality720", "ffmedia:quality720"])
+        XCTAssertEqual(services.seekRequests.map(\.position), [3, 18.5])
+        XCTAssertEqual(replacement.playRequests, [1.5])
+        XCTAssertTrue(replacement.isMuted)
+    }
+
+    func testPlayingInlineVideoResumesOnceFromItsAdvancedPlayheadAfterBrokerRestart() async throws {
+        let services = InlineFailureServices(); services.allowPlayerCreation = true
+        let context = ReaderContext(services: services)
+        context.preferences.set("video.autoplay", "off")
+        let item = PostMedia(kind:"video", url:"ffmedia:playing", previewUrl:nil, width:640, height:360, alt:nil, durationMs:nil, variants:[])
+        let view = InlinePlayerView(item:item, context:context, playbackKey:"1:playing:0")
+        defer { view.stop() }
+        view.play()
+        try await settleUntil { services.players.first?.playRequests.count == 1 }
+        let original = try XCTUnwrap(services.players.first)
+        original.movePlayhead(to:27)
+
+        services.restartBroker()
+        view.resumeIfInterrupted()
+        view.resumeIfInterrupted()
+        try await settleUntil { services.players.count == 2 && services.players.last?.playRequests.count == 1 }
+        XCTAssertNil(original.currentItem)
+        XCTAssertEqual(original.playRequests.count, 1)
+        XCTAssertEqual(services.seekRequests.map(\.position), [27])
+        XCTAssertEqual(services.attempts, ["ffmedia:playing", "ffmedia:playing"])
+    }
+
     private func settle() async throws { for _ in 0..<15 { await Task.yield(); try await Task.sleep(nanoseconds: 1_000_000) } }
     private func settleUntil(_ condition: () -> Bool) async throws {
         let deadline = ProcessInfo.processInfo.systemUptime + 2
@@ -161,6 +226,8 @@ import AVFoundation
     var repairs = 0
     var allowPlayerCreation = false
     var ownedPlayer: AVPlayer?
+    private var playerOwner: UUID?
+    private var brokerRestartHandler: (() -> Void)?
     var players: [InlinePlaybackSpy] = []
     var seekRequests: [(owner:UUID,position:Double)] = []
     var delaySeek = false
@@ -176,7 +243,7 @@ import AVFoundation
         attempts.append(url)
         if allowPlayerCreation {
             let player = InlinePlaybackSpy(); player.replaceCurrentItem(with:AVPlayerItem(asset:AVMutableComposition()))
-            players.append(player); ownedPlayer = player; return player
+            players.append(player); ownedPlayer = player; playerOwner = owner; brokerRestartHandler = nil; return player
         }
         throw AppServiceError(code:"controlled_failure", message:"Controlled player creation failure.")
     }
@@ -191,7 +258,21 @@ import AVFoundation
         }
     }
     func completeSeek() { let complete = pendingSeek; pendingSeek = nil; complete?.resume() }
-    func releasePlayer(owner: UUID) { ownedPlayer?.pause(); ownedPlayer?.replaceCurrentItem(with:nil); ownedPlayer = nil }
+    func setPlayerBrokerRestartHandler(owner: UUID, _ handler: @escaping () -> Void) {
+        guard playerOwner == owner else { return }
+        brokerRestartHandler = handler
+    }
+    func restartBroker() {
+        guard let owner = playerOwner else { return }
+        brokerRestartHandler?()
+        (ownedPlayer as? InlinePlaybackSpy)?.movePlayhead(to: 0)
+        releasePlayer(owner: owner)
+    }
+    func releasePlayer(owner: UUID) {
+        guard playerOwner == owner else { return }
+        ownedPlayer?.pause(); ownedPlayer?.replaceCurrentItem(with:nil); ownedPlayer = nil
+        playerOwner = nil; brokerRestartHandler = nil
+    }
     func presentMedia(_ request: MediaPresentation, from: UIViewController) async throws -> MediaPresentationResult { throw AppServiceError(code:"fixture", message:"No viewer in this fixture.") }
     func recoverMedia() async throws {}
     func recoverMediaHandle(_ handle: String) async throws -> String { repairs += 1; return "ffmedia:renewed" }
@@ -201,6 +282,9 @@ import AVFoundation
 private final class InlinePlaybackSpy: AVPlayer, @unchecked Sendable {
     private let requestLock = NSLock()
     private var requests: [Float] = []
+    private var reportedTime = CMTime.zero
     var playRequests: [Float] { requestLock.lock(); defer { requestLock.unlock() }; return requests }
+    override func currentTime() -> CMTime { requestLock.lock(); defer { requestLock.unlock() }; return reportedTime }
+    func movePlayhead(to position: Double) { requestLock.lock(); reportedTime = CMTime(seconds:position, preferredTimescale:600); requestLock.unlock() }
     override func playImmediately(atRate rate: Float) { requestLock.lock(); requests.append(rate); requestLock.unlock() }
 }

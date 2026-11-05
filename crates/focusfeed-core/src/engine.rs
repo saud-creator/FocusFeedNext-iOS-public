@@ -1729,6 +1729,214 @@ mod probe_tests {
         probe.join().unwrap();
         upstream.join().unwrap();
     }
+
+    #[test]
+    fn repeated_broker_restarts_close_active_and_queued_sockets() {
+        use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
+        use std::net::{SocketAddr, TcpStream};
+        use std::sync::mpsc;
+        use std::time::Instant;
+        use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
+
+        let directory = tempfile::tempdir().unwrap();
+        let core = CoreEngine::open(directory.path()).unwrap();
+        let fixture = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .unwrap();
+        let listener = fixture
+            .block_on(tokio::net::TcpListener::bind(("127.0.0.1", 0)))
+            .unwrap();
+        let upstream_prefix = format!("http://{}/", listener.local_addr().unwrap());
+        let (closed, closed_streams) = mpsc::channel();
+        let upstream = fixture.spawn(async move {
+            while let Ok((socket, _)) = listener.accept().await {
+                let closed = closed.clone();
+                tokio::spawn(async move {
+                    let mut reader = tokio::io::BufReader::new(socket);
+                    let mut line = String::new();
+                    loop {
+                        line.clear();
+                        match reader.read_line(&mut line).await {
+                            Ok(0) | Err(_) => return,
+                            Ok(_) if line == "\r\n" => break,
+                            Ok(_) => {}
+                        }
+                    }
+                    let mut socket = reader.into_inner();
+                    // Hold the declared second byte until the broker closes
+                    // the upstream connection. No timeout releases the body.
+                    if socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: 2\r\nConnection: close\r\n\r\nA").await.is_ok()
+                        && match socket.read(&mut [0_u8; 1]).await {
+                            Ok(0) => true,
+                            Err(error) => matches!(error.kind(), ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted),
+                            Ok(_) => false,
+                        }
+                    {
+                        let _ = closed.send(());
+                    }
+                });
+            }
+        });
+
+        let open_transfer = |url: &str| {
+            let target = reqwest::Url::parse(url).unwrap();
+            let port = target.port().unwrap();
+            let mut socket = TcpStream::connect_timeout(
+                &SocketAddr::from(([127, 0, 0, 1], port)),
+                Duration::from_secs(3),
+            )
+            .unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(3)))
+                .unwrap();
+            socket
+                .set_write_timeout(Some(Duration::from_secs(3)))
+                .unwrap();
+            write!(
+                socket,
+                "GET {} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n",
+                target.path()
+            )
+            .unwrap();
+            BufReader::new(socket)
+        };
+
+        for cycle in 1..=100 {
+            let call = |operation, args: Value| {
+                core.execute(CoreRequest {
+                    request_id: format!("broker-restart-{cycle}-{operation:?}"),
+                    account_generation: 0,
+                    source_revision: 0,
+                    deadline_millis: now() + 30_000,
+                    priority: 1,
+                    operation,
+                    arguments_json: args.to_string(),
+                })
+                .map(|data| serde_json::from_str::<Value>(&data).unwrap())
+            };
+            let (epoch, handle, url) = {
+                let mut state = core.state.lock().unwrap();
+                let media = &mut state.media;
+                // Keep the production broker runtime and restart path. Only
+                // the test proxy allows the fixture's loopback upstream.
+                drop(media.proxy.take());
+                let id = media
+                    .registry
+                    .register_for_test(&format!("{upstream_prefix}held.mp4"));
+                let proxy = media
+                    .runtime
+                    .as_ref()
+                    .unwrap()
+                    .block_on(MediaProxy::start_with_test_upstream(
+                        media.registry.clone(),
+                        upstream_prefix.clone(),
+                    ))
+                    .unwrap();
+                let url = proxy.url_for(&id);
+                media.proxy = Some(proxy);
+                (media.epoch, format!("ffmedia:{id}"), url)
+            };
+
+            let mut transfers = Vec::with_capacity(5);
+            for _ in 0..4 {
+                let mut socket = open_transfer(&url);
+                let mut line = String::new();
+                socket.read_line(&mut line).unwrap();
+                assert!(
+                    line.starts_with("HTTP/1.1 200 "),
+                    "cycle {cycle}: did not admit all video slots"
+                );
+                loop {
+                    line.clear();
+                    assert_ne!(socket.read_line(&mut line).unwrap(), 0);
+                    if line == "\r\n" {
+                        break;
+                    }
+                }
+                let mut first = [0];
+                socket.read_exact(&mut first).unwrap();
+                assert_eq!(first, *b"A");
+                transfers.push(socket);
+            }
+            let mut queued = open_transfer(&url);
+            let deadline = Instant::now() + Duration::from_secs(3);
+            loop {
+                let health = call(CoreOperation::MediaHealth, json!({})).unwrap();
+                if health["transfers"]["videos"]["queuedTransfers"] == 1 {
+                    assert_eq!(health["transfers"]["videos"]["activeTransfers"], 4);
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "cycle {cycle}: fifth request did not queue"
+                );
+                std::thread::sleep(Duration::from_millis(2));
+            }
+
+            let next = call(CoreOperation::RestartMedia, json!({})).unwrap();
+            assert_eq!(next["available"], true, "cycle {cycle}");
+            assert_eq!(next["epoch"], epoch + 1, "cycle {cycle}");
+            assert_eq!(next["registrations"], 0, "cycle {cycle}");
+            assert_eq!(next["transfers"]["activeTransfers"], 0, "cycle {cycle}");
+            assert_eq!(next["transfers"]["queuedTransfers"], 0, "cycle {cycle}");
+            assert_eq!(
+                call(CoreOperation::ValidateMediaUrl, json!({"url":url}))
+                    .unwrap_err()
+                    .code,
+                "expired_media"
+            );
+            assert_eq!(
+                call(CoreOperation::GetMediaUrl, json!({"handle":handle}))
+                    .unwrap_err()
+                    .code,
+                "expired_media"
+            );
+            for mut socket in transfers {
+                match socket.read(&mut [0_u8; 1]) {
+                    Ok(0) => {}
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted
+                        ) => {}
+                    Err(error) => panic!(
+                        "cycle {cycle}: old socket did not close promptly ({})",
+                        error.kind()
+                    ),
+                    Ok(_) => panic!("cycle {cycle}: old socket served bytes after restart"),
+                }
+            }
+            let mut rejection = String::new();
+            match queued.read_line(&mut rejection) {
+                Ok(0) => {}
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted
+                    ) => {}
+                Err(error) => panic!(
+                    "cycle {cycle}: queued socket did not settle promptly ({})",
+                    error.kind()
+                ),
+                // Invalidation can reject a newly awakened request before the
+                // runtime closes its connection.
+                Ok(_) => assert!(
+                    rejection.starts_with("HTTP/1.1 404 "),
+                    "cycle {cycle}: queued socket was not rejected"
+                ),
+            }
+            for _ in 0..4 {
+                closed_streams
+                    .recv_timeout(Duration::from_secs(3))
+                    .unwrap_or_else(|_| panic!("cycle {cycle}: upstream work survived restart"));
+            }
+        }
+        core.shutdown().unwrap();
+        upstream.abort();
+    }
+
     #[test]
     fn bookmark_windows_rehydrate_only_the_requested_index_range() {
         let directory = tempfile::tempdir().unwrap();

@@ -5,6 +5,14 @@ The signed upgrade, live X recovery, and physical iPhone measurements are
 pending. Runtime testing on iOS 16 is pending where a compatible device or
 simulator is available.
 
+The broker-restart follow-up in the working branch is not included in build
+100.41. It adds a bounded fresh-handle continuation after same-account broker
+rotation and captures inline playback state before the old item is released.
+Its real-loopback stress test passed 100 restarts with four active video
+transfers and one queued connection per cycle; 160 core unit tests and 14
+engine integration tests passed locally. A replacement IPA requires a fresh
+linked native qualification run and independent package verification.
+
 | Item | Verified result |
 |---|---|
 | Packaged source | `3b5e07092c93274b212e83cdbe4d22e6cdb104de` on `codex/native-ios-quality`, based on public commit `129c47847bbbd336edd69f05db6780ed19379e56` |

@@ -45,6 +45,7 @@ enum NativeMediaFailure: Error, Equatable {
     private var playerRecovery: Task<Void, Never>?
     private var playerRecoveryID: UUID?
     private var pauseRevision: UInt64 = 0
+    private var captureBeforeBrokerRestart: (() -> Void)?
     private var failureHandlers: [UUID: (NativeMediaFailure) -> Void] = [:]
     var playerFailed: ((UUID, NativeMediaFailure) -> Void)?
     var recoveryOpportunity: (() -> Void)?
@@ -86,8 +87,7 @@ enum NativeMediaFailure: Error, Equatable {
     private func loadImage(url: String, maxPixelDimension: Int, priority: Float) async throws -> UIImage {
         let source = try Self.brokerURL(url)
         let captured = ownership
-        try await validateBrokerURL(source)
-        guard captured == ownership else { throw NativeMediaFailure.staleOwnership }
+        try await validateForegroundSource(source, ownership: captured)
         // A single 4096-square decode would already exceed the cache budget.
         // Keep the existing full-screen photo ceiling and scale for display.
         let dimension = min(2048, max(64, maxPixelDimension))
@@ -125,15 +125,30 @@ enum NativeMediaFailure: Error, Equatable {
     func makePlayer(url: String, owner: UUID) async throws -> AVPlayer {
         let source = try Self.brokerURL(url)
         let captured = ownership
-        try await validateBrokerURL(source)
-        try Task.checkCancellation()
-        guard captured == ownership else { throw NativeMediaFailure.staleOwnership }
+        try await validateForegroundSource(source, ownership: captured)
         stopPlayer()
         let player = playerFactory(source)
         player.automaticallyWaitsToMinimizeStalling = true
         current = (owner, source, player)
         observe(player, owner: owner)
         return player
+    }
+
+    private func validateForegroundSource(_ source: URL, ownership captured: MediaOwnership) async throws {
+        try Task.checkCancellation()
+        do { try await validateBrokerURL(source) }
+        catch {
+            try Task.checkCancellation()
+            // A rotation can make the old URL fail validation rather than
+            // complete normally. Preserve that provenance for the one retry.
+            guard captured == ownership else { throw NativeMediaFailure.staleOwnership }
+            throw error
+        }
+        try Task.checkCancellation()
+        guard captured == ownership else { throw NativeMediaFailure.staleOwnership }
+        // Backgrounding may occur while the core validates a URL. Do not
+        // start a new transfer or decoder after the lifecycle cancellation.
+        guard runtime.foreground else { throw CancellationError() }
     }
 
     func releasePlayer(owner: UUID) { failureHandlers.removeValue(forKey: owner); if current?.owner == owner { stopPlayer() } }
@@ -166,6 +181,10 @@ enum NativeMediaFailure: Error, Equatable {
         try Task.checkCancellation()
         guard captured == ownership, current?.owner == owner, current?.player === player,
               player.currentItem === item else { throw NativeMediaFailure.staleOwnership }
+    }
+    func setPlayerBrokerRestartHandler(owner: UUID, _ handler: @escaping () -> Void) {
+        guard current?.owner == owner else { return }
+        captureBeforeBrokerRestart = handler
     }
     func setFailureHandler(owner: UUID, handler: @escaping (NativeMediaFailure) -> Void) { failureHandlers[owner] = handler }
     func pausePlayer(player: AVPlayer, owner: UUID) {
@@ -213,8 +232,8 @@ enum NativeMediaFailure: Error, Equatable {
         let next = MediaOwnership(accountEpoch: accountEpoch, brokerEpoch: brokerEpoch)
         guard next != ownership else { return }
         let accountChanged = next.accountEpoch != ownership.accountEpoch
-        // Give the presenter a chance to capture its playhead before the
-        // account/proxy boundary releases the old player item.
+        // Capture the same account's playback before clearing the old item.
+        if !accountChanged { captureBeforeBrokerRestart?() }
         ownershipInvalidated?(accountChanged)
         ownership = next; recoveryEpoch &+= 1
         downloads.values.forEach { $0.cancel() }; downloads.removeAll()
@@ -224,6 +243,44 @@ enum NativeMediaFailure: Error, Equatable {
         stopPlayer(); clearImageCache()
         failureHandlers.removeAll()
         ownershipSettled?(accountChanged)
+    }
+
+    /// The broker cancels work it owns when it rotates. A surviving visible
+    /// caller may resolve the same opaque handle again, once, in the new broker.
+    func continueAfterBrokerRotation<Value>(
+        _ operation: () async throws -> Value,
+        retry: () async throws -> Value
+    ) async throws -> Value {
+        let original = ownership
+        do {
+            let value = try await operation()
+            try Task.checkCancellation()
+            guard original.accountEpoch == ownership.accountEpoch else { throw CancellationError() }
+            guard original == ownership else { throw NativeMediaFailure.staleOwnership }
+            return value
+        } catch {
+            try Task.checkCancellation()
+            guard original.accountEpoch == ownership.accountEpoch else { throw CancellationError() }
+            guard runtime.foreground, original.brokerEpoch != ownership.brokerEpoch,
+                  error is CancellationError || (error as? NativeMediaFailure) == .staleOwnership else { throw error }
+        }
+
+        let replacement = ownership
+        do {
+            let value = try await retry()
+            try Task.checkCancellation()
+            guard replacement.accountEpoch == ownership.accountEpoch else { throw CancellationError() }
+            guard replacement == ownership else { throw NativeMediaFailure.staleOwnership }
+            return value
+        } catch {
+            try Task.checkCancellation()
+            guard replacement.accountEpoch == ownership.accountEpoch else { throw CancellationError() }
+            // A second foreground restart ends the attempt at Retry.
+            if runtime.foreground, replacement != ownership, error is CancellationError {
+                throw NativeMediaFailure.staleOwnership
+            }
+            throw error
+        }
     }
 
     func recover(url: String, freshSource: Bool = false, automatic: Bool = false) async throws -> URL {
@@ -389,6 +446,7 @@ enum NativeMediaFailure: Error, Equatable {
     }
 
     private func stopPlayer() {
+        captureBeforeBrokerRestart = nil
         seekDeadlines.values.forEach { $0.cancel() }; seekDeadlines.removeAll()
         playerRecovery?.cancel(); playerRecovery = nil; playerRecoveryID = nil
         statusObserver = nil; timeControlObserver = nil; rateObserver = nil; muteObserver = nil

@@ -14,14 +14,14 @@ on:
         description: 'Mac runner for native validation'
         required: false
         type: choice
-        default: macos-15-intel
+        default: macos-15
         options:
-          - macos-15-intel
           - macos-15
+          - macos-15-intel
 permissions:
   contents: read
 concurrency:
-  group: native-ios-${{ github.event.pull_request.head.ref || github.ref_name }}${{ inputs.native_runner == 'macos-15' && '-arm' || '' }}
+  group: native-ios-${{ github.event.pull_request.head.ref || github.ref_name }}${{ inputs.native_runner == 'macos-15-intel' && '-intel' || '' }}
   cancel-in-progress: true
 jobs:
   desktop:
@@ -59,7 +59,7 @@ jobs:
           python ios-native/tools/test-native-verifier.py
           python ios-native/tools/test-native-test-export.py
   native:
-    runs-on: ${{ inputs.native_runner == 'macos-15' && 'macos-15' || 'macos-15-intel' }}
+    runs-on: ${{ inputs.native_runner == 'macos-15-intel' && 'macos-15-intel' || 'macos-15' }}
     timeout-minutes: 90
     needs: [core, desktop]
     steps:
@@ -120,7 +120,7 @@ jobs:
           include-hidden-files: true
   inspect:
     if: github.event_name == 'workflow_dispatch' && inputs.inspect_run_id != ''
-    runs-on: macos-15-intel
+    runs-on: ${{ inputs.native_runner == 'macos-15-intel' && 'macos-15-intel' || 'macos-15' }}
     timeout-minutes: 10
     permissions:
       contents: read

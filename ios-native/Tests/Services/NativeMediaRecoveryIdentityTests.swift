@@ -93,6 +93,159 @@ import AVFoundation
         XCTAssertEqual(repairs,2,"Explicit Retry starts one new bounded sequence.")
     }
 
+    func testVisibleCallerRetriesOnceWhenItsRepairRotatesTheBroker() async throws {
+        let old = try brokerURL(secret: "a", handle: "b")
+        let fresh = try brokerURL(secret: "c", handle: "d")
+        let fixture = RotatingRepair(account: 1)
+        let service = NativeMediaService(validateBrokerURL: { _ in }, repair: { url, _ in
+            fixture.rotate()
+            return url
+        })
+        fixture.service = service
+        service.invalidate(accountEpoch: 1, brokerEpoch: 1)
+        var reloads = 0
+
+        let result = try await service.continueAfterBrokerRotation({
+            try await service.recover(url: old.absoluteString, automatic: true)
+        }, retry: {
+            reloads += 1
+            return fresh
+        })
+
+        XCTAssertEqual(result, fresh)
+        XCTAssertEqual(reloads, 1)
+        XCTAssertEqual(fixture.repairs, 1)
+        XCTAssertEqual(service.diagnosticSnapshot()["pendingRecoveries"] as? Int, 0)
+    }
+
+    func testBrokerRotationNeverRetriesAfterAnAccountChange() async throws {
+        let old = try brokerURL(secret: "a", handle: "b")
+        let fixture = RotatingRepair(account: 2)
+        let service = NativeMediaService(validateBrokerURL: { _ in }, repair: { url, _ in
+            fixture.rotate()
+            return url
+        })
+        fixture.service = service
+        service.invalidate(accountEpoch: 1, brokerEpoch: 1)
+        var reloads = 0
+
+        do {
+            _ = try await service.continueAfterBrokerRotation({
+                try await service.recover(url: old.absoluteString, automatic: true)
+            }, retry: {
+                reloads += 1
+                return old
+            })
+            XCTFail("A request from the old account must be discarded.")
+        } catch is CancellationError {}
+
+        XCTAssertEqual(reloads, 0)
+        XCTAssertEqual(service.diagnosticSnapshot()["pendingRecoveries"] as? Int, 0)
+    }
+
+    func testACompletedOldBrokerValueIsReplacedBeforePublication() async throws {
+        let old = try brokerURL(secret: "a", handle: "b")
+        let fresh = try brokerURL(secret: "c", handle: "d")
+        let service = NativeMediaService(validateBrokerURL: { _ in }, repair: { url, _ in url })
+        service.invalidate(accountEpoch: 1, brokerEpoch: 1)
+        var reloads = 0
+        let result = try await service.continueAfterBrokerRotation({
+            service.invalidate(accountEpoch: 1, brokerEpoch: 2)
+            return old
+        }, retry: {
+            reloads += 1
+            return fresh
+        })
+        XCTAssertEqual(result, fresh, "An await can resume after rotation even when the underlying operation returned successfully.")
+        XCTAssertEqual(reloads, 1)
+    }
+
+    func testRotatedURLValidationFailureCanResolveOneFreshPlayer() async throws {
+        let old = try brokerURL(secret: "a", handle: "b")
+        let fresh = try brokerURL(secret: "c", handle: "d")
+        let fixture = RotatingRepair(account: 1)
+        var created = 0
+        let service = NativeMediaService(validateBrokerURL: { _ in
+            if fixture.repairs == 0 { fixture.rotate(); throw NativeMediaFailure.invalidHandle }
+        }, repair: { url, _ in url }, playerFactory: { _ in
+            created += 1
+            return AVPlayer(playerItem: AVPlayerItem(asset: AVMutableComposition()))
+        })
+        fixture.service = service
+        service.invalidate(accountEpoch: 1, brokerEpoch: 1)
+        let owner = UUID()
+        defer { service.releasePlayer(owner: owner) }
+        let player = try await service.continueAfterBrokerRotation({
+            try await service.makePlayer(url: old.absoluteString, owner: owner)
+        }, retry: {
+            try await service.makePlayer(url: fresh.absoluteString, owner: owner)
+        })
+        XCTAssertEqual(fixture.repairs, 1)
+        XCTAssertEqual(created, 1, "The rejected old URL must never allocate a decoder.")
+        XCTAssertNotNil(player.currentItem)
+    }
+
+    func testBackgroundDuringValidationCannotStartImageOrPlayerWork() async throws {
+        let source = try brokerURL(secret: "a", handle: "b")
+        for image in [false, true] {
+            let entered = expectation(description: "Validation starts for \(image ? "image" : "video")")
+            var pending: CheckedContinuation<Void, Never>?
+            var created = 0
+            let service = NativeMediaService(validateBrokerURL: { _ in
+                await withCheckedContinuation { pending = $0; entered.fulfill() }
+            }, repair: { url, _ in url }, playerFactory: { _ in
+                created += 1
+                return AVPlayer(playerItem: AVPlayerItem(asset: AVMutableComposition()))
+            })
+            let owner = UUID()
+            let request = Task<Void, Error> {
+                if image { _ = try await service.image(url: source.absoluteString) }
+                else { _ = try await service.makePlayer(url: source.absoluteString, owner: owner) }
+            }
+            defer { request.cancel(); pending?.resume(); service.releasePlayer(owner: owner) }
+            await fulfillment(of: [entered], timeout: 5)
+            guard let finish = pending else { request.cancel(); XCTFail("The controlled validation did not start."); return }
+            var background = NativeRuntimeSnapshot(); background.foreground = false
+            service.updateRuntime(background)
+            pending = nil; finish.resume()
+            switch await request.result {
+            case .success: XCTFail("A backgrounded validation must not start new media work.")
+            case .failure(let error): XCTAssertTrue(error is CancellationError)
+            }
+            XCTAssertEqual(created, 0)
+            XCTAssertEqual(service.diagnosticSnapshot()["imageRequests"] as? Int, 0)
+        }
+    }
+
+    func testOwnerCapturesCurrentItemBeforeSameAccountBrokerRotation() async throws {
+        let source = try brokerURL(secret: "a", handle: "b")
+        let service = NativeMediaService(
+            validateBrokerURL: { _ in }, repair: { url, _ in url },
+            playerFactory: { _ in AVPlayer(playerItem: AVPlayerItem(asset: AVMutableComposition())) }
+        )
+        service.invalidate(accountEpoch: 1, brokerEpoch: 1)
+        let owner = UUID()
+        let player = try await service.makePlayer(url: source.absoluteString, owner: owner)
+        let item = try XCTUnwrap(player.currentItem)
+        var captured: AVPlayerItem?
+        service.setPlayerBrokerRestartHandler(owner: owner) { captured = player.currentItem }
+        service.setPlayerBrokerRestartHandler(owner: UUID()) { XCTFail("An unrelated view cannot own the restart.") }
+
+        service.invalidate(accountEpoch: 1, brokerEpoch: 2)
+        XCTAssertTrue(captured === item)
+        XCTAssertNil(player.currentItem)
+
+        let next = try await service.makePlayer(url: source.absoluteString, owner: owner)
+        service.setPlayerBrokerRestartHandler(owner: owner) { XCTFail("An account switch must not retain playback.") }
+        service.invalidate(accountEpoch: 2, brokerEpoch: 2)
+        XCTAssertNil(next.currentItem)
+    }
+
+    private func brokerURL(secret: String, handle: String) throws -> URL {
+        try XCTUnwrap(URL(string: "http://127.0.0.1:12345/media/"
+            + String(repeating: secret, count: 48) + "/" + String(repeating: handle, count: 32)))
+    }
+
     func testOwnershipCallbacksDistinguishBrokerCleanupFromAccountReplacement() {
         let service = NativeMediaService(validateBrokerURL:{ _ in },repair:{ url, _ in url })
         var transitions: [String] = []
@@ -126,5 +279,18 @@ import AVFoundation
         }
         try await Task.sleep(nanoseconds: 30_000_000_000)
         return url
+    }
+}
+
+@MainActor private final class RotatingRepair {
+    weak var service: NativeMediaService?
+    private let account: UInt64
+    private(set) var repairs = 0
+
+    init(account: UInt64) { self.account = account }
+
+    func rotate() {
+        repairs += 1
+        service?.invalidate(accountEpoch: account, brokerEpoch: 2)
     }
 }

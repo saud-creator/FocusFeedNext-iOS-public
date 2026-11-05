@@ -384,6 +384,7 @@ final class InlinePlayerView: UIView, UIGestureRecognizerDelegate {
     private var failed = false
     private var preparationFailed = false
     private var wantsPlayback = false
+    private var brokerRestartPending = false
     var fullscreen: (() -> Void)?
     var position: Double { if !positionRestored { return savedPosition }; let v = player?.currentTime().seconds ?? savedPosition; return v.isFinite ? v : savedPosition }
     var isPlaying: Bool { (player?.rate ?? 0) > 0 }
@@ -444,9 +445,22 @@ final class InlinePlayerView: UIView, UIGestureRecognizerDelegate {
         if let loop = state.loopPlayback { selectedLoop = loop }
         if let handle = state.selectedHandle { selectedURL = handle }
     }
-    private func rememberPlaybackState() {
+    private func capturePlaybackState() {
+        let currentPosition = position
+        if currentPosition.isFinite, currentPosition >= 0 { savedPosition = currentPosition }
         if let player { selectedMuted = player.isMuted; if player.rate > 0 { selectedSpeed = player.rate } }
-        context.rememberMedia(playbackKey, position: position, speed: Double(selectedSpeed), muted: selectedMuted, loopPlayback: selectedLoop, selectedHandle: selectedURL)
+        context.rememberMedia(playbackKey, position: savedPosition, speed: Double(selectedSpeed), muted: selectedMuted, loopPlayback: selectedLoop, selectedHandle: selectedURL)
+    }
+    private func prepareForBrokerRestart(_ ownedPlayer: AVPlayer, generation: UInt64) {
+        guard player === ownedPlayer, context.services.accountGeneration == generation else { return }
+        capturePlaybackState()
+        brokerRestartPending = true
+        failed = false
+        preparationFailed = false
+        clearPlaybackAttachment()
+        notice.text = nil
+        button.setTitle(L10n.text("playVideo"), for: .normal)
+        button.accessibilityLabel = L10n.text("playVideo")
     }
     private func togglePlayback() {
         let playingOrPreparing = isPlaying || player?.timeControlStatus == .waitingToPlayAtSpecifiedRate
@@ -468,10 +482,12 @@ final class InlinePlayerView: UIView, UIGestureRecognizerDelegate {
     }
     func play(automatically: Bool = false, startPlaying: Bool = true) {
         if player == nil { restorePlaybackState() }
-        guard !automatically || (!manuallyPaused && (item.kind != "gif" || context.preferences.bool("video.gifAutoplay"))) else { return }
+        guard !automatically || (!manuallyPaused && (!brokerRestartPending || wantsPlayback)
+            && (item.kind != "gif" || context.preferences.bool("video.gifAutoplay"))) else { return }
         let needsRepair = failed || player?.currentItem?.status == .failed
         guard !automatically || !needsRepair else { return }
         guard task == nil else { return }
+        brokerRestartPending = false
         wantsPlayback = startPlaying
         if !needsRepair, let player, player.currentItem != nil { if startPlaying { player.playImmediately(atRate: selectedSpeed) }; return }
         if needsRepair { stop() }
@@ -494,6 +510,10 @@ final class InlinePlayerView: UIView, UIGestureRecognizerDelegate {
                 try Task.checkCancellation(); guard taskID == id, generation == context.services.accountGeneration else { return }
                 positionRestored = savedPosition <= 0
                 player = next; playerLayer.player = next; notice.text = nil; next.isMuted = selectedMuted ?? automatically
+                context.services.setPlayerBrokerRestartHandler(owner: owner) { [weak self, weak next] in
+                    guard let self, let next else { return }
+                    self.prepareForBrokerRestart(next, generation: generation)
+                }
                 failed = false; observe(next)
                 if savedPosition > 0 {
                     try await context.services.seekPlayer(player:next,owner:owner,position:savedPosition)
@@ -510,7 +530,7 @@ final class InlinePlayerView: UIView, UIGestureRecognizerDelegate {
     func resumeIfInterrupted() {
         guard !failed, task == nil, player == nil || player?.currentItem == nil,
               !manuallyPaused, !context.isPaused(playbackKey), context.runtime?.foreground != false,
-              wantsPlayback || context.allowsAutoplay else { return }
+              wantsPlayback || (!brokerRestartPending && context.allowsAutoplay) else { return }
         play(automatically: true)
     }
     private func observe(_ observed: AVPlayer) {
@@ -572,6 +592,31 @@ final class InlinePlayerView: UIView, UIGestureRecognizerDelegate {
             }
         }
     }
-    func stop() { if player?.currentItem?.status == .failed { failed = true }; if player != nil || task != nil { rememberPlaybackState(); savedPosition = position }; taskID = UUID(); task?.cancel(); task = nil; positionRestored = true; itemObserver?.invalidate(); itemObserver = nil; statusObserver?.invalidate(); statusObserver = nil; player?.pause(); playerLayer.player = nil; player = nil; loopingItem = nil; if let endObserver { NotificationCenter.default.removeObserver(endObserver); self.endObserver = nil }; button.isEnabled = true; context.services.releasePlayer(owner: owner) }
+    private func clearPlaybackAttachment() {
+        taskID = UUID()
+        task?.cancel()
+        task = nil
+        positionRestored = true
+        itemObserver?.invalidate()
+        itemObserver = nil
+        statusObserver?.invalidate()
+        statusObserver = nil
+        playerLayer.player = nil
+        player = nil
+        loopingItem = nil
+        if let endObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+            self.endObserver = nil
+        }
+        button.isEnabled = true
+    }
+    func stop() {
+        if player?.currentItem?.status == .failed { failed = true }
+        if player != nil || task != nil { capturePlaybackState() }
+        let previousPlayer = player
+        clearPlaybackAttachment()
+        previousPlayer?.pause()
+        context.services.releasePlayer(owner: owner)
+    }
     deinit { task?.cancel(); itemObserver?.invalidate(); statusObserver?.invalidate(); if let endObserver { NotificationCenter.default.removeObserver(endObserver) } }
 }
