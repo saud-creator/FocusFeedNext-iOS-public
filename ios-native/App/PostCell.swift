@@ -546,7 +546,7 @@ final class InlinePlayerView: UIView, UIGestureRecognizerDelegate {
                 bindEndObserver(next.currentItem, player: next)
                 if startPlaying { next.playImmediately(atRate: selectedSpeed) }; button.setTitle(L10n.text(startPlaying ? "pause" : "playVideo"), for: .normal)
             }
-            catch { if !(error is CancellationError), taskID == id, generation == context.services.accountGeneration { preparationFailed = true; failed = true; notice.text = error.localizedDescription; button.setTitle(L10n.text("retry"), for: .normal); button.accessibilityLabel = L10n.text("retry") } }
+            catch { if !(error is CancellationError), taskID == id, generation == context.services.accountGeneration { preparationFailed = true; failed = true; notice.text = (error as? AppServiceError)?.localizedDescription ?? L10n.text("videoFailed"); button.setTitle(L10n.text("retry"), for: .normal); button.accessibilityLabel = L10n.text("retry") } }
         }
     }
     func resumeIfInterrupted() {
