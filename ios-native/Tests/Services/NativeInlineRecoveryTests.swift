@@ -321,7 +321,7 @@ import AVFoundation
 /// Requests fail by default; an opt-in empty paused composition tests existing
 /// ownership. Neither path performs network playback or proves AVKit decoding.
 @MainActor private final class InlineFailureServices: AppServices {
-    let accountGeneration: UInt64 = 1
+    var accountGeneration: UInt64 = 1
     let events = AsyncStream<AppEvent> { _ in }
     var attempts: [String] = []
     var repairs = 0
