@@ -4,6 +4,85 @@ import AVFoundation
 @testable import FocusFeedNextNative
 
 @MainActor final class NativeInlineRecoveryTests: XCTestCase {
+    func testReadReconfigurationKeepsExplicitPlaybackAndRefreshesActionsAndAppearance() async throws {
+        let services = InlineFailureServices(); services.allowPlayerCreation = true
+        let context = ReaderContext(services: services); context.preferences.set("video.autoplay", "off")
+        let videoItem = PostMedia(kind:"video", url:"ffmedia:read-video", previewUrl:nil, width:640, height:360, alt:nil, durationMs:nil, variants:[])
+        let photoItem = PostMedia(kind:"image", url:"ffmedia:read-photo", previewUrl:nil, width:640, height:360, alt:"Fixture photo", durationMs:nil, variants:[])
+        var post = fixturePost(media: [videoItem, photoItem])
+        post.quoted = QuotedPost(id:"124", author:post.author, text:"Quoted fixture", createdAt:nil, media:[videoItem], url:nil)
+        let firstDelegate = InlineCellDelegate(); let currentDelegate = InlineCellDelegate()
+        let cell = PostCell(frame:CGRect(x:0, y:0, width:390, height:800))
+        defer { cell.releaseContent() }
+        cell.configure(post, read:false, bookmark:false, context:context, delegate:firstDelegate)
+        let originalVideos = descendants(InlinePlayerView.self, in:cell)
+        XCTAssertEqual(originalVideos.count, 2)
+        let video = try XCTUnwrap(originalVideos.first)
+        let photo = try XCTUnwrap(descendants(PhotoTile.self, in:cell).first)
+        video.play()
+        try await settleUntil { services.players.first?.playRequests.count == 1 }
+        let player = try XCTUnwrap(services.players.first)
+        let playerItem = try XCTUnwrap(player.currentItem)
+        player.movePlayhead(to:18.5)
+
+        context.preferences.set("appearance.mediaBackground", "#223344")
+        cell.configure(post, read:true, bookmark:false, highlight:"fixture", context:context, delegate:currentDelegate)
+        cell.visible(read:true)
+        let retained = descendants(InlinePlayerView.self, in:cell)
+        XCTAssertEqual(retained.count, originalVideos.count)
+        for (before, after) in zip(originalVideos, retained) { XCTAssertTrue(before === after) }
+        XCTAssertTrue(descendants(PhotoTile.self, in:cell).first === photo)
+        XCTAssertTrue(services.ownedPlayer === player)
+        XCTAssertTrue(player.currentItem === playerItem, "Read metadata must not release the active player's item.")
+        XCTAssertEqual(video.position, 18.5)
+        XCTAssertEqual(services.attempts, ["ffmedia:read-video"])
+        XCTAssertEqual(player.playRequests.count, 1, "Read updates must not restart explicitly playing media when autoplay is off.")
+        let background = ReaderTheme.color("#223344")
+        XCTAssertEqual(video.backgroundColor, background)
+        XCTAssertEqual(photo.backgroundColor, background)
+        XCTAssertEqual(descendants(ReaderLabel.self, in:photo).first?.backgroundOverride, background)
+        let markUnread = try XCTUnwrap(descendants(UIButton.self, in:cell).first { $0.currentTitle == L10n.text("markUnread") })
+        markUnread.sendActions(for:.touchUpInside)
+        XCTAssertEqual(currentDelegate.readIDs, [post.id]); XCTAssertEqual(currentDelegate.readValues, [false])
+        XCTAssertTrue(firstDelegate.readIDs.isEmpty, "The retained cell must bind actions to its current delegate.")
+
+        cell.configure(post, read:false, bookmark:false, context:context, delegate:currentDelegate)
+        let markRead = try XCTUnwrap(descendants(UIButton.self, in:cell).first { $0.currentTitle == L10n.text("markRead") })
+        markRead.sendActions(for:.touchUpInside)
+        XCTAssertEqual(currentDelegate.readValues, [false, true])
+        XCTAssertTrue(player.currentItem === playerItem)
+    }
+
+    func testContentContextAndAccountChangesStillRebuildOwnedMedia() async throws {
+        let services = InlineFailureServices(); services.allowPlayerCreation = true
+        let context = ReaderContext(services:services); context.preferences.set("video.autoplay", "off")
+        let item = PostMedia(kind:"video", url:"ffmedia:revision-one", previewUrl:nil, width:640, height:360, alt:nil, durationMs:nil, variants:[])
+        let post = fixturePost(media:[item]); let delegate = InlineCellDelegate()
+        let cell = PostCell(frame:CGRect(x:0, y:0, width:390, height:800))
+        defer { cell.releaseContent() }
+        cell.configure(post, read:false, bookmark:false, context:context, delegate:delegate)
+        let original = try XCTUnwrap(descendants(InlinePlayerView.self, in:cell).first)
+        original.play(); try await settleUntil { services.players.count == 1 }
+        let firstPlayer = try XCTUnwrap(services.players.first)
+
+        var changed = post; changed.media[0].url = "ffmedia:revision-two"
+        cell.configure(changed, read:true, bookmark:false, context:context, delegate:delegate)
+        let revised = try XCTUnwrap(descendants(InlinePlayerView.self, in:cell).first)
+        XCTAssertFalse(revised === original); XCTAssertNil(firstPlayer.currentItem)
+
+        let nextContext = ReaderContext(services:services); nextContext.preferences.set("video.autoplay", "off")
+        cell.configure(changed, read:true, bookmark:false, context:nextContext, delegate:delegate)
+        let next = try XCTUnwrap(descendants(InlinePlayerView.self, in:cell).first)
+        XCTAssertFalse(next === revised, "A different context must not inherit another reader's attachment.")
+        next.play(); try await settleUntil { services.players.count == 2 }
+        let secondPlayer = try XCTUnwrap(services.players.last)
+        services.accountGeneration += 1
+        cell.configure(changed, read:false, bookmark:false, context:nextContext, delegate:delegate)
+        let replacement = try XCTUnwrap(descendants(InlinePlayerView.self, in:cell).first)
+        XCTAssertFalse(replacement === next)
+        XCTAssertNil(secondPlayer.currentItem, "Stored generation must reject attachment reuse even when the context object is unchanged.")
+    }
+
     func testSurfaceTapPreferenceDoesNotDisableExplicitPlayback() async throws {
         let services = InlineFailureServices(); let context = ReaderContext(services: services)
         context.preferences.set("video.clickToggle", "false")
@@ -204,6 +283,16 @@ import AVFoundation
         XCTAssertEqual(services.attempts, ["ffmedia:playing", "ffmedia:playing"])
     }
 
+    private func descendants<View: UIView>(_ type: View.Type, in root: UIView) -> [View] {
+        var result = (root as? View).map { [$0] } ?? []
+        for child in root.subviews { result += descendants(type, in:child) }
+        return result
+    }
+    private func fixturePost(media: [PostMedia]) -> Post {
+        let author = Author(id:"1", username:"reader", displayName:"Reader", avatarUrl:nil, bannerUrl:nil, verified:false, bio:nil, followersCount:nil, followingCount:nil, location:nil, website:nil, joinedAt:nil, postsCount:nil)
+        let metrics = PostMetrics(replies:0, reposts:0, likes:0, quotes:0, views:0, bookmarks:0)
+        return Post(id:"123", text:"Playback fixture", author:author, createdAt:"2026-11-05T08:00:00Z", lang:"en", isRepost:false, repostedBy:nil, isPromoted:false, quoted:nil, metrics:metrics, media:media, url:nil, isArticle:false, articleTitle:nil, inReplyTo:nil, provider:"fixture")
+    }
     private func settle() async throws { for _ in 0..<15 { await Task.yield(); try await Task.sleep(nanoseconds: 1_000_000) } }
     private func settleUntil(_ condition: () -> Bool) async throws {
         let deadline = ProcessInfo.processInfo.systemUptime + 2
@@ -215,6 +304,18 @@ import AVFoundation
         throw FixtureFailure.didNotSettle
     }
     private enum FixtureFailure: Error { case didNotSettle }
+}
+
+@MainActor private final class InlineCellDelegate: PostCellDelegate {
+    var readIDs: [String] = []
+    var readValues: [Bool] = []
+    func postCellSetRead(_ post: Post, read: Bool) { readIDs.append(post.id); readValues.append(read) }
+    func postCellOpenProfile(_ username: String) {}
+    func postCellActions(_ post: Post, source: UIView) {}
+    func postCellOpenArticle(_ post: Post) {}
+    func postCellComments(_ post: Post) {}
+    func postCellOpenURL(_ url: URL) {}
+    func postCellPresentMedia(_ request: MediaPresentation) {}
 }
 
 /// Requests fail by default; an opt-in empty paused composition tests existing

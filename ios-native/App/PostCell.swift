@@ -32,6 +32,8 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
     private let readLabel = readerLabel(style: .caption1, color: .secondaryLabel)
     private var current: Post?
     private var context: ReaderContext?
+    private var configuredAccountGeneration: UInt64?
+    private var configuredBookmark = false
     private var expanded = false
     private var isRead = false
     private var highlightText = ""
@@ -71,7 +73,7 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
     required init?(coder: NSCoder) { fatalError("Use init") }
     override func prepareForReuse() { super.prepareForReuse(); releaseContent() }
     func releaseContent() {
-        stop(); current = nil; avatar.cancel(); delegate = nil; markRead = nil; expanded = false
+        stop(); current = nil; context = nil; configuredAccountGeneration = nil; configuredBookmark = false; avatar.cancel(); delegate = nil; markRead = nil; expanded = false
         textView.attributedText = nil; authorButton.setTitle(nil, for:.normal); metadata.text = nil; attribution.text = nil
         mediaStack.arrangedSubviews.forEach { $0.removeFromSuperview() }; quote.arrangedSubviews.forEach { $0.removeFromSuperview() }; videos = []
         articleAction?.isHidden = true
@@ -79,15 +81,23 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
     }
     var representedPostID: String? { current?.id }
     func configure(_ post: Post, read: Bool, bookmark: Bool, highlight: String = "", context: ReaderContext, delegate: PostCellDelegate) {
-        stop(); let same = current?.id == post.id; current = post; self.context = context; self.delegate = delegate; isRead = read; if !same { expanded = false }; highlightText = highlight
+        let same = current?.id == post.id && self.context === context && configuredAccountGeneration == context.services.accountGeneration
+        let preservesMedia = same && current == post && configuredBookmark == bookmark
+        if preservesMedia { dwell?.cancel(); dwell = nil } else { stop() }
+        current = post; self.context = context; configuredAccountGeneration = context.services.accountGeneration; configuredBookmark = bookmark
+        self.delegate = delegate; isRead = read; if !same { expanded = false }; highlightText = highlight
         accessibilityIdentifier = "post.\(post.id)"
         updateAppearance(context.preferences)
         attribution.isHidden = !post.isRepost; attribution.text = post.repostedBy.map { "\(L10n.text("reposted")) \($0.label)" }
         authorButton.setTitle("\(post.author.label)\(post.author.verified ? " ✓" : "")\n@\(post.author.username)", for: .normal)
         authorButton.accessibilityLabel = "\(post.author.label), @\(post.author.username)"
         metadata.text = ReaderDates.label(post.createdAt, absolute: context.preferences.string("appearance.timestampStyle") == "absolute")
-        avatar.backgroundColor = .tertiarySystemFill; avatar.fallbackInitials(post.author.label); avatar.load(post.author.avatarUrl, services: context.services, maxPixel: 120)
         readLabel.text = L10n.text(read ? "read" : "unread")
+        updateActions(post, read: read, bookmark: bookmark)
+        // Read/highlight/appearance updates must not release an explicitly
+        // playing decoder or discard a loaded image for unchanged content.
+        guard !preservesMedia else { return }
+        avatar.backgroundColor = .tertiarySystemFill; avatar.fallbackInitials(post.author.label); avatar.load(post.author.avatarUrl, services: context.services, maxPixel: 120)
         mediaStack.arrangedSubviews.forEach { $0.removeFromSuperview() }; videos.removeAll()
         mediaStack.isHidden = post.media.isEmpty
         for (index, item) in post.media.enumerated() {
@@ -112,6 +122,8 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
                 else { let key = "\(context.services.accountGeneration):\(quoted.id):\(quoted.media.firstIndex(of: item) ?? 0)"; let player = InlinePlayerView(item: item, context: context, playbackKey: key); player.fullscreen = { [weak self, weak player] in guard let player else { return }; let request = player.mediaPresentation(); player.stop(); self?.delegate?.postCellPresentMedia(request) }; quote.addArrangedSubview(player); videos.append(player) }
             }
         }
+    }
+    private func updateActions(_ post: Post, read: Bool, bookmark: Bool) {
         actions.axis = traitCollection.preferredContentSizeCategory.isAccessibilityCategory ? .vertical : .horizontal
         readAction.setTitle(L10n.text(read ? "markUnread" : "markRead"), for: .normal)
         copyAction.setTitle(L10n.text("copyLink"), for: .normal)
@@ -201,7 +213,9 @@ final class PostCell: UICollectionViewCell, UITextViewDelegate {
         metadata.textColor = ReaderTheme.text(preferences, secondary: true); readLabel.textColor = ReaderTheme.text(preferences, secondary: true)
         // DeviceRuntime already observes Reduce Transparency and publishes a
         // context appearance update for visible cells; keep one scene observer.
-        videos.forEach { $0.updateAccessibilityAppearance() }
+        for case let tile as PhotoTile in mediaStack.arrangedSubviews + quote.arrangedSubviews { tile.updateAppearance(preferences) }
+        for case let label as ReaderLabel in quote.arrangedSubviews { label.updateAppearance(preferences) }
+        videos.forEach { $0.updateAppearance(preferences) }
         renderText()
     }
     override func layoutSubviews() {
@@ -329,6 +343,10 @@ final class PhotoTile: UIControl {
         image.frame = bounds
         stateLabel.frame = bounds.insetBy(dx: min(12, bounds.width / 2), dy: 0)
     }
+    func updateAppearance(_ preferences: ReaderPreferences) {
+        backgroundColor = ReaderTheme.mediaBackground(preferences)
+        if let label = stateLabel as? ReaderLabel { label.backgroundOverride = backgroundColor; label.updateAppearance(preferences) }
+    }
     private func load() { failed = false; stateLabel.isHidden = false; stateLabel.text = L10n.text("loading"); accessibilityValue = L10n.text("loading"); guard !currentHandle.isEmpty else { showFailure(); return }; image.load(currentHandle, services: services) }
     private func showFailure() { failed = true; stateLabel.text = "\(L10n.text("photoFailed")) · \(L10n.text("retry"))"; stateLabel.isHidden = false; accessibilityValue = L10n.text("photoFailed") + ", " + L10n.text("retry") }
     @objc private func tapped() {
@@ -408,6 +426,10 @@ final class InlinePlayerView: UIView, UIGestureRecognizerDelegate {
         let tap = UITapGestureRecognizer(target: self, action: #selector(toggleFromSurface)); tap.delegate = self; tap.cancelsTouchesInView = false; addGestureRecognizer(tap)
     }
     required init?(coder: NSCoder) { fatalError("Use init") }
+    func updateAppearance(_ preferences: ReaderPreferences) {
+        backgroundColor = ReaderTheme.mediaBackground(preferences)
+        updateAccessibilityAppearance()
+    }
     func updateAccessibilityAppearance() {
         let background = ReaderTheme.mediaOverlay(reduceTransparency: context.runtime?.reduceTransparency ?? UIAccessibility.isReduceTransparencyEnabled, contrast: traitCollection.accessibilityContrast)
         controls.backgroundColor = background; notice.backgroundColor = background

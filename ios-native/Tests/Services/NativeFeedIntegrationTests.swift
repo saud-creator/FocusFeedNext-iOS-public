@@ -451,14 +451,34 @@ import AVFoundation
         context.runtime = ReaderRuntimeSnapshot(foreground:true, wifi:true, expensive:false, constrained:false, lowPower:false, thermal:"nominal", reduceMotion:false, reduceTransparency:false, contentSizeScale:1, memoryRevision:0)
         context.preferences.set("performance.mode", "ultra"); context.preferences.set("video.autoplay", "off")
         let controller = FeedViewController(context:context); controller.automaticallyLoads = false
-        try host(controller); controller.replacePosts(service.posts); try await settle(controller)
+        try host(controller)
+        // Drive one production prefetch callback explicitly. UIKit's own
+        // speculative callbacks must not fill or cancel its bounded queue
+        // before the request whose visible-cell handoff is under test.
+        controller.collection.prefetchDataSource = nil
+        controller.collection.isPrefetchingEnabled = false
+        controller.replacePosts(service.posts); try await settle(controller)
         let candidate = try prefetchCandidate(controller)
+        let handle = controller.posts[candidate.item].media[0].url
+        let started = expectation(description:"Selected speculative image has started")
+        let cancelled = expectation(description:"Visible cell cancels its speculative image")
+        service.prefetchStarted = { if $0 == handle { started.fulfill() } }
+        service.prefetchCancelled = { if $0 == handle { cancelled.fulfill() } }
+        defer {
+            service.prefetchStarted = nil; service.prefetchCancelled = nil
+            service.cancelHeldPrefetches()
+        }
         controller.collectionView(controller.collection, prefetchItemsAt:[candidate])
-        for _ in 0..<10 { await Task.yield(); try await Task.sleep(nanoseconds:1_000_000) }
+        await fulfillment(of:[started], timeout:5)
+        XCTAssertTrue(service.hasHeldPrefetch(for:handle), "The selected request must still own speculative work before scrolling.")
         let previous = service.cancelledPrefetch
         controller.collection.scrollToItem(at:candidate, at:.top, animated:false)
+        controller.view.layoutIfNeeded(); controller.collection.layoutIfNeeded()
+        await fulfillment(of:[cancelled], timeout:5)
         try await settle(controller)
         XCTAssertGreaterThan(service.cancelledPrefetch, previous, "Visible image creation must release speculative transfer ownership.")
+        XCTAssertFalse(service.hasHeldPrefetch(for:handle))
+        XCTAssertTrue(controller.collection.indexPathsForVisibleItems.contains(candidate))
         XCTAssertEqual(service.speculationThroughVisibleLoader, 0)
         XCTAssertTrue(service.repairRequests.isEmpty)
     }
@@ -514,6 +534,9 @@ import AVFoundation
     var failPrefetch = false
     var holdPrefetch = false
     var cancelledPrefetch = 0
+    var prefetchStarted: ((String) -> Void)?
+    var prefetchCancelled: ((String) -> Void)?
+    private var heldPrefetches: [UUID: (handle: String, continuation: CheckedContinuation<Void, Error>)] = [:]
     var speculativeOnlyHandles = Set<String>()
     var speculationThroughVisibleLoader = 0
     var failRefresh = false
@@ -643,11 +666,27 @@ import AVFoundation
     }
     func prefetchImage(url: String, maxPixelDimension: Int) async throws {
         prefetchRequests[url, default:0] += 1
+        let id = UUID()
+        defer { heldPrefetches.removeValue(forKey:id) }
         do {
-            if holdPrefetch { try await Task.sleep(nanoseconds:30_000_000_000) }
+            if holdPrefetch {
+                try await withTaskCancellationHandler(operation: {
+                    try Task.checkCancellation()
+                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                        heldPrefetches[id] = (url, continuation)
+                        prefetchStarted?(url)
+                    }
+                }, onCancel: { Task { @MainActor [weak self] in self?.cancelHeldPrefetch(id) } })
+            }
             try Task.checkCancellation()
             if failPrefetch { throw AppServiceError(code:"fixture_prefetch_failure", message:"Controlled speculative download failure.") }
-        } catch is CancellationError { cancelledPrefetch += 1; throw CancellationError() }
+        } catch is CancellationError { cancelledPrefetch += 1; prefetchCancelled?(url); throw CancellationError() }
+    }
+    func hasHeldPrefetch(for handle: String) -> Bool { heldPrefetches.values.contains { $0.handle == handle } }
+    private func cancelHeldPrefetch(_ id: UUID) { heldPrefetches.removeValue(forKey:id)?.continuation.resume(throwing:CancellationError()) }
+    func cancelHeldPrefetches() {
+        let pending = heldPrefetches; heldPrefetches.removeAll()
+        pending.values.forEach { $0.continuation.resume(throwing:CancellationError()) }
     }
     func makePlayer(url: String, owner: UUID) async throws -> AVPlayer { throw AppServiceError(code:"fixture", message:"Video playback is outside these layout fixtures.") }
     func releasePlayer(owner: UUID) {}

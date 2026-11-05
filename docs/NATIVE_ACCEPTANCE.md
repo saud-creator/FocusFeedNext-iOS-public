@@ -13,6 +13,14 @@ transfers and one queued connection per cycle; 160 core unit tests and 14
 engine integration tests passed locally. A replacement IPA requires a fresh
 linked native qualification run and independent package verification.
 
+Run `41964633345` compiled and executed 96 native tests. All new broker,
+playback-state and background-validation regressions passed; the sole failure
+was an existing speculative-image fixture that did not acknowledge the selected
+request's start before scrolling. The fixture now explicitly holds that request
+and observes its cancellation. A separate confirmed fix preserves unchanged
+media when only a post's read state, highlight or appearance is reconfigured.
+The replacement candidate must qualify both changes in a fresh run.
+
 | Item | Verified result |
 |---|---|
 | Packaged source | `3b5e07092c93274b212e83cdbe4d22e6cdb104de` on `codex/native-ios-quality`, based on public commit `129c47847bbbd336edd69f05db6780ed19379e56` |
