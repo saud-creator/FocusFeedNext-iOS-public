@@ -8,25 +8,43 @@ vi.mock('@/lib/api',async importOriginal=>{
   const actual=await importOriginal<typeof import('@/lib/api')>();
   return {...actual,isTauri:vi.fn(()=>false),api:{...actual.api,post:vi.fn(),postContent:vi.fn()}};
 });
-beforeEach(()=>{vi.mocked(isTauri).mockReturnValue(false);vi.mocked(api.post).mockReset();vi.stubGlobal('IntersectionObserver',undefined);});
+beforeEach(()=>{vi.mocked(isTauri).mockReturnValue(false);vi.mocked(api.post).mockReset();vi.mocked(api.postContent).mockReset();vi.stubGlobal('IntersectionObserver',undefined);});
 afterEach(()=>vi.unstubAllGlobals());
 
 describe('phone image delivery',()=>{
   it('renews an expired registration from the session post without replacing the card',async()=>{
     vi.mocked(isTauri).mockReturnValue(true);
-    vi.mocked(api.postContent).mockResolvedValue({post:makePost({id:'123',media:[makeImage({url:'http://127.0.0.1:8123/media/secret/renewed'})]}),article:null});
+    vi.mocked(api.post).mockResolvedValue(makePost({id:'123',media:[makeImage({url:'http://127.0.0.1:8123/media/secret/renewed'})]}));
     renderWithProviders(<MediaGallery media={[makeImage()]} postId="123"/>);
     fireEvent.error(screen.getByAltText('Benchmark chart'));
-    fireEvent.click(screen.getByRole('button',{name:'Retry image'}));
     await waitFor(()=>expect(screen.getByAltText('Benchmark chart')).toHaveAttribute('src','http://127.0.0.1:8123/media/secret/renewed'));
+    expect(api.post).toHaveBeenCalledExactlyOnceWith('123');
+    expect(api.postContent).not.toHaveBeenCalled();
+    fireEvent.error(screen.getByAltText('Benchmark chart'));
+    await waitFor(()=>expect(screen.getByRole('button',{name:'Retry image'})).toBeEnabled());
+    expect(api.post).toHaveBeenCalledTimes(1);
+  });
+  it('retries the cached photo when a manual metadata refresh fails',async()=>{
+    vi.mocked(isTauri).mockReturnValue(true);
+    const media=[makeImage()];
+    vi.mocked(api.post).mockResolvedValue(makePost({id:'123',media}));
+    vi.mocked(api.postContent).mockRejectedValue(new Error('Provider rate limited'));
+    renderWithProviders(<MediaGallery media={media} postId="123"/>);
+    const first=screen.getByAltText('Benchmark chart');
+    fireEvent.error(first);
+    await waitFor(()=>expect(screen.getByAltText('Benchmark chart')).not.toBe(first));
+    fireEvent.error(screen.getByAltText('Benchmark chart'));
+    await waitFor(()=>expect(screen.getByRole('button',{name:'Retry image'})).toBeEnabled());
+    fireEvent.click(screen.getByRole('button',{name:'Retry image'}));
+    await waitFor(()=>expect(screen.getByAltText('Benchmark chart')).toBeInTheDocument());
     expect(api.postContent).toHaveBeenCalledExactlyOnceWith('123');
-    expect(api.post).not.toHaveBeenCalled();
+    expect(api.post).toHaveBeenCalledTimes(2);
   });
   it('settles a nearby photo that never finishes transferring',()=>{
     vi.useFakeTimers();
     renderWithProviders(<MediaGallery media={[makeImage()]}/>);
     expect(screen.getByRole('status')).toHaveTextContent('Loading image');
-    act(()=>vi.advanceTimersByTime(20001));
+    act(()=>vi.advanceTimersByTime(35001));
     expect(screen.getByRole('button',{name:'Retry image'})).toBeEnabled();
     expect(screen.queryByAltText('Benchmark chart')).not.toBeInTheDocument();
     vi.useRealTimers();

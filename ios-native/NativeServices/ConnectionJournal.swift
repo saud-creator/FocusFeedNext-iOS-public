@@ -1,0 +1,41 @@
+import Foundation
+
+/// Session-only diagnostics with no arbitrary text, URLs or account data.
+final class ConnectionJournal {
+    private let maximumEvents = 512
+    private let maximumBytes = 256 * 1024
+    private var events: [[String: Any]] = []
+    private(set) var attempt = 0
+    init() {}
+    func begin() { attempt += 1; record("start", stage: "login") }
+    func record(_ event: String, stage: String, code: String? = nil, status: Int? = nil, detail: [String: Any] = [:]) {
+        var row = detail
+        row["event"] = event; row["stage"] = stage; row["attempt"] = attempt
+        row["time"] = Date().timeIntervalSince1970
+        if let code = code { row["code"] = code }
+        if let status = status { row["status"] = status }
+        events.append(Self.safe(row))
+        if events.count > maximumEvents { events.removeFirst(events.count - maximumEvents) }
+        while !events.isEmpty, ((try? JSONSerialization.data(withJSONObject: events).count) ?? Int.max) > maximumBytes { events.removeFirst() }
+    }
+    func snapshot() -> [[String: Any]] { events.map(Self.safe) }
+    static func safe(_ row: [String: Any]) -> [String: Any] {
+        var result: [String: Any] = [:]
+        for (key, values) in [
+            "event": ["start","stage","navigation","cookies","request","response","fallback","failure","recovery","cancelled","committed","connected","background","resume"],
+            "stage": ["login","cookies","transport","transport_navigation","transport_origin","transport_process","transport_script","bootstrap","identity","provider","storage","bridge","queue","connected","media","local_listener","registration","upstream","decoder"],
+            "code": ["missing_cookies","transport_initialization","transaction_bootstrap","authentication_expired","provider_rejection","rate_limited","account_challenge","timeout","cancelled","background_paused","session_storage","network_failure","unsupported_response","bridge_failure","invalid_handle","expired_registration","registration","local_queue","upstream_http","upstream_network","decoder_failure","interrupted_body","media_size_limit","unknown_media_failure","recovery_exhausted","stale_ownership"],
+            "nativeErrorDomain": ["url","webkit","other"],
+            "engine": ["native","webkit"], "page": ["login","home","challenge","other"],
+            "operation": ProviderHTTPTransport.operations, "resource": ["home","metadata","api"]
+        ] {
+            if let value = row[key] as? String, values.contains(value) { result[key] = value }
+        }
+        for key in ["attempt","endpoint","nativeErrorCode","status"] {
+            if let value = row[key] as? Int, (-100000...100000).contains(value), key != "status" || (100...599).contains(value) { result[key] = value }
+        }
+        for key in ["active","hasToken","hasCsrf","hasIdentity"] { if let value = row[key] as? Bool { result[key] = value } }
+        for key in ["time","elapsedMs"] { if let value = row[key] as? Double, value.isFinite, value >= 0, value <= (key == "time" ? 4102444800 : 75000) { result[key] = value } }
+        return result
+    }
+}

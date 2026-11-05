@@ -1,5 +1,18 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
+import { api, isTauri } from "@/lib/api";
+
+// Repeated authors in visible cards share a single local registration repair.
+const repairs = new Map<string, Promise<string | null>>();
+function repairPicture(username: string, source: string) {
+  const key = `${username.toLowerCase()}:${source}`;
+  let pending = repairs.get(key);
+  if (!pending) {
+    pending = api.recoverAccountImage(username).finally(() => repairs.delete(key));
+    repairs.set(key, pending);
+  }
+  return pending;
+}
 
 /**
  * The minimum an account has to carry to be shown and opened.
@@ -62,22 +75,41 @@ export function Avatar({
   className?: string;
   style?: CSSProperties;
 }) {
+  return <AccountPicture key={`${handleKey(author.username)}:${author.avatarUrl ?? ''}`} author={author} size={size} className={className} style={style}/>;
+}
+
+function AccountPicture({author,size,className,style}: {author:AccountRef;size:number;className?:string;style?:CSSProperties}) {
   const [failedSource, setFailedSource] = useState<string | null>(null);
   const [loadedSource,setLoadedSource]=useState<string|null>(null);
-  const source = author.avatarUrl?.trim();
+  const [renewed,setRenewed]=useState<string|null>(null);
+  const [attempt,setAttempt]=useState(0);
+  const recovering=useRef(false);
+  const owner=useRef(true);
+  useEffect(()=>{owner.current=true;return()=>{owner.current=false;};},[]);
+  const source = renewed || author.avatarUrl?.trim();
+  const fail=()=>{
+    if(!source)return;
+    if(recovering.current || !isTauri()) {setFailedSource(source);return;}
+    recovering.current=true;
+    void repairPicture(cleanHandle(author.username),source).then(fresh=>{
+      if(!owner.current)return;
+      if(!fresh){setFailedSource(source);return;}
+      setLoadedSource(null);setRenewed(fresh);setAttempt(1);
+    }).catch(()=>{if(owner.current)setFailedSource(source);});
+  };
   return source && source !== failedSource ? (
     <div aria-hidden className={cn("relative rounded-full shrink-0 overflow-hidden bg-surface-4 text-ink-dim grid place-items-center font-semibold",className)} style={{width:size,height:size,fontSize:size*0.36,...style}}>
       <span style={{visibility:loadedSource===source?'hidden':'visible'}}>{accountInitials(author)}</span>
     <img
-      key={source}
+      key={`${source}:${attempt}`}
       src={source}
       alt=""
       width={size}
       height={size}
-      loading="lazy"
+      loading="eager"
       decoding="async"
       draggable={false}
-      onError={() => setFailedSource(source)}
+      onError={fail}
       onLoad={()=>setLoadedSource(source)}
       className={cn(
         "absolute inset-0 rounded-full object-cover",

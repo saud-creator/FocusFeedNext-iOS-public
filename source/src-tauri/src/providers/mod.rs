@@ -17,6 +17,7 @@ pub mod mock;
 
 pub mod twitter_cli;
 pub mod native_ios;
+pub mod native_parser;
 pub mod content;
 
 use crate::credentials::CredentialStore;

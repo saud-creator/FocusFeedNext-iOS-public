@@ -53,7 +53,8 @@ function LazyFeedImage({
   const failure=useRef(onError);failure.current=onError;
   useEffect(()=>{
     if(!nearby || settled) return;
-    const timer=window.setTimeout(()=>{setSettled(true);failure.current?.();},20000);
+    // The proxy can queue for 10s before its 20s image transfer deadline.
+    const timer=window.setTimeout(()=>{setSettled(true);failure.current?.();},35000);
     return ()=>window.clearTimeout(timer);
   },[nearby,settled]);
   const { isIphone } = usePlatform();
@@ -95,12 +96,20 @@ function LazyFeedImage({
   );
 }
 
-function ImageTile({media, onOpen, onRecover, adaptive, single, spanFull}: {media:PostMedia;onOpen:()=>void;onRecover:()=>Promise<void>;adaptive:boolean;single:boolean;spanFull:boolean}) {
+function ImageTile({media, onOpen, onRecover, onAutoRecover, adaptive, single, spanFull}: {media:PostMedia;onOpen:()=>void;onRecover:()=>Promise<void>;onAutoRecover?:()=>Promise<void>;adaptive:boolean;single:boolean;spanFull:boolean}) {
   const {t}=useI18n();
   const [status,setStatus]=useState<'loading'|'loaded'|'failed'>('loading');
   const [attempt,setAttempt]=useState(0);
   const [retrying,setRetrying]=useState(false);
   const [intrinsicRatio,setIntrinsicRatio]=useState<number|null>(null);
+  const repaired=useRef(false);
+  const owner=useRef(true);
+  useEffect(()=>{owner.current=true;return()=>{owner.current=false;};},[]);
+  const fail=()=>{
+    if(!onAutoRecover || repaired.current){setStatus('failed');return;}
+    repaired.current=true;
+    void onAutoRecover().then(()=>{if(owner.current){setAttempt(n=>n+1);setStatus('loading');}}).catch(()=>{if(owner.current)setStatus('failed');});
+  };
   const ratio=intrinsicRatio ?? (media.width && media.height ? media.width/media.height : DEFAULT_MEDIA_RATIO);
   if(status==='failed' || !media.url) return <div className="rounded-lg border border-edge bg-surface-2 p-4 text-center text-sm text-ink-dim" role="group" aria-label={t('post.media.imageFailed')}>
     <p>{t('post.media.imageFailed')}</p>
@@ -115,7 +124,7 @@ function ImageTile({media, onOpen, onRecover, adaptive, single, spanFull}: {medi
     aria-busy={status==='loading'}
     aria-label={media.alt ? t('post.media.openImageAlt',{alt:media.alt}) : t('post.media.openImage')}>
     {status==='loading' && <span role="status" className="absolute inset-0 grid place-items-center p-3 text-xs text-ink-mute">{t('post.media.loadingImage')}</span>}
-    <LazyFeedImage key={`${media.url}:${attempt}`} media={media} onLoad={(width,height)=>{if(width>0 && height>0)setIntrinsicRatio(width/height);setStatus('loaded');}} onError={()=>setStatus('failed')} style={{width:'100%',height:'100%',objectFit:'contain',visibility:status==='loaded'?'visible':'hidden'}}/>
+    <LazyFeedImage key={`${media.url}:${attempt}`} media={media} onLoad={(width,height)=>{if(width>0 && height>0)setIntrinsicRatio(width/height);setStatus('loaded');}} onError={fail} style={{width:'100%',height:'100%',objectFit:'contain',visibility:status==='loaded'?'visible':'hidden'}}/>
   </button>;
 }
 
@@ -150,6 +159,7 @@ export function MediaGallery({
   const nativeMedia=useNativeMedia();
   const [lightboxAt, setLightboxAt] = useState<number | null>(null);
   const [recovered,setRecovered]=useState<{original:PostMedia[];items:PostMedia[]}|null>(null);
+  const autoRepairs=useRef(new Set<number>());
   const owner=useRef(true);
   useEffect(()=>{owner.current=true;return()=>{owner.current=false;};},[]);
   const recover=async(freshSource=false)=>{
@@ -157,10 +167,21 @@ export function MediaGallery({
     if(!postId || !isTauri())return;
     // Automatic registration repair reads the session cache. A deliberate
     // video retry refreshes that single post's provider URLs on iOS.
-    const fresh=freshSource && isIphone && isTauri() ? (await api.postContent(postId)).post : await api.post(postId);
+    let fresh:Post|null;
+    try {fresh=freshSource && isIphone ? (await api.postContent(postId)).post : await api.post(postId);}
+    catch {
+      // Metadata refresh may fail offline or be rate limited. A registered
+      // source can still work; renew it locally and let the image retry.
+      fresh=await api.post(postId);
+    }
     if(owner.current && fresh) {setRecovered({original:media,items:fresh.media});onPostRecovered?.(fresh);}
   };
   const displayed=recovered?.original===media ? recovered.items : media;
+  const autoRecover=async(index:number)=>{
+    if(autoRepairs.current.has(index))throw new Error('Image recovery already attempted.');
+    autoRepairs.current.add(index);
+    await recover(false);
+  };
 
   if (!media || media.length === 0) return null;
 
@@ -202,7 +223,7 @@ export function MediaGallery({
               : { gridTemplateRows: `repeat(${rows}, ${isIphone ? 'clamp(120px, 35vw, 180px)' : `${GRID_ROW_HEIGHT}px`})` }
           }
         >
-          {images.map((m, i) => <ImageTile key={`${m.url}:${i}`} media={m} single={single} adaptive={isIphone} spanFull={images.length===3 && i===0} onRecover={()=>recover(true)} onOpen={()=>void openImage(i)}/>)}
+          {images.map((m, i) => <ImageTile key={`${m.url}:${i}`} media={m} single={single} adaptive={isIphone} spanFull={images.length===3 && i===0} onRecover={()=>recover(true)} onAutoRecover={postId && isTauri() ? ()=>autoRecover(i) : undefined} onOpen={()=>void openImage(i)}/>)}
         </div>
       ) : null}
 

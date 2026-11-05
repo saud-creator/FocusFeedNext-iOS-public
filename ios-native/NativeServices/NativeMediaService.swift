@@ -1,0 +1,585 @@
+import AVFoundation
+import Foundation
+import ImageIO
+import UIKit
+
+enum NativeMediaFailure: Error, Equatable {
+    case invalidHandle, staleOwnership, unavailable, network, stalled, http(Int), recoveryExhausted, tooLarge
+    case brokerHTTP(NativeMediaHTTPFailure), interruptedBody(Int?), decoder
+}
+
+/// The broker validates account ownership and every upstream redirect. This service
+/// accepts only broker URLs and never receives credentials or a raw CDN URL.
+@MainActor final class NativeMediaService {
+    private let validateBrokerURL: (URL) async throws -> Void
+    private let repair: (URL, Bool) async throws -> URL
+    private let playerFactory: @MainActor (URL) -> AVPlayer
+    private var ownership = MediaOwnership(accountEpoch: 0, brokerEpoch: 0)
+    private var cache: [String: CachedImage] = [:]
+    private var order: [String] = []
+    private var cacheCost = 0
+    private let cacheLimit = 32 * 1024 * 1024
+    private var downloads: [UUID: BoundedBrokerImageDownload] = [:]
+    private var imageDeadlines: [UUID: NativeActiveDeadline<Data>] = [:]
+    private var recoveries: [String: Task<URL, Error>] = [:]
+    private var recoveryDeadlines: [String: NativeActiveDeadline<URL>] = [:]
+    private var seekDeadlines: [UUID: NativeActiveDeadline<Void>] = [:]
+    private let recoveryDebouncer = NativeRecoveryDebouncer()
+    private var budgets: [String: RecoveryAttemptBudget] = [:]
+    private var budgetOrder: [String] = []
+    private var recoveryAliases: [String: String] = [:]
+    private var aliasOrder: [String] = []
+    private var recoveryEpoch: UInt64 = 1
+    private var runtime = NativeRuntimeSnapshot()
+    private var current: (owner: UUID, source: URL, player: AVPlayer)?
+    private var statusObserver: NSKeyValueObservation?
+    private var timeControlObserver: NSKeyValueObservation?
+    private var rateObserver: NSKeyValueObservation?
+    private var muteObserver: NSKeyValueObservation?
+    private var audioActive = false
+    private var audioObservers: [NSObjectProtocol] = []
+    private var stallTimer: Timer?
+    private var stallBudget = ActiveTimeBudget(limit: 20)
+    private var lastProgress = 0.0
+    private var lastPlaybackRate: Float = 1
+    private var playerRecovery: Task<Void, Never>?
+    private var playerRecoveryID: UUID?
+    private var pauseRevision: UInt64 = 0
+    private var captureBeforeBrokerRestart: (() -> Void)?
+    private var failureHandlers: [UUID: (NativeMediaFailure) -> Void] = [:]
+    var playerFailed: ((UUID, NativeMediaFailure) -> Void)?
+    var recoveryOpportunity: (() -> Void)?
+    var ownershipInvalidated: ((Bool) -> Void)?
+    var ownershipSettled: ((Bool) -> Void)?
+    var diagnosticEvent: ((String, String, Int?) -> Void)?
+
+    init(validateBrokerURL: @escaping (URL) async throws -> Void,
+         repair: @escaping (URL, Bool) async throws -> URL,
+         playerFactory: @escaping @MainActor (URL) -> AVPlayer = { AVPlayer(playerItem:AVPlayerItem(asset:AVURLAsset(url:$0))) }) {
+        self.validateBrokerURL = validateBrokerURL; self.repair = repair; self.playerFactory = playerFactory
+        let center = NotificationCenter.default
+        audioObservers.append(center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+            guard (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue == AVAudioSession.InterruptionType.began.rawValue else { return }
+            Task { @MainActor in self?.pauseAll() }
+        })
+        audioObservers.append(center.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] note in
+            guard (note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.uintValue == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue else { return }
+            Task { @MainActor in self?.pauseAll() }
+        })
+        audioObservers.append(center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self, let owner = self.current?.owner else { return }
+                self.audioActive = false
+                self.pauseAll()
+                self.playerFailed?(owner, .unavailable); self.failureHandlers[owner]?(.unavailable)
+            }
+        })
+    }
+
+    func image(url: String, maxPixelDimension: Int = 1600, priority: Float = URLSessionTask.highPriority) async throws -> UIImage {
+        do { return try await loadImage(url: url, maxPixelDimension: maxPixelDimension, priority: priority) }
+        catch {
+            recordFailure(error)
+            throw error
+        }
+    }
+
+    private func loadImage(url: String, maxPixelDimension: Int, priority: Float) async throws -> UIImage {
+        let source = try Self.brokerURL(url)
+        let captured = ownership
+        try await validateForegroundSource(source, ownership: captured)
+        // A single 4096-square decode would already exceed the cache budget.
+        // Keep the existing full-screen photo ceiling and scale for display.
+        let dimension = min(2048, max(64, maxPixelDimension))
+        let key = "\(captured.accountEpoch):\(captured.brokerEpoch):\(dimension):\(source.absoluteString)"
+        if let cached = cache[key] { touch(key); return cached.image }
+        let id = UUID()
+        let download = BoundedBrokerImageDownload(url: source, maximumBytes: 16 * 1024 * 1024, priority: priority)
+        let deadline = NativeActiveDeadline<Data>(seconds: 35, active: runtime.foreground)
+        downloads[id] = download
+        imageDeadlines[id] = deadline
+        defer { downloads.removeValue(forKey: id); imageDeadlines.removeValue(forKey: id) }
+        let bytes = try await deadline.run {
+            try await withTaskCancellationHandler(operation: {
+                try Task.checkCancellation()
+                return try await download.run()
+            }, onCancel: { download.cancel() })
+        }
+        try Task.checkCancellation()
+        let decodePriority: TaskPriority = priority == URLSessionTask.lowPriority ? .utility : .userInitiated
+        let decode = Task.detached(priority: decodePriority) {
+            try Task.checkCancellation()
+            return try Self.downsample(bytes, maximum: dimension)
+        }
+        let decoded = try await withTaskCancellationHandler(operation: {
+            try await decode.value
+        }, onCancel: {
+            decode.cancel()
+        })
+        try Task.checkCancellation()
+        guard captured == ownership else { throw NativeMediaFailure.staleOwnership }
+        insert(decoded, key: key)
+        return decoded.image
+    }
+
+    func makePlayer(url: String, owner: UUID) async throws -> AVPlayer {
+        let source = try Self.brokerURL(url)
+        let captured = ownership
+        try await validateForegroundSource(source, ownership: captured)
+        stopPlayer()
+        let player = playerFactory(source)
+        player.automaticallyWaitsToMinimizeStalling = true
+        current = (owner, source, player)
+        observe(player, owner: owner)
+        return player
+    }
+
+    private func validateForegroundSource(_ source: URL, ownership captured: MediaOwnership) async throws {
+        try Task.checkCancellation()
+        do { try await validateBrokerURL(source) }
+        catch {
+            try Task.checkCancellation()
+            // A rotation can make the old URL fail validation rather than
+            // complete normally. Preserve that provenance for the one retry.
+            guard captured == ownership else { throw NativeMediaFailure.staleOwnership }
+            throw error
+        }
+        try Task.checkCancellation()
+        guard captured == ownership else { throw NativeMediaFailure.staleOwnership }
+        // Backgrounding may occur while the core validates a URL. Do not
+        // start a new transfer or decoder after the lifecycle cancellation.
+        guard runtime.foreground else { throw CancellationError() }
+    }
+
+    func releasePlayer(owner: UUID) { failureHandlers.removeValue(forKey: owner); if current?.owner == owner { stopPlayer() } }
+    /// AVPlayer's async seek is not inherently bounded by the metadata repair
+    /// deadline. Own its callback and cancellation so an unready asset cannot
+    /// leave native playback recovery permanently in flight.
+    func seek(player: AVPlayer, owner: UUID, position: Double) async throws {
+        guard position.isFinite, position >= 0, current?.owner == owner,
+              current?.player === player, let item = player.currentItem else { throw NativeMediaFailure.staleOwnership }
+        let captured = ownership
+        let deadline = NativeActiveDeadline<Void>(seconds:30, active:runtime.foreground)
+        seekDeadlines[owner]?.cancel(); seekDeadlines[owner] = deadline
+        defer { if seekDeadlines[owner] === deadline { seekDeadlines.removeValue(forKey:owner) } }
+        let operation = NativeCallbackOperation<Void>()
+        try await deadline.run {
+            try await operation.run(start: { complete in
+                player.seek(to:CMTime(seconds:position, preferredTimescale:600), toleranceBefore:.zero, toleranceAfter:.zero) { finished in
+                    complete(finished ? .success(()) : .failure(NativeMediaFailure.unavailable))
+                }
+            }, cancel: {
+                // AVPlayerItem cancels every seek on the item. A delayed
+                // cancellation for a superseded operation must not stop the
+                // new request that now owns this same item.
+                if self.current?.player.currentItem === item,
+                   let currentDeadline = self.seekDeadlines[owner],
+                   currentDeadline !== deadline { return }
+                item.cancelPendingSeeks()
+            })
+        }
+        try Task.checkCancellation()
+        guard captured == ownership, current?.owner == owner, current?.player === player,
+              player.currentItem === item else { throw NativeMediaFailure.staleOwnership }
+    }
+    func setPlayerBrokerRestartHandler(owner: UUID, _ handler: @escaping () -> Void) {
+        guard current?.owner == owner else { return }
+        captureBeforeBrokerRestart = handler
+    }
+    func setFailureHandler(owner: UUID, handler: @escaping (NativeMediaFailure) -> Void) { failureHandlers[owner] = handler }
+    func pausePlayer(player: AVPlayer, owner: UUID) {
+        guard current?.owner == owner, current?.player === player else { return }
+        pauseAll()
+    }
+    func pauseAll() { pauseRevision &+= 1; current?.player.pause(); deactivateAudio() }
+    var isForeground: Bool { runtime.foreground }
+    var playbackPauseRevision: UInt64 { pauseRevision }
+    func recoverVisiblePlayerIfNeeded() {
+        guard runtime.foreground, let current, let item = current.player.currentItem else { return }
+        if item.status == .failed { recoverPlayer(owner: current.owner, failure: .unavailable) }
+        else if current.player.timeControlStatus == .waitingToPlayAtSpecifiedRate {
+            recoverPlayer(owner: current.owner, failure: .stalled)
+        }
+    }
+
+    func updateRuntime(_ next: NativeRuntimeSnapshot) {
+        let opportunity = (!runtime.foreground && next.foreground) ||
+            (next.online && (!runtime.online || runtime.pathRevision != next.pathRevision))
+        let memoryChanged = next.memoryRevision != runtime.memoryRevision
+        runtime = next
+        recoveryDeadlines.values.forEach { $0.setActive(next.foreground) }
+        imageDeadlines.values.forEach { $0.setActive(next.foreground) }
+        seekDeadlines.values.forEach { $0.setActive(next.foreground) }
+        if !next.foreground {
+            recoveryDebouncer.cancel()
+            pauseAll()
+            downloads.values.forEach { $0.cancel() }
+            _ = stallBudget.update(now: ProcessInfo.processInfo.systemUptime, active: false)
+        }
+        if memoryChanged { clearImageCache() }
+        armStallWatchdog()
+        if opportunity {
+            recoveryDebouncer.submit { [weak self] in
+                guard let self = self, self.runtime.foreground else { return }
+                self.recoveryEpoch &+= 1; self.recoveryOpportunity?()
+            }
+        }
+    }
+
+    /// Account changes dismiss the old presentation. A broker-only change lets
+    /// the same-account presenter capture state and rebuild after cleanup.
+    func invalidate(accountEpoch: UInt64, brokerEpoch: UInt64) {
+        let next = MediaOwnership(accountEpoch: accountEpoch, brokerEpoch: brokerEpoch)
+        guard next != ownership else { return }
+        let accountChanged = next.accountEpoch != ownership.accountEpoch
+        // Capture the same account's playback before clearing the old item.
+        if !accountChanged { captureBeforeBrokerRestart?() }
+        ownershipInvalidated?(accountChanged)
+        ownership = next; recoveryEpoch &+= 1
+        downloads.values.forEach { $0.cancel() }; downloads.removeAll()
+        imageDeadlines.values.forEach { $0.cancel() }; imageDeadlines.removeAll()
+        recoveries.values.forEach { $0.cancel() }; recoveries.removeAll(); budgets.removeAll(); budgetOrder.removeAll(); recoveryAliases.removeAll(); aliasOrder.removeAll()
+        recoveryDeadlines.values.forEach { $0.cancel() }; recoveryDeadlines.removeAll(); recoveryDebouncer.cancel()
+        stopPlayer(); clearImageCache()
+        failureHandlers.removeAll()
+        ownershipSettled?(accountChanged)
+    }
+
+    /// The broker cancels work it owns when it rotates. A surviving visible
+    /// caller may resolve the same opaque handle again, once, in the new broker.
+    func continueAfterBrokerRotation<Value>(
+        _ operation: () async throws -> Value,
+        retry: () async throws -> Value
+    ) async throws -> Value {
+        let original = ownership
+        do {
+            let value = try await operation()
+            try Task.checkCancellation()
+            guard original.accountEpoch == ownership.accountEpoch else { throw CancellationError() }
+            guard original == ownership else { throw NativeMediaFailure.staleOwnership }
+            return value
+        } catch {
+            try Task.checkCancellation()
+            guard original.accountEpoch == ownership.accountEpoch else { throw CancellationError() }
+            guard runtime.foreground, original.brokerEpoch != ownership.brokerEpoch,
+                  error is CancellationError || (error as? NativeMediaFailure) == .staleOwnership else { throw error }
+        }
+
+        let replacement = ownership
+        do {
+            let value = try await retry()
+            try Task.checkCancellation()
+            guard replacement.accountEpoch == ownership.accountEpoch else { throw CancellationError() }
+            guard replacement == ownership else { throw NativeMediaFailure.staleOwnership }
+            return value
+        } catch {
+            try Task.checkCancellation()
+            guard replacement.accountEpoch == ownership.accountEpoch else { throw CancellationError() }
+            // A second foreground restart ends the attempt at Retry.
+            if runtime.foreground, replacement != ownership, error is CancellationError {
+                throw NativeMediaFailure.staleOwnership
+            }
+            throw error
+        }
+    }
+
+    func recover(url: String, freshSource: Bool = false, automatic: Bool = false) async throws -> URL {
+        let source = try Self.brokerURL(url)
+        let captured = ownership
+        let key = recoveryAliases[source.absoluteString] ?? "\(captured.accountEpoch):\(captured.brokerEpoch):\(source.absoluteString)"
+        if let task = recoveries[key] { return try await task.value }
+        var budget = budgets[key] ?? RecoveryAttemptBudget()
+        guard budget.claim(epoch: recoveryEpoch, now: ProcessInfo.processInfo.systemUptime, manual: !automatic) else {
+            diagnosticEvent?("failure", "recovery_exhausted", nil)
+            throw NativeMediaFailure.recoveryExhausted
+        }
+        diagnosticEvent?("recovery", "media", nil)
+        if budgets[key] == nil { budgetOrder.append(key) }
+        budgets[key] = budget
+        // Match one media-registry lifetime without resetting every other
+        // source's attempt history when a long session reaches the bound.
+        while budgets.count > 4096, !budgetOrder.isEmpty {
+            let oldest = budgetOrder.removeFirst(); budgets.removeValue(forKey:oldest)
+            recoveryAliases = recoveryAliases.filter { $0.value != oldest }
+            aliasOrder.removeAll { recoveryAliases[$0] == nil }
+        }
+        let deadline = NativeActiveDeadline<URL>(seconds: 30, active: runtime.foreground)
+        recoveryDeadlines[key] = deadline
+        let task = Task { @MainActor in
+          try await deadline.run {
+            try Task.checkCancellation()
+            let result = try await self.repair(source, freshSource)
+            _ = try Self.brokerURL(result.absoluteString)
+            try await self.validateBrokerURL(result)
+            try Task.checkCancellation()
+            guard captured == self.ownership else { throw NativeMediaFailure.staleOwnership }
+            return result
+          }
+        }
+        recoveries[key] = task
+        defer { recoveries.removeValue(forKey: key); recoveryDeadlines.removeValue(forKey: key) }
+        let result = try await task.value
+        guard captured == ownership else { throw NativeMediaFailure.staleOwnership }
+        // Rotating a local registration must not invent another automatic
+        // budget for the same source in this recovery epoch.
+        for alias in [source.absoluteString,result.absoluteString] {
+            if recoveryAliases[alias] == nil { aliasOrder.append(alias) }
+            recoveryAliases[alias] = key
+        }
+        while recoveryAliases.count > 8192, !aliasOrder.isEmpty { recoveryAliases.removeValue(forKey:aliasOrder.removeFirst()) }
+        // An unchanged registration must be fetched afresh after a transient failure.
+        clearImageCache()
+        return result
+    }
+
+    private func observe(_ player: AVPlayer, owner: UUID) {
+        statusObserver = player.currentItem?.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
+            guard item.status == .failed else { return }
+            Task { @MainActor in self?.receiveItemFailure(player:player, item:item, owner:owner) }
+        }
+        timeControlObserver = player.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] player, _ in
+            Task { @MainActor in
+                guard let self, self.current?.player === player else { return }
+                self.armStallWatchdog(); self.updateAudio()
+            }
+        }
+        rateObserver = player.observe(\.rate, options: [.initial, .new]) { [weak self] player, _ in
+            Task { @MainActor in
+                guard let self, self.current?.player === player else { return }
+                if player.rate > 0 { self.lastPlaybackRate = player.rate }
+                self.updateAudio()
+            }
+        }
+        muteObserver = player.observe(\.isMuted, options: [.initial, .new]) { [weak self] player, _ in
+            Task { @MainActor in
+                guard let self, self.current?.player === player else { return }
+                self.updateAudio()
+            }
+        }
+    }
+    /// KVO can enqueue an old failure before a new player/item is installed for
+    /// the same screen owner. Validate both identities after returning to main.
+    func receiveItemFailure(player: AVPlayer, item: AVPlayerItem, owner: UUID) {
+        guard current?.owner == owner, current?.player === player, player.currentItem === item else { return }
+        recoverPlayer(owner:owner, failure:.unavailable)
+    }
+    private func updateAudio() {
+        guard runtime.foreground, let player = current?.player, !player.isMuted,
+              player.rate > 0 || player.timeControlStatus == .waitingToPlayAtSpecifiedRate else { deactivateAudio(); return }
+        guard !audioActive else { return }
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .moviePlayback)
+            try session.setActive(true); audioActive = true
+        } catch { current?.player.pause() }
+    }
+    private func deactivateAudio() {
+        guard audioActive else { return }; audioActive = false
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    private func armStallWatchdog() {
+        stallTimer?.invalidate(); stallTimer = nil
+        let now = ProcessInfo.processInfo.systemUptime
+        guard let active = current else { stallBudget.progress(now: now, active: false); return }
+        guard runtime.foreground else { _ = stallBudget.update(now: now, active: false); return }
+        guard active.player.timeControlStatus == .waitingToPlayAtSpecifiedRate else {
+            if active.player.timeControlStatus == .playing { stallBudget.progress(now: now, active: false) }
+            else { _ = stallBudget.update(now: now, active: false) }
+            return
+        }
+        _ = stallBudget.update(now: now, active: true)
+        // Playback-time observers stop firing during a stall; use an active-only clock.
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self, weak player = active.player, weak item = active.player.currentItem] _ in
+          Task { @MainActor in
+            guard let self, let player, let item, let current = self.current,
+                  current.owner == active.owner, current.player === player,
+                  player.currentItem === item, self.runtime.foreground,
+                  player.timeControlStatus == .waitingToPlayAtSpecifiedRate else { return }
+            let seconds = current.player.currentTime().seconds
+            let now = ProcessInfo.processInfo.systemUptime
+            if seconds.isFinite && abs(seconds - self.lastProgress) > 0.05 {
+                self.stallBudget.progress(now: now, active: true); self.lastProgress = seconds
+            } else if self.stallBudget.update(now: now, active: true) {
+                self.stallTimer?.invalidate(); self.stallTimer = nil
+                self.recoverPlayer(owner: current.owner, failure: .stalled)
+            }
+          }
+        }
+        stallTimer = timer; RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func recoverPlayer(owner: UUID, failure: NativeMediaFailure) {
+        guard playerRecovery == nil, let active = current, active.owner == owner, runtime.foreground else { return }
+        let position = active.player.currentTime().seconds
+        let speed = active.player.rate > 0 ? active.player.rate : lastPlaybackRate
+        let muted = active.player.isMuted
+        let intent = active.player.rate > 0 || active.player.timeControlStatus == .waitingToPlayAtSpecifiedRate
+        let captured = ownership
+        let pause = pauseRevision
+        let recoveryID = UUID(); playerRecoveryID = recoveryID
+        playerRecovery = Task { @MainActor in
+            defer { if self.playerRecoveryID == recoveryID { self.playerRecovery = nil; self.playerRecoveryID = nil } }
+            do {
+                let repaired = try await self.recover(url: active.source.absoluteString, automatic: true)
+                guard self.current?.owner == owner, self.current?.player === active.player, self.ownership == captured else { return }
+                try await self.validateBrokerURL(repaired)
+                guard self.current?.owner == owner, self.current?.player === active.player, self.ownership == captured else { return }
+                let player = active.player
+                self.statusObserver = nil; self.timeControlObserver = nil; self.rateObserver = nil; self.muteObserver = nil
+                self.stallTimer?.invalidate(); self.stallTimer = nil
+                self.current = (owner, repaired, player)
+                player.replaceCurrentItem(with: AVPlayerItem(asset: AVURLAsset(url: repaired)))
+                self.stallBudget = ActiveTimeBudget(limit: 20)
+                self.observe(player, owner: owner)
+                player.isMuted = muted
+                if position.isFinite && position > 0 {
+                    try await self.seek(player:player, owner:owner, position:position)
+                }
+                guard self.current?.owner == owner, self.current?.player === active.player, self.ownership == captured else { return }
+                if intent && self.runtime.foreground && pause == self.pauseRevision { player.playImmediately(atRate: speed > 0 ? speed : 1) }
+            } catch {
+                guard self.current?.owner == owner, self.current?.player === active.player, self.ownership == captured else { return }
+                self.current?.player.pause(); self.playerFailed?(owner, failure); self.failureHandlers[owner]?(failure)
+            }
+        }
+    }
+
+    private func stopPlayer() {
+        captureBeforeBrokerRestart = nil
+        seekDeadlines.values.forEach { $0.cancel() }; seekDeadlines.removeAll()
+        playerRecovery?.cancel(); playerRecovery = nil; playerRecoveryID = nil
+        statusObserver = nil; timeControlObserver = nil; rateObserver = nil; muteObserver = nil
+        stallTimer?.invalidate(); stallTimer = nil
+        current?.player.pause(); current?.player.replaceCurrentItem(with: nil); current = nil
+        deactivateAudio()
+        stallBudget = ActiveTimeBudget(limit: 20); lastProgress = 0; lastPlaybackRate = 1
+    }
+
+    nonisolated static func brokerURL(_ raw: String) throws -> URL {
+        guard let url = URL(string: raw), url.scheme == "http", url.host == "127.0.0.1", url.port != nil,
+              url.user == nil, url.password == nil, url.query == nil, url.fragment == nil else { throw NativeMediaFailure.invalidHandle }
+        let parts = url.path.split(separator: "/")
+        guard parts.count == 3, parts[0] == "media", parts[1].count == 48, parts[2].count == 32,
+              parts.dropFirst().allSatisfy({ $0.allSatisfy(\.isHexDigit) }) else { throw NativeMediaFailure.invalidHandle }
+        return url
+    }
+
+    // ImageIO produces an immutable bitmap. No view or mutable drawing state
+    // crosses from the decode task into the main-actor cache.
+    struct CachedImage: @unchecked Sendable {
+        let image: UIImage
+        let cost: Int
+    }
+    nonisolated static func downsample(_ data: Data, maximum: Int) throws -> CachedImage {
+        guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
+              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: maximum, kCGImageSourceShouldCacheImmediately: true
+              ] as CFDictionary) else { throw NativeMediaFailure.decoder }
+        return CachedImage(image: UIImage(cgImage: image), cost: image.bytesPerRow * image.height)
+    }
+    private func touch(_ key: String) { order.removeAll { $0 == key }; order.append(key) }
+    private func insert(_ value: CachedImage, key: String) {
+        guard value.cost <= cacheLimit else { return }
+        if let previous = cache.removeValue(forKey: key) { cacheCost -= previous.cost }
+        order.removeAll { $0 == key }
+        while cacheCost + value.cost > cacheLimit, let oldest = order.first {
+            order.removeFirst(); if let previous = cache.removeValue(forKey: oldest) { cacheCost -= previous.cost }
+        }
+        cache[key] = value; order.append(key); cacheCost += value.cost
+    }
+    private func clearImageCache() { cache.removeAll(); order.removeAll(); cacheCost = 0 }
+    private func recordFailure(_ error: Error) {
+        if error is CancellationError { return }
+        let code: String
+        var status: Int? = nil
+        switch error {
+        case NativeMediaFailure.brokerHTTP(let failure): code = failure.origin.rawValue; status = failure.status
+        case NativeMediaFailure.interruptedBody(let responseStatus): code = "interrupted_body"; status = responseStatus
+        case NativeMediaFailure.decoder: code = "decoder_failure"
+        case NativeMediaFailure.invalidHandle: code = "invalid_handle"
+        case NativeMediaFailure.staleOwnership: code = "stale_ownership"
+        case NativeMediaFailure.tooLarge: code = "media_size_limit"
+        case NativeMediaFailure.network: code = "network_failure"
+        case NativeRecoveryError.timeout: code = "timeout"
+        default: code = "unknown_media_failure"
+        }
+        diagnosticEvent?("failure", code, status)
+    }
+    func diagnosticSnapshot() -> [String: Any] {
+        ["accountEpoch": ownership.accountEpoch, "brokerEpoch": ownership.brokerEpoch,
+         "imageCacheCostBytes": cacheCost, "imageCacheBudgetBytes": cacheLimit,
+         "decodedImages": cache.count, "imageRequests": downloads.count,
+         "pendingRecoveries": recoveries.count, "activePlayers": current == nil ? 0 : 1,
+         "recoveryEpoch": recoveryEpoch, "processMemory": NativeProcessMemory.snapshot()]
+    }
+    deinit { audioObservers.forEach(NotificationCenter.default.removeObserver) }
+}
+
+/// Header and incremental body limits apply before allocating the complete image.
+private final class BoundedBrokerImageDownload: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+    private let url: URL
+    private let maximumBytes: Int
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Data, Error>?
+    private var session: URLSession?
+    private var task: URLSessionDataTask?
+    private var data = Data()
+    private var cancelled = false
+    private var responseStatus: Int?
+    private let priority: Float
+    init(url: URL, maximumBytes: Int, priority: Float) { self.url = url; self.maximumBytes = maximumBytes; self.priority = priority }
+    func run() async throws -> Data {
+        try await withCheckedThrowingContinuation { continuation in
+            lock.lock()
+            if cancelled { lock.unlock(); continuation.resume(throwing: CancellationError()); return }
+            self.continuation = continuation
+            let config = URLSessionConfiguration.ephemeral
+            config.urlCache = nil; config.httpCookieStorage = nil; config.httpShouldSetCookies = false
+            config.requestCachePolicy = .reloadIgnoringLocalCacheData
+            config.timeoutIntervalForRequest = 35; config.timeoutIntervalForResource = 35
+            config.httpMaximumConnectionsPerHost = 4
+            let queue = OperationQueue(); queue.maxConcurrentOperationCount = 1
+            let session = URLSession(configuration: config, delegate: self, delegateQueue: queue)
+            self.session = session
+            let task = session.dataTask(with: url); task.priority = priority; self.task = task
+            lock.unlock(); task.resume()
+        }
+    }
+    func cancel() { lock.lock(); cancelled = true; lock.unlock(); finish(.failure(CancellationError())) }
+    private func finish(_ result: Result<Data, Error>) {
+        lock.lock(); let continuation = self.continuation; self.continuation = nil
+        let session = self.session; self.session = nil; self.task = nil
+        lock.unlock()
+        session?.invalidateAndCancel(); continuation?.resume(with: result)
+    }
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let http = response as? HTTPURLResponse
+            let failure = NativeMediaHTTPFailure(status:http?.statusCode ?? 0,
+                brokerOrigin:http?.value(forHTTPHeaderField:"x-focusfeed-failure-origin"),
+                trustedResponse:response.url == url)
+            completionHandler(.cancel); finish(.failure(NativeMediaFailure.brokerHTTP(failure))); return
+        }
+        lock.lock(); responseStatus = http.statusCode; lock.unlock()
+        guard response.expectedContentLength <= Int64(maximumBytes) else { completionHandler(.cancel); finish(.failure(NativeMediaFailure.tooLarge)); return }
+        completionHandler(.allow)
+    }
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        lock.lock()
+        let exceeds = self.data.count > maximumBytes - data.count
+        if !exceeds { self.data.append(data) }
+        lock.unlock()
+        if exceeds { finish(.failure(NativeMediaFailure.tooLarge)) }
+    }
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        lock.lock(); let result = data; let status = responseStatus; let wasCancelled = cancelled; lock.unlock()
+        if let error {
+            if wasCancelled || (error as NSError).code == NSURLErrorCancelled { finish(.failure(CancellationError())) }
+            else if let status { finish(.failure(NativeMediaFailure.interruptedBody(status))) }
+            else { finish(.failure(NativeMediaFailure.network)) }
+        } else { finish(.success(result)) }
+    }
+}

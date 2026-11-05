@@ -1,3 +1,4 @@
+import { Avatar } from "@/components/account/Avatar";
 import {
   Activity,
   BookMarked,
@@ -268,17 +269,7 @@ export function Sidebar({ unread }: { unread: number }) {
           className="w-full text-start rounded-[10px] bg-surface-2 border border-edge px-2.5 py-2 hover:border-edge-strong transition-colors cursor-pointer"
         >
           <div className="flex items-center gap-2.5">
-            {snapshot?.account?.avatarUrl ? (
-              <img
-                src={snapshot.account.avatarUrl}
-                alt=""
-                width={28}
-                height={28}
-                className="size-7 rounded-full border border-edge object-cover shrink-0"
-              />
-            ) : (
-              <div className="size-7 rounded-full border border-edge bg-surface-3 shrink-0" />
-            )}
+            {snapshot?.account ? <Avatar author={snapshot.account} size={28} className="border border-edge" /> : <div className="rounded-full border border-edge bg-surface-3 shrink-0" style={{width:28,height:28}} />}
             <div className="min-w-0 flex-1">
               {snapshot?.account ? (
                 <>

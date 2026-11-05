@@ -6,6 +6,17 @@ with its newer **0.8.5 stability source**, followed by the **verified 0.9.0 link
 `source/`: React/TypeScript, a shared Rust/Tauri backend, and an iOS
 Swift/WebKit plugin.
 
+## Native 0.10.0 implementation candidate
+
+The `codex/native-ios-quality` branch adds a standalone UIKit application in
+`ios-native/`, an extracted Rust core and a pinned UniFFI Swift interface in
+`crates/`. See [native implementation and verification](docs/NATIVE_IMPLEMENTATION.md).
+It preserves the original app identity and the existing desktop source below.
+This is an implementation candidate, not a physical-device-qualified release.
+The native cloud workflow must pass before an unsigned IPA can be delivered;
+signing, an upgrade over build 090.31, live X media, and device performance remain
+separate acceptance gates.
+
 ## Start here
 
 - [App improvement plan](docs/IMPROVEMENT_PLAN.md)

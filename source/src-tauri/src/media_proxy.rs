@@ -53,7 +53,9 @@ use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration,Instant};
+use std::pin::Pin;
+use std::task::{Context,Poll};
 
 /// Hosts this proxy is permitted to fetch from.
 ///
@@ -87,10 +89,296 @@ const MAX_MEDIA_BYTES: u64 = 128 * 1024 * 1024;
 /// ceiling so diagnostics and tests can state the same policy as the stream.
 const MAX_RESPONSE_HEADER_BYTES: usize = 64 * 1024;
 
-/// Concurrent upstream transfers. The WebView may ask for several posters and
-/// renditions at once; a small fixed bound keeps network and decoder pressure
-/// predictable on long virtualized feeds.
+/// Separate bounded pools keep long video transfers from starving pictures.
 const MAX_CONCURRENT_TRANSFERS: usize = 4;
+
+/// Fixed-size, session-only aggregates. No URL, account, content, secret, or
+/// individual request history is retained by the transport diagnostics.
+#[derive(Default)]
+struct PoolMetrics {
+    requests_total: AtomicU64,
+    active_transfers: AtomicU64,
+    queued_transfers: AtomicU64,
+    queue_wait_ms_total: AtomicU64,
+    queue_wait_ms_max: AtomicU64,
+    upstream_headers_ms_total: AtomicU64,
+    upstream_headers_ms_max: AtomicU64,
+    bytes_streamed: AtomicU64,
+    completed: AtomicU64,
+    cancelled: AtomicU64,
+    failures: AtomicU64,
+}
+#[derive(Default)]
+struct ProxyMetrics {
+    images: Arc<PoolMetrics>,
+    videos: Arc<PoolMetrics>,
+}
+#[derive(Debug, Clone, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PoolMetricsSnapshot {
+    /// Authorized GET and HEAD requests, including native diagnostic probes.
+    pub requests_total: u64,
+    pub active_transfers: u64,
+    pub queued_transfers: u64,
+    pub queue_wait_ms_total: u64,
+    pub queue_wait_ms_max: u64,
+    pub upstream_headers_ms_total: u64,
+    pub upstream_headers_ms_max: u64,
+    /// Payload emitted by this proxy, excluding headers/TLS/IP overhead. This
+    /// does not claim that a client decoded or displayed the emitted bytes.
+    pub bytes_streamed: u64,
+    pub completed: u64,
+    pub cancelled: u64,
+    pub failures: u64,
+}
+#[derive(Debug, Clone, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaMetricsSnapshot {
+    #[serde(flatten)]
+    pub total: PoolMetricsSnapshot,
+    pub images: PoolMetricsSnapshot,
+    pub videos: PoolMetricsSnapshot,
+}
+fn add_counter(counter: &AtomicU64, value: u64) {
+    let _ = counter.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |old| {
+        Some(old.saturating_add(value))
+    });
+}
+fn measured_ms(since: Instant) -> u64 {
+    since.elapsed().as_millis().min(u64::MAX as u128) as u64
+}
+impl PoolMetrics {
+    fn snapshot(&self) -> PoolMetricsSnapshot {
+        let load = |value: &AtomicU64| value.load(Ordering::Relaxed);
+        PoolMetricsSnapshot {
+            requests_total: load(&self.requests_total),
+            active_transfers: load(&self.active_transfers),
+            queued_transfers: load(&self.queued_transfers),
+            queue_wait_ms_total: load(&self.queue_wait_ms_total),
+            queue_wait_ms_max: load(&self.queue_wait_ms_max),
+            upstream_headers_ms_total: load(&self.upstream_headers_ms_total),
+            upstream_headers_ms_max: load(&self.upstream_headers_ms_max),
+            bytes_streamed: load(&self.bytes_streamed),
+            completed: load(&self.completed),
+            cancelled: load(&self.cancelled),
+            failures: load(&self.failures),
+        }
+    }
+    fn queue_wait(&self, start: Instant) {
+        let ms = measured_ms(start);
+        add_counter(&self.queue_wait_ms_total, ms);
+        self.queue_wait_ms_max.fetch_max(ms, Ordering::Relaxed);
+    }
+    fn header_wait(&self, start: Instant) {
+        let ms = measured_ms(start);
+        add_counter(&self.upstream_headers_ms_total, ms);
+        self.upstream_headers_ms_max
+            .fetch_max(ms, Ordering::Relaxed);
+    }
+}
+impl ProxyMetrics {
+    fn pool(&self, image: bool) -> Arc<PoolMetrics> {
+        Arc::clone(if image { &self.images } else { &self.videos })
+    }
+    fn snapshot(&self) -> MediaMetricsSnapshot {
+        let images = self.images.snapshot();
+        let videos = self.videos.snapshot();
+        let sum = |a: u64, b: u64| a.saturating_add(b);
+        let total = PoolMetricsSnapshot {
+            requests_total: sum(images.requests_total, videos.requests_total),
+            active_transfers: sum(images.active_transfers, videos.active_transfers),
+            queued_transfers: sum(images.queued_transfers, videos.queued_transfers),
+            queue_wait_ms_total: sum(images.queue_wait_ms_total, videos.queue_wait_ms_total),
+            queue_wait_ms_max: images.queue_wait_ms_max.max(videos.queue_wait_ms_max),
+            upstream_headers_ms_total: sum(
+                images.upstream_headers_ms_total,
+                videos.upstream_headers_ms_total,
+            ),
+            upstream_headers_ms_max: images
+                .upstream_headers_ms_max
+                .max(videos.upstream_headers_ms_max),
+            bytes_streamed: sum(images.bytes_streamed, videos.bytes_streamed),
+            completed: sum(images.completed, videos.completed),
+            cancelled: sum(images.cancelled, videos.cancelled),
+            failures: sum(images.failures, videos.failures),
+        };
+        MediaMetricsSnapshot {
+            total,
+            images,
+            videos,
+        }
+    }
+}
+#[derive(Clone, Copy, PartialEq)]
+enum TransferOutcome {
+    Pending,
+    Completed,
+    Failed,
+}
+/// The permit and counters have one owner from queue admission until the
+/// response stream is consumed or cancelled, including future cancellation.
+struct MeasuredTransfer {
+    metrics: Arc<PoolMetrics>,
+    queue_started: Option<Instant>,
+    headers_started: Option<Instant>,
+    permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    outcome: TransferOutcome,
+}
+impl MeasuredTransfer {
+    fn queued(metrics: Arc<PoolMetrics>) -> Self {
+        add_counter(&metrics.requests_total, 1);
+        add_counter(&metrics.queued_transfers, 1);
+        Self {
+            metrics,
+            queue_started: Some(Instant::now()),
+            headers_started: None,
+            permit: None,
+            outcome: TransferOutcome::Pending,
+        }
+    }
+    fn finish_queue(&mut self) {
+        if let Some(start) = self.queue_started.take() {
+            self.metrics
+                .queued_transfers
+                .fetch_sub(1, Ordering::Relaxed);
+            self.metrics.queue_wait(start);
+        }
+    }
+    fn activate(&mut self, permit: tokio::sync::OwnedSemaphorePermit) {
+        self.finish_queue();
+        self.permit = Some(permit);
+        add_counter(&self.metrics.active_transfers, 1);
+        self.headers_started = Some(Instant::now());
+    }
+    fn headers(&mut self) {
+        if let Some(start) = self.headers_started.take() {
+            self.metrics.header_wait(start);
+        }
+    }
+    fn complete(&mut self) {
+        if self.outcome == TransferOutcome::Pending {
+            self.outcome = TransferOutcome::Completed;
+        }
+    }
+    fn fail(&mut self) {
+        self.outcome = TransferOutcome::Failed;
+    }
+}
+impl Drop for MeasuredTransfer {
+    fn drop(&mut self) {
+        self.finish_queue();
+        self.headers();
+        if self.permit.is_some() {
+            self.metrics
+                .active_transfers
+                .fetch_sub(1, Ordering::Relaxed);
+        }
+        add_counter(
+            match self.outcome {
+                TransferOutcome::Pending => &self.metrics.cancelled,
+                TransferOutcome::Completed => &self.metrics.completed,
+                TransferOutcome::Failed => &self.metrics.failures,
+            },
+            1,
+        );
+    }
+}
+struct MeasuredMediaStream {
+    upstream:
+        Pin<Box<dyn futures_util::Stream<Item = Result<Bytes, std::io::Error>> + Send + Sync>>,
+    registry: Arc<MediaRegistry>,
+    generation: u64,
+    received: u64,
+    expected: Option<u64>,
+    transfer: Option<MeasuredTransfer>,
+    ended: bool,
+}
+impl futures_util::Stream for MeasuredMediaStream {
+    type Item = Result<Frame<Bytes>, std::io::Error>;
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+        if this.ended {
+            return Poll::Ready(None);
+        }
+        match this.upstream.as_mut().poll_next(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(None) => {
+                this.ended = true;
+                if let Some(transfer) = this.transfer.as_mut() {
+                    if this
+                        .expected
+                        .is_some_and(|expected| expected != this.received)
+                    {
+                        transfer.fail();
+                    } else {
+                        transfer.complete();
+                    }
+                }
+                this.transfer.take();
+                Poll::Ready(None)
+            }
+            Poll::Ready(Some(item)) => {
+                let item = match item {
+                    _ if this.registry.generation() != this.generation => {
+                        Err(std::io::Error::other("media session ended"))
+                    }
+                    Ok(chunk) => {
+                        this.received = this.received.saturating_add(chunk.len() as u64);
+                        if this.received > MAX_MEDIA_BYTES {
+                            if let Some(transfer) = this.transfer.as_mut() {
+                                transfer.fail();
+                            }
+                            Err(std::io::Error::other(
+                                "media response exceeded its size limit",
+                            ))
+                        } else {
+                            if let Some(transfer) = this.transfer.as_mut() {
+                                add_counter(&transfer.metrics.bytes_streamed, chunk.len() as u64);
+                                if this.expected == Some(this.received) {
+                                    transfer.complete();
+                                }
+                            }
+                            Ok(Frame::data(chunk))
+                        }
+                    }
+                    Err(error) => {
+                        if let Some(transfer) = this.transfer.as_mut() {
+                            transfer.fail();
+                        }
+                        Err(error)
+                    }
+                };
+                if item.is_err() {
+                    this.ended = true;
+                    this.transfer.take();
+                }
+                Poll::Ready(Some(item))
+            }
+        }
+    }
+}
+
+struct TransferPools {
+    images: Arc<tokio::sync::Semaphore>,
+    videos: Arc<tokio::sync::Semaphore>,
+}
+
+impl TransferPools {
+    fn new() -> Self {
+        Self {
+            images: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_TRANSFERS)),
+            videos: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_TRANSFERS)),
+        }
+    }
+
+    fn for_url(&self, url: &str) -> &Arc<tokio::sync::Semaphore> {
+        if reqwest::Url::parse(url).ok().is_some_and(|url| url.host_str() == Some("pbs.twimg.com")) {
+            &self.images
+        } else {
+            &self.videos
+        }
+    }
+}
 
 async fn acquire_transfer(semaphore: &Arc<tokio::sync::Semaphore>) -> Option<tokio::sync::OwnedSemaphorePermit> {
     // A normal viewport asks for several avatars and photos together. Queue
@@ -358,6 +646,7 @@ pub struct MediaProxy {
     port: u16,
     secret: String,
     registry: Arc<MediaRegistry>,
+    metrics:Arc<ProxyMetrics>,
     /// Dropping this tells the accept loop to stop.
     shutdown: Option<tokio::sync::oneshot::Sender<()>>,
 }
@@ -381,6 +670,10 @@ impl MediaProxy {
     pub fn registry(&self) -> Arc<MediaRegistry> {
         Arc::clone(&self.registry)
     }
+    /// A bounded aggregate snapshot for authorized native diagnostics. Counter
+    /// reads are individually atomic; concurrent requests may advance between
+    /// fields. No remote destination or per-request identifier is exposed.
+    pub fn metrics(&self)->MediaMetricsSnapshot {self.metrics.snapshot()}
 
     /// Bind and start serving.
     ///
@@ -453,11 +746,13 @@ impl MediaProxy {
             })?;
 
         let (tx, mut rx) = tokio::sync::oneshot::channel::<()>();
+        let metrics=Arc::new(ProxyMetrics::default());
         let ctx = Arc::new(ProxyContext {
             secret: secret.clone(),
             registry: Arc::clone(&registry),
             client,
-            semaphore: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_TRANSFERS)),
+            transfers: TransferPools::new(),
+            metrics:Arc::clone(&metrics),
             #[cfg(any(test, all(feature = "dev-mock", debug_assertions)))]
             test_upstream_prefix,
         });
@@ -495,6 +790,7 @@ impl MediaProxy {
             port,
             secret,
             registry,
+            metrics,
             shutdown: Some(tx),
         })
     }
@@ -524,7 +820,8 @@ struct ProxyContext {
     secret: String,
     registry: Arc<MediaRegistry>,
     client: reqwest::Client,
-    semaphore: Arc<tokio::sync::Semaphore>,
+    transfers: TransferPools,
+    metrics:Arc<ProxyMetrics>,
     /// See [`MediaProxy::start_with_test_upstream`]. Absent from release builds.
     #[cfg(any(test, all(feature = "dev-mock", debug_assertions)))]
     test_upstream_prefix: Option<String>,
@@ -569,6 +866,15 @@ fn refuse(status: StatusCode) -> Response<ProxyBody> {
         .insert("content-type", HeaderValue::from_static("text/plain"));
     harden(res.headers_mut());
     res
+}
+
+/// Provenance is attached only after the process secret and a live registered
+/// media id have been verified. Unknown paths retain the identical refusal
+/// shape above; native diagnostics cannot turn this into a probing oracle.
+fn refuse_validated(status:StatusCode,origin:&'static str)->Response<ProxyBody>{
+    let mut response=refuse(status);
+    response.headers_mut().insert("x-focusfeed-failure-origin",HeaderValue::from_static(origin));
+    response
 }
 
 /// Headers set on every response we produce.
@@ -666,14 +972,20 @@ async fn handle(req: Request<Incoming>, ctx: Arc<ProxyContext>) -> Response<Prox
     let Some(url) = ctx.allow(&entry.url) else {
         return refuse(StatusCode::FORBIDDEN);
     };
-
-    let permit = match acquire_transfer(&ctx.semaphore).await {
-        Some(permit) => permit,
-        None => return refuse(StatusCode::TOO_MANY_REQUESTS),
-    };
-    if ctx.registry.generation()!=entry.generation {return refuse(StatusCode::NOT_FOUND);}
-
     let image_request=reqwest::Url::parse(url).ok().is_some_and(|parsed|parsed.host_str()==Some("pbs.twimg.com"));
+    let mut measured=MeasuredTransfer::queued(ctx.metrics.pool(image_request));
+
+    // Diagnostics must not queue behind the transfers they are diagnosing.
+    // A HEAD from the trusted app returns local queue exhaustion immediately;
+    // ordinary media GETs retain the existing bounded ten-second wait.
+    let acquired=if req.method()==Method::HEAD {Arc::clone(ctx.transfers.for_url(url)).try_acquire_owned().ok()}else{acquire_transfer(ctx.transfers.for_url(url)).await};
+    let permit = match acquired {
+        Some(permit) => permit,
+        None => {measured.fail();return refuse_validated(StatusCode::TOO_MANY_REQUESTS,"local_queue");},
+    };
+    measured.activate(permit);
+    if ctx.registry.generation()!=entry.generation {return refuse_validated(StatusCode::NOT_FOUND,"registration");}
+
     let mut upstream = ctx.client.get(url).timeout(Duration::from_secs(if image_request {20}else{90}));
     for name in FORWARDED_REQUEST_HEADERS {
         if let Some(v) = req.headers().get(*name) {
@@ -684,6 +996,7 @@ async fn handle(req: Request<Incoming>, ctx: Arc<ProxyContext>) -> Response<Prox
     let response = match upstream.send().await {
         Ok(r) => r,
         Err(e) => {
+            measured.fail();
             // The URL is never logged: it is signed, and a log file is a
             // durable artefact this app otherwise avoids producing.
             log::warn!(
@@ -697,9 +1010,10 @@ async fn handle(req: Request<Incoming>, ctx: Arc<ProxyContext>) -> Response<Prox
                     "request"
                 }
             );
-            return refuse(StatusCode::BAD_GATEWAY);
+            return refuse_validated(StatusCode::BAD_GATEWAY,"upstream_network");
         }
     };
+    measured.headers();
 
     let header_bytes: usize = response
         .headers()
@@ -707,20 +1021,26 @@ async fn handle(req: Request<Incoming>, ctx: Arc<ProxyContext>) -> Response<Prox
         .map(|(name, value)| name.as_str().len() + value.as_bytes().len() + 4)
         .sum();
     if header_bytes > MAX_RESPONSE_HEADER_BYTES {
-        return refuse(StatusCode::BAD_GATEWAY);
+        measured.fail();
+        return refuse_validated(StatusCode::BAD_GATEWAY,"upstream_http");
     }
     if response
         .content_length()
         .is_some_and(|length| length > MAX_MEDIA_BYTES)
     {
-        return refuse(StatusCode::PAYLOAD_TOO_LARGE);
+        measured.fail();
+        return refuse_validated(StatusCode::PAYLOAD_TOO_LARGE,"upstream_http");
     }
 
     let status =
         StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    if !status.is_success() && status!=StatusCode::NOT_MODIFIED{measured.fail();}
     let mut out = Response::new(empty_body());
     *out.status_mut() = status;
     copy_response_headers(response.headers(), out.headers_mut());
+    // A forwarded CDN 429 is distinct from exhausting our own transfer pool.
+    // The upstream response cannot supply or override this private header.
+    out.headers_mut().insert("x-focusfeed-failure-origin",HeaderValue::from_static("upstream_http"));
     if let Some(o) = allow_origin {
         out.headers_mut()
             .insert("access-control-allow-origin", HeaderValue::from_static(o));
@@ -729,6 +1049,7 @@ async fn handle(req: Request<Incoming>, ctx: Arc<ProxyContext>) -> Response<Prox
 
     // HEAD, 304 and 416 carry no body; their headers are the whole answer.
     if req.method() == Method::HEAD || status == StatusCode::NOT_MODIFIED {
+        measured.complete();
         return out;
     }
 
@@ -736,31 +1057,13 @@ async fn handle(req: Request<Incoming>, ctx: Arc<ProxyContext>) -> Response<Prox
     // chunk rather than a file, and dropping the response — which is what
     // happens when the webview cancels or the card unmounts — cancels the
     // upstream request with it.
-    let registry=Arc::clone(&ctx.registry);
-    let generation=entry.generation;
-    let stream = futures_util::StreamExt::scan(
-        response
-            .bytes_stream()
-            .map_err(|e| std::io::Error::other(e.to_string())),
-        0u64,
-        move |total, item| {
-            *total = total.saturating_add(
-                item.as_ref().map(|chunk| chunk.len() as u64).unwrap_or(0),
-            );
-            let next = match item {
-                _ if registry.generation()!=generation => Err(std::io::Error::other("media session ended")),
-                Ok(chunk) if *total <= MAX_MEDIA_BYTES => Ok(Frame::data(chunk)),
-                Ok(_) => Err(std::io::Error::other(
-                    "media response exceeded its size limit",
-                )),
-                Err(error) => Err(error),
-            };
-            // Keep the concurrency permit until the WebView has consumed the
-            // stream or cancelled it, not merely until headers arrive.
-            let _permit = &permit;
-            std::future::ready(Some(next))
-        },
-    );
+    let expected=response.content_length();
+    if expected==Some(0){measured.complete();}
+    let stream=MeasuredMediaStream{
+        upstream:Box::pin(response.bytes_stream().map_err(|error|std::io::Error::other(error.to_string()))),
+        registry:Arc::clone(&ctx.registry),generation:entry.generation,received:0,expected,
+        transfer:Some(measured),ended:false,
+    };
     *out.body_mut() = StreamBody::new(stream).boxed();
     out
 }
@@ -782,6 +1085,47 @@ pub fn copy_response_headers(from: &HeaderMap, to: &mut HeaderMap) {
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn measured_phases_remain_separate_and_each_pool_accounts_for_its_own_work() {
+        let metrics=super::ProxyMetrics::default();
+        let slots=std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+        let mut transfer=super::MeasuredTransfer::queued(metrics.pool(true));
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        transfer.activate(std::sync::Arc::clone(&slots).acquire_owned().await.unwrap());
+        assert_eq!(metrics.snapshot().images.active_transfers,1);
+        assert_eq!(metrics.snapshot().images.queued_transfers,0);
+        let queued_ms=metrics.snapshot().images.queue_wait_ms_total;
+        assert!(queued_ms>=10);
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        transfer.headers();transfer.complete();drop(transfer);
+        let cancelled=super::MeasuredTransfer::queued(metrics.pool(false));drop(cancelled);
+        let result=metrics.snapshot();
+        assert_eq!(result.images.requests_total,1);assert_eq!(result.images.completed,1);
+        assert_eq!(result.images.queue_wait_ms_total,queued_ms);
+        assert!(result.images.upstream_headers_ms_total>=15);
+        assert_eq!(result.videos.cancelled,1);assert_eq!(result.videos.completed,0);
+        assert_eq!(result.total.requests_total,2);assert_eq!(result.total.active_transfers,0);assert_eq!(result.total.queued_transfers,0);
+        assert_eq!(slots.available_permits(),1);
+    }
+    #[tokio::test]
+    async fn pictures_have_bounded_capacity_even_when_every_video_slot_is_busy() {
+        let pools = super::TransferPools::new();
+        let videos = pools.for_url("https://video.twimg.com/clip.mp4");
+        let mut held = Vec::new();
+        for _ in 0..super::MAX_CONCURRENT_TRANSFERS {
+            held.push(super::acquire_transfer(videos).await.unwrap());
+        }
+        assert!(videos.try_acquire().is_err());
+        let pictures = pools.for_url("https://pbs.twimg.com/profile_images/avatar.jpg");
+        let mut images = Vec::new();
+        for _ in 0..super::MAX_CONCURRENT_TRANSFERS {
+            images.push(tokio::time::timeout(std::time::Duration::from_millis(100), super::acquire_transfer(pictures)).await.unwrap().unwrap());
+        }
+        assert!(pictures.try_acquire().is_err());
+        drop(held);
+        assert!(videos.try_acquire().is_ok());
+        assert!(pictures.try_acquire().is_err());
+    }
     #[tokio::test]
     async fn a_normal_avatar_burst_waits_for_capacity_instead_of_failing() {
         let slots=std::sync::Arc::new(tokio::sync::Semaphore::new(4));
@@ -902,7 +1246,9 @@ mod tests {
         assert_eq!(id.len(), 32);
         assert!(id.chars().all(|c| c.is_ascii_hexdigit()));
         assert!(!id.contains("twimg"));
-        assert!(!id.contains("abc"));
+        // A random hexadecimal id can contain "abc" by chance. Verify the
+        // private lookup instead of rejecting a legitimate random sample.
+        assert_eq!(reg.lookup(&id).unwrap().url,"https://video.twimg.com/ext/vid/abc.mp4?tag=12");
     }
 
     #[test]
@@ -1167,6 +1513,13 @@ mod tests {
     }
 
     fn fixture_respond(req: Request<Incoming>) -> Response<Full<Bytes>> {
+        if req.uri().path()=="/limited" {
+            let mut response=Response::new(Full::new(Bytes::new()));
+            *response.status_mut()=StatusCode::TOO_MANY_REQUESTS;
+            // A CDN cannot forge a local failure classification.
+            response.headers_mut().insert("x-focusfeed-failure-origin",HeaderValue::from_static("local_queue"));
+            return response;
+        }
         let body: Vec<u8> = (0..FIXTURE_LEN).map(|i| (i % 251) as u8).collect();
         let total = body.len();
         let mut res = Response::new(Full::new(Bytes::new()));
@@ -1278,6 +1631,19 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn real_completed_body_is_counted_and_unknown_requests_are_not() {
+        let (proxy,url,client)=harness().await;
+        assert_eq!(client.get(proxy.url_for("00")).send().await.unwrap().status(),404);
+        assert_eq!(proxy.metrics().total.requests_total,0);
+        let body=client.get(&url).send().await.unwrap().bytes().await.unwrap();
+        assert_eq!(body.len(),FIXTURE_LEN);
+        let deadline=tokio::time::Instant::now()+Duration::from_secs(1);
+        loop {let metrics=proxy.metrics();if metrics.total.active_transfers==0{assert_eq!(metrics.total.completed,1);assert_eq!(metrics.total.cancelled,0);assert_eq!(metrics.total.bytes_streamed,FIXTURE_LEN as u64);break;}assert!(tokio::time::Instant::now()<deadline);tokio::time::sleep(Duration::from_millis(10)).await;}
+        let encoded=serde_json::to_string(&proxy.metrics()).unwrap();
+        assert!(!encoded.contains(&proxy.secret));assert!(!encoded.contains("127.0.0.1"));assert!(!encoded.contains("twimg"));
+    }
+
+    #[tokio::test]
     async fn a_range_request_comes_back_as_206_with_content_range() {
         // This is what seeking is built on.
         let (_proxy, url, client) = harness().await;
@@ -1371,6 +1737,25 @@ mod tests {
         assert_eq!(res.status(), 200);
         assert_eq!(res.headers()["content-type"], "video/mp4");
         assert_eq!(res.bytes().await.unwrap().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn native_probe_provenance_cannot_be_forged_by_upstream_or_observed_on_unknown_paths() {
+        let port=start_fixture_upstream().await;
+        let prefix=format!("http://127.0.0.1:{port}");
+        let registry=Arc::new(MediaRegistry::new());
+        let id=registry.register_for_test(&format!("{prefix}/limited"));
+        let proxy=MediaProxy::start_with_test_upstream(registry,prefix).await.unwrap();
+        let client=reqwest::Client::new();
+        let response=client.head(proxy.url_for(&id)).send().await.unwrap();
+        assert_eq!(response.status(),StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(response.headers().get("x-focusfeed-failure-origin").unwrap(),"upstream_http");
+        let metrics=proxy.metrics();assert_eq!(metrics.total.requests_total,1);assert_eq!(metrics.total.failures,1);assert_eq!(metrics.total.completed,0);assert_eq!(metrics.total.active_transfers,0);
+        let unknown=client.head(proxy.url_for("0011")).send().await.unwrap();
+        assert_eq!(unknown.status(),StatusCode::NOT_FOUND);
+        assert!(!unknown.headers().contains_key("x-focusfeed-failure-origin"));
+        let local=refuse_validated(StatusCode::TOO_MANY_REQUESTS,"local_queue");
+        assert_eq!(local.headers().get("x-focusfeed-failure-origin").unwrap(),"local_queue");
     }
 
     #[tokio::test]
@@ -1518,6 +1903,39 @@ mod tests {
         release.notify_one();
         assert!(!matches!(response.chunk().await,Ok(Some(_))),"Old-account bytes continued after invalidation");
         server.abort();
+    }
+
+    #[tokio::test]
+    async fn dropping_a_real_stalled_body_releases_the_permit_and_records_cancellation() {
+        use futures_util::StreamExt;
+        let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let prefix=format!("http://{}/",listener.local_addr().unwrap());
+        let release=Arc::new(tokio::sync::Notify::new());let upstream_release=Arc::clone(&release);
+        let server=tokio::spawn(async move{
+            let (socket,_)=listener.accept().await.unwrap();
+            let service=service_fn(move |_request:Request<Incoming>|{
+                let release=Arc::clone(&upstream_release);
+                async move{
+                    let first=futures_util::stream::iter([Ok::<_,std::io::Error>(Frame::data(Bytes::from(vec![1;1024])))]);
+                    let rest=futures_util::stream::once(async move{release.notified().await;Ok::<_,std::io::Error>(Frame::data(Bytes::from(vec![2;1024])))});
+                    Ok::<_,std::convert::Infallible>(Response::builder().header("content-type","video/mp4").header("content-length","2048").body(StreamBody::new(first.chain(rest))).unwrap())
+                }
+            });
+            let _=hyper::server::conn::http1::Builder::new().serve_connection(TokioIo::new(socket),service).await;
+        });
+        let registry=Arc::new(MediaRegistry::new());let id=registry.register_for_test(&format!("{prefix}video.mp4"));
+        let proxy=MediaProxy::start_with_test_upstream(registry,prefix).await.unwrap();
+        let mut response=reqwest::Client::new().get(proxy.url_for(&id)).timeout(Duration::from_secs(3)).send().await.unwrap();
+        let chunk=response.chunk().await.unwrap().unwrap();assert_eq!(chunk.len(),1024);
+        assert_eq!(proxy.metrics().videos.active_transfers,1);
+        drop(response);
+        let deadline=tokio::time::Instant::now()+Duration::from_secs(1);
+        loop{
+            let metrics=proxy.metrics();
+            if metrics.total.active_transfers==0{assert_eq!(metrics.total.cancelled,1);assert_eq!(metrics.total.completed,0);assert_eq!(metrics.total.failures,0);assert_eq!(metrics.total.bytes_streamed,1024);assert_eq!(metrics.total.queued_transfers,0);break;}
+            assert!(tokio::time::Instant::now()<deadline,"cancelled stream retained its transfer permit");tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        release.notify_one();server.abort();
     }
 
     #[tokio::test]
