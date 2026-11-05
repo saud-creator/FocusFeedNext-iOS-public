@@ -28,6 +28,8 @@ acceptance gates in NATIVE_ACCEPTANCE.md.
 - Run the affected-phone interruption, fullscreen, Arabic/accessibility and
   performance matrix in NATIVE_ACCEPTANCE.md. Record failures explicitly. Require
   zero force-quit-required media recoveries before accepting the candidate.
+  Use the [blank device report](NATIVE_DEVICE_REPORT_TEMPLATE.md) to record the
+  upgrade, 60-minute session, 20 transitions and measured performance results.
 - Review package contents for UIKit scene wiring, bundle identity, narrow local
   transport policy, device architecture and exclusion of legacy reader fixtures.
 
